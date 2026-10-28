@@ -84,7 +84,9 @@ class AcademicsParsersTest {
     fun attendanceHistoryReadsStatuses() {
         val days = Parsers.attendanceDetail(res("attendance_detail.html"))
         assertEquals(4, days.size)
-        assertEquals("03-Sep-2026", days[1].date)
+        assertEquals("17-10-2026", days[1].date)
+        // Saturday 17 Oct ran Thursday's timetable: the Day / Time column says so.
+        assertEquals(listOf(4, 4, 4, 4), days.map { it.dayOrder })
         assertEquals(
             listOf(AttendanceDay.Status.Present, AttendanceDay.Status.Absent, AttendanceDay.Status.OnDuty, AttendanceDay.Status.Present),
             days.map { it.status },
@@ -127,6 +129,31 @@ class AcademicsParsersTest {
         val f = Parsers.faculty(res("faculty.html"), "12345")!!
         assertEquals(FacultyInfo("12345", "FACULTY A", "Assistant Professor Sr. Grade 1", "Department of Chemistry", "School of Advanced Sciences (SAS)", "faculty.a@example.edu", "SJT 411-A"), f)
         assertNull(Parsers.faculty("<table><tr><td>x</td><td>y</td></tr></table>", "1"))
+    }
+
+    @Test
+    fun calendarMonthReadsLabelsAndDayOrders() {
+        val days = Parsers.calendarMonth(res("calendar_oct.html"), "01-OCT-2026")
+        assertEquals(31, days.size)
+        val byDay = days.associateBy { it.date.dayOfMonth }
+        assertEquals(CalendarCell(java.time.LocalDate.of(2026, 10, 17), "Instructional Day", "Thursday Day Order"), byDay[17])
+        assertEquals("Holiday", byDay[19]!!.label)
+        assertEquals("Ayutha Pooja", byDay[19]!!.note)
+        assertEquals("CAT - II", byDay[3]!!.label)
+        assertEquals("", byDay[11]!!.label) // Sunday
+        assertEquals("", byDay[5]!!.note)
+    }
+
+    @Test
+    fun calendarMenus() {
+        val groups = Parsers.classGroups(
+            """<select id="classGroupId"><option value="COMB">All Class Group (Combined)</option><option value="ALL03">General Freshers</option></select>""",
+        )
+        assertEquals(listOf(ClassGroup("COMB", "All Class Group (Combined)"), ClassGroup("ALL03", "General Freshers")), groups)
+        assertEquals(
+            listOf("01-OCT-2026", "01-NOV-2026"),
+            Parsers.calendarMonths("""<a onclick="javascript:processViewCalendar('01-OCT-2026');">OCT</a><a onclick="javascript:processViewCalendar('01-NOV-2026');">NOV</a>"""),
+        )
     }
 
     @Test

@@ -140,15 +140,22 @@ private fun Main(state: UiState, repo: Repo) {
             }
             val pull = rememberPullToRefreshState()
             val inks = LocalInks.current
+            // Only a sync you pulled for shows the spinner; others say so in the top bar.
+            var pulled by remember { mutableStateOf(false) }
+            LaunchedEffect(state.busy) { if (state.busy == null) pulled = false }
+            val refreshing = pulled && state.busy != null
             PullToRefreshBox(
-                isRefreshing = state.busy != null,
-                onRefresh = repo::sync,
+                isRefreshing = refreshing,
+                onRefresh = {
+                    pulled = true
+                    repo.sync()
+                },
                 modifier = Modifier.weight(1f),
                 state = pull,
                 indicator = {
                     PullToRefreshDefaults.Indicator(
                         state = pull,
-                        isRefreshing = state.busy != null,
+                        isRefreshing = refreshing,
                         modifier = Modifier.align(Alignment.TopCenter),
                         containerColor = inks.paper,
                         color = inks.a,

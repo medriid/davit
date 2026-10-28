@@ -1,11 +1,12 @@
-<!-- Hand-written fixture in the shape the attendance detail scraper reads (docs/04):
-     #StudentAttendanceDetailDataTable, cells 1 date, 2 slot, 4 status. Generic data. -->
+<!-- Hand-written fixture in the shape of VTOP's attendance detail (docs/04):
+     #StudentAttendanceDetailDataTable, date dd-MM-yyyy, Day / Time gives the day order
+     (a Saturday running Thursday's timetable reads THU). Generic data. -->
 <html><body><table id="StudentAttendanceDetailDataTable">
-  <thead><tr><th>Sl.No.</th><th>Date</th><th>Slot</th><th>Day / Time</th><th>Attendance Status</th></tr></thead>
+  <thead><tr><th>Sl.No.</th><th>Date</th><th>Slot</th><th>Day / Time</th><th>Status</th></tr></thead>
   <tbody>
-    <tr><td>1</td><td>01-Sep-2026</td><td>A1</td><td>TUE 08:00 - 08:50</td><td>Present</td></tr>
-    <tr><td>2</td><td>03-Sep-2026</td><td>A1</td><td>THU 09:00 - 09:50</td><td>Absent</td></tr>
-    <tr><td>3</td><td>05-Sep-2026</td><td>TA1</td><td>SAT 10:00 - 10:50</td><td>On Duty</td></tr>
-    <tr><td>4</td><td>08-Sep-2026</td><td>A1</td><td>TUE 08:00 - 08:50</td><td>Present</td></tr>
+    <tr><td>1</td><td>22-10-2026</td><td>L19+L20</td><td>THU / 08:00-09:40</td><td>Present</td></tr>
+    <tr><td>2</td><td>17-10-2026</td><td>L19+L20</td><td>THU / 08:00-09:40</td><td>Absent</td></tr>
+    <tr><td>3</td><td>15-10-2026</td><td>L19+L20</td><td>THU / 08:00-09:40</td><td>On Duty</td></tr>
+    <tr><td>4</td><td>08-10-2026</td><td>L19+L20</td><td>THU / 08:00-09:40</td><td>Present</td></tr>
   </tbody>
 </table></body></html>

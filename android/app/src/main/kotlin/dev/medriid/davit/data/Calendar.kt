@@ -7,7 +7,7 @@ import java.time.LocalDate
 /** One day of the academic calendar. [type] as published: Instructional, Holiday, CAT-1, CAT-2, FAT… */
 data class CalDay(val date: LocalDate, val type: String, val dayOrder: Int, val note: String?) {
     val instructional: Boolean get() = type.equals("Instructional", ignoreCase = true)
-    val exam: Boolean get() = type.startsWith("CAT", ignoreCase = true) || type.equals("FAT", ignoreCase = true)
+    val exam: Boolean get() = type.startsWith("CAT", ignoreCase = true) || type.equals("FAT", ignoreCase = true) || type.equals("MTT", ignoreCase = true)
 }
 
 /**
@@ -20,6 +20,8 @@ data class AcademicCalendar(
     val lastTheory: LocalDate?,
     val lastLab: LocalDate?,
     val days: List<CalDay>,
+    /** The VTOP class group this calendar is for ("General Freshers"); empty for the published one. */
+    val group: String = "",
 ) {
     private val byDate: Map<LocalDate, CalDay> by lazy { days.associateBy { it.date } }
 
@@ -53,6 +55,7 @@ data class AcademicCalendar(
     fun toJson(): JSONObject = JSONObject()
         .put("sem", semesterId)
         .put("first", firstDay?.toString() ?: "").put("lastTheory", lastTheory?.toString() ?: "").put("lastLab", lastLab?.toString() ?: "")
+        .put("group", group)
         .put("days", JSONArray(days.map { JSONArray().put(it.date.toString()).put(it.type).put(it.dayOrder).put(it.note ?: "") }))
 
     companion object {
@@ -65,7 +68,45 @@ data class AcademicCalendar(
                 List(a.length()) { a.getJSONArray(it) }.map {
                     CalDay(LocalDate.parse(it.getString(0)), it.getString(1), it.getInt(2), it.getString(3).ifEmpty { null })
                 },
+                o.optString("group"),
             )
+        }
+
+        private val orderNames = listOf("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+
+        /**
+         * From VTOP's own grid for one class group. Labels: "Instructional Day" (note may say
+         * "Thursday Day Order", "First Instructional Day", "Last instructional day for lab and
+         * theory classes"), "Holiday"/"No Instructional Day" (note = name), "CAT - I", "CAT - II",
+         * "Mid Term Test"; a blank label means no classes.
+         */
+        fun fromVtop(semesterId: String, group: String, cells: List<dev.medriid.davit.vtop.CalendarCell>): AcademicCalendar {
+            val days = cells.sortedBy { it.date }.map { c ->
+                val label = c.label.lowercase()
+                val note = c.note
+                when {
+                    label.startsWith("instructional") -> {
+                        val order = Regex("""(\w+)\s+day\s+order""", RegexOption.IGNORE_CASE).find(note)
+                            ?.groupValues?.get(1)?.lowercase()?.let { orderNames.indexOf(it) + 1 }?.takeIf { it > 0 }
+                        CalDay(c.date, "Instructional", order ?: c.date.dayOfWeek.value, note.takeIf { it.isNotBlank() && !it.contains("day order", true) })
+                    }
+                    label.startsWith("holiday") || "no instruction" in label || "non instruction" in label ->
+                        CalDay(c.date, "Holiday", 0, note.ifBlank { null })
+                    label.startsWith("cat") -> CalDay(c.date, if (label.trimEnd().endsWith("ii") || "2" in label) "CAT-2" else "CAT-1", 0, null)
+                    "mid term" in label -> CalDay(c.date, "MTT", 0, null)
+                    label.isBlank() -> CalDay(c.date, "None", 0, null)
+                    else -> CalDay(c.date, c.label, 0, note.ifBlank { null })
+                }
+            }
+            val instructional = days.filter { it.instructional }
+            fun marked(vararg words: String) = instructional.lastOrNull { d -> d.note != null && words.all { it in d.note.lowercase() } }?.date
+            val lastAny = marked("last", "instruction")
+            val lastTheory = instructional.lastOrNull { d -> d.note?.lowercase()?.let { "last" in it && "theory" in it } == true }?.date
+                ?: lastAny ?: instructional.lastOrNull()?.date
+            val lastLab = instructional.lastOrNull { d -> d.note?.lowercase()?.let { "last" in it && "lab" in it } == true }?.date
+                ?: lastAny ?: instructional.lastOrNull()?.date
+            val first = marked("first", "instruction") ?: instructional.firstOrNull()?.date
+            return AcademicCalendar(semesterId, first, lastTheory, lastLab, days, group)
         }
 
         /** The published format: `{metadata: {...}, data: {"2026-07": [{date, type, dayOrder, note}, ...]}}`. */

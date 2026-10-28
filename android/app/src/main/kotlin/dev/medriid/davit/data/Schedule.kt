@@ -111,11 +111,42 @@ fun planFor(week: Map<Int, List<ClassSlot>>, at: LocalDateTime, calendar: Academ
 }
 
 /**
+ * Which weekday's timetable each past date actually followed, read off your attendance
+ * history: a class in slot A1 (which meets on Monday) on a Saturday means that Saturday
+ * ran Monday's order. Only dates whose slots agree on one weekday are kept.
+ */
+fun Snapshot.observedDayOrders(): Map<LocalDate, Int> =
+    history.values.flatten()
+        .mapNotNull { d ->
+            // VTOP's Day/Time column says the order outright; the slot is the fallback.
+            val days = d.dayOrder?.let { setOf(it) } ?: SlotTimes.meetings(d.slot).map { m -> m.day }.toSet()
+            vtopDate(d.date)?.let { it to days }
+        }
+        .filter { (_, days) -> days.isNotEmpty() }
+        .groupBy({ it.first }, { it.second })
+        .mapNotNull { (date, sets) ->
+            // Every class that day must fit one weekday; a lab pair and a theory slot can both point to it.
+            sets.reduce { a, b -> a intersect b }.singleOrNull()?.let { date to it }
+        }
+        .toMap()
+
+/** The calendar, corrected wherever your attendance shows a past day followed another order. */
+fun Snapshot.effectiveCalendar(): AcademicCalendar? {
+    val cal = calendar ?: return null
+    val seen = observedDayOrders()
+    if (seen.isEmpty()) return cal
+    return cal.copy(days = cal.days.map { d ->
+        val actual = seen[d.date] ?: return@map d
+        if (d.instructional && d.dayOrder == actual) d else d.copy(type = "Instructional", dayOrder = actual)
+    })
+}
+
+/**
  * Classes of [row]'s course still to come this semester, from [at] to the last theory
  * (or lab) day. Null without a calendar, since the end date is unknown.
  */
 fun Snapshot.remainingFor(row: AttendanceRow, at: LocalDateTime): Int? {
-    val cal = calendar ?: return null
+    val cal = effectiveCalendar() ?: return null
     val meetings = weekOf(this).values.flatten().filter { it.attendance?.key == row.key }.map { it.meeting }
     if (meetings.isEmpty()) return null
     val end = (if (isLabType(row.classType)) cal.lastLab else cal.lastTheory) ?: return null
@@ -141,7 +172,8 @@ fun AttendanceRow.hint(remaining: Int?): String {
     return when {
         k < 0 -> "75% can't be reached with $remaining classes left"
         atRisk -> "attend the next $mustAttend to reach 75% ($remaining left)"
-        else -> "can skip ${minOf(k, remaining)} of the $remaining left"
+        k >= remaining -> if (remaining == 1) "can skip the last one" else "can skip all $remaining left"
+        else -> "can skip $k of the $remaining left"
     }
 }
 

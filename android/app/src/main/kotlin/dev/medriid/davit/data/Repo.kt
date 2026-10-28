@@ -316,12 +316,14 @@ class Repo(private val context: Context) {
                     ?.let { full = full.copy(hostel = it, hostelAt = now) }
             }
 
-            // Public data: the academic calendar daily, faculty cards weekly. Neither sends anything about you.
-            if (full.calendar?.semesterId != semester.id || now - full.calendarAt > 24 * 3_600_000L) {
+            // The academic calendar from VTOP, for your class group (freshers' Saturdays differ),
+            // every few days; the published general calendar only if VTOP's fails.
+            if (full.calendar?.semesterId != semester.id || full.calendar?.group.isNullOrEmpty() || now - full.calendarAt > 3 * 24 * 3_600_000L) {
                 _state.update { it.copy(snapshot = full, busy = "Fetching calendar") }
-                runCatching { PublicData.calendar(semester) }
-                    .onFailure { Log.w(TAG, "calendar failed: ${it.javaClass.simpleName}") }
-                    .getOrNull()?.let { full = full.copy(calendar = it, calendarAt = now) }
+                val fromVtop = section("Fetching calendar", "calendar", creds, full) { vtopCalendar(semester.id, full) }
+                val cal = fromVtop ?: runCatching { PublicData.calendar(semester) }
+                    .onFailure { Log.w(TAG, "calendar failed: ${it.javaClass.simpleName}") }.getOrNull()
+                cal?.let { full = full.copy(calendar = it, calendarAt = now) }
             }
             if (full.timetable.isNotEmpty() && (full.facultyAt == 0L || now - full.facultyAt > 7 * 24 * 3_600_000L)) {
                 _state.update { it.copy(snapshot = full, busy = "Matching faculty") }
@@ -393,6 +395,32 @@ class Repo(private val context: Context) {
         _state.update { it.copy(busy = text) }
     }
 
+    /**
+     * VTOP's calendar for the student's class group. VTOP doesn't say which group you're in,
+     * but your attendance does: a Saturday class listed as "THU" only fits a group whose
+     * calendar has that Saturday on Thursday's order. Candidates are tried in order, fetching
+     * only the months with such evidence, and the first that fits every class wins; the choice
+     * is kept per semester. With no evidence yet, General is used and checked again later.
+     */
+    private fun vtopCalendar(semesterId: String, shown: Snapshot): AcademicCalendar? {
+        val groups = client.classGroups(semesterId)
+        if (groups.isEmpty()) return null
+        val names = groups.associate { it.id to it.name }
+        val saved = prefs.getString(K_CAL_GROUP + semesterId, null)?.takeIf { it in names }
+        val chosen = saved ?: run {
+            val evidence = shown.observedDayOrders().filter { (d, order) -> d.dayOfWeek.value != order }
+            val candidates = listOf("ALL", "ALL03", "ALL04", "ALL10", "ALL02", "ALL09", "ALL06").filter { it in names }
+            if (evidence.isEmpty()) return@run null
+            val months = evidence.keys.map { it.format(java.time.format.DateTimeFormatter.ofPattern("MMM-yyyy", java.util.Locale.ENGLISH)).uppercase() }.toSet()
+            candidates.firstOrNull { id ->
+                val cal = AcademicCalendar.fromVtop(semesterId, names.getValue(id), client.calendar(semesterId, id, months))
+                evidence.all { (d, order) -> cal.timetableDay(d) == order }
+            }?.also { prefs.edit().putString(K_CAL_GROUP + semesterId, it).apply() }
+        } ?: "ALL".takeIf { it in names } ?: groups.first().id
+        val cells = client.calendar(semesterId, chosen)
+        return if (cells.isEmpty()) null else AcademicCalendar.fromVtop(semesterId, names[chosen].orEmpty(), cells)
+    }
+
     /** The published current semester id, checked at most daily; null if unknown. */
     private fun currentSemesterId(): String? {
         val at = prefs.getLong(K_CUR_SEM_AT, 0)
@@ -414,7 +442,8 @@ class Repo(private val context: Context) {
 
     // ---- debug dumps ---------------------------------------------------------------
 
-    private fun dumpDir() = File(context.filesDir, "vtop-pages")
+    /** App-specific external storage, so a saved page can be pulled over USB (adb) to fix a parser. */
+    private fun dumpDir() = File(context.getExternalFilesDir(null) ?: context.filesDir, "vtop-pages")
 
     /**
      * Opt-in (Account → "Save VTOP pages"): keeps the last raw page of each kind so a
@@ -457,6 +486,7 @@ class Repo(private val context: Context) {
         private const val K_REMINDERS = "reminders"
         private const val K_THEME = "theme"
         private const val K_LOCK = "appLock"
+        private const val K_CAL_GROUP = "calendarGroup:"
         private const val K_CUR_SEM = "currentSemester"
         private const val K_CUR_SEM_AT = "currentSemesterAt"
     }

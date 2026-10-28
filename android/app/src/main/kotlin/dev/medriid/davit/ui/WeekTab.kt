@@ -218,6 +218,7 @@ private fun CalendarView(cal: AcademicCalendar?, today: LocalDate) {
             "teaching days left" + (cal.lastTheory?.let { " · last day ${it.format(DateTimeFormatter.ofPattern("d MMM", Locale.ENGLISH))}" } ?: ""),
             style = RisoType.body.copy(fontWeight = FontWeight.SemiBold),
         )
+        InkText(if (cal.group.isNotEmpty()) "VTOP calendar for ${cal.group}" else "General calendar", style = RisoType.small)
     }
     val exams = cal.examWindows()
     if (exams.isNotEmpty()) {
@@ -309,5 +310,5 @@ private fun CalendarView(cal: AcademicCalendar?, today: LocalDate) {
         }
     }
     Spacer(Modifier.height(10.dp))
-    InkText("Calendar data: github.com/IshanJ25/vtop-cal-data", style = RisoType.small.copy(color = inks.rule))
+    if (cal.group.isEmpty()) InkText("Calendar data: github.com/IshanJ25/vtop-cal-data", style = RisoType.small.copy(color = inks.rule))
 }

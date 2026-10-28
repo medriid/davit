@@ -248,6 +248,25 @@ class VtopClient(
         HostelRequests(activeSlips, pastSlips, activeLeave, pastLeave)
     }
 
+    /** The class groups VTOP keeps separate calendars for this semester. */
+    fun classGroups(semesterId: String): List<ClassGroup> = timed("class groups") {
+        authed("/academics/common/CalendarPreview", mapOf("verifyMenu" to "true"))
+        Parsers.classGroups(authed("/getDateForSemesterPreview", mapOf("paramReturnId" to "getDateForSemesterPreview", "semSubId" to semesterId)))
+    }
+
+    /**
+     * The academic calendar for [group], month by month. [only] limits it to some months
+     * (by "MMM-yyyy" suffix of the calDate, e.g. "OCT-2026"); null fetches them all.
+     */
+    fun calendar(semesterId: String, group: String, only: Set<String>? = null): List<CalendarCell> = timed("calendar") {
+        val months = Parsers.calendarMonths(
+            authed("/getListForSemester", mapOf("paramReturnId" to "getListForSemester", "semSubId" to semesterId, "classGroupId" to group)),
+        ).filter { only == null || it.uppercase().substringAfter('-') in only }
+        months.flatMap { m ->
+            Parsers.calendarMonth(authed("/processViewCalendar", mapOf("calDate" to m, "semSubId" to semesterId, "classGroupId" to group)), m)
+        }
+    }
+
     /** One faculty member's card; null if VTOP doesn't know the id. */
     fun faculty(empId: String): FacultyInfo? = timed("faculty") {
         Parsers.faculty(authed("/hrms/EmployeeSearch1ForStudent", mapOf("empId" to empId)), empId)

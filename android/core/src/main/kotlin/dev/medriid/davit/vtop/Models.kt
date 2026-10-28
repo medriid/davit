@@ -26,8 +26,12 @@ data class DetailKey(val semesterId: String = "", val regNo: String = "", val co
     val usable: Boolean get() = courseId.isNotEmpty()
 }
 
-/** One class in a course's attendance history. Date as VTOP prints it ("02-Sep-2026"). */
-data class AttendanceDay(val date: String, val slot: String, val status: Status) {
+/**
+ * One class in a course's attendance history. Date as VTOP prints it ("17-10-2026").
+ * [dayOrder] is the weekday whose timetable ran (1 = Monday), from the "THU / 08:00-09:40"
+ * column: on a Saturday running Thursday's order it says THU. Null if unreadable.
+ */
+data class AttendanceDay(val date: String, val slot: String, val status: Status, val dayOrder: Int? = null) {
     enum class Status { Present, Absent, OnDuty, Other }
 }
 
@@ -178,3 +182,9 @@ data class FacultyInfo(
     val email: String,
     val cabin: String,
 )
+
+/** A class group in VTOP's Academic Calendar ("ALL03" = "General Freshers"). */
+data class ClassGroup(val id: String, val name: String)
+
+/** One day of VTOP's academic calendar grid: "Instructional Day" + "Thursday Day Order", "Holiday" + "Deepavali"… */
+data class CalendarCell(val date: java.time.LocalDate, val label: String, val note: String)

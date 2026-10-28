@@ -72,6 +72,42 @@ class CalendarTest {
         val low = AttendanceRow("X", "Y", "Theory", 10, 30, null, "")
         assertEquals("75% can't be reached with 4 classes left", low.hint(4))
         assertEquals(low.hint(), low.hint(null))
+        val safe = AttendanceRow("X", "Y", "Theory", 10, 12, null, "")
+        assertEquals("can skip the last one", safe.hint(1))
+        assertEquals("can skip all 2 left", AttendanceRow("X", "Y", "Theory", 30, 32, null, "").hint(2))
+    }
+
+    @Test
+    fun vtopGridBecomesACalendar() {
+        fun cell(day: Int, label: String, note: String = "") = dev.medriid.davit.vtop.CalendarCell(LocalDate.of(2026, 10, day), label, note)
+        val cal = AcademicCalendar.fromVtop(
+            "VL1", "General Freshers",
+            listOf(
+                cell(3, "CAT - II", "Exam Day"),
+                cell(5, "Instructional Day", "First Instructional Day"),
+                cell(11, ""),
+                cell(17, "Instructional Day", "Thursday Day Order"),
+                cell(19, "Holiday", "Ayutha Pooja"),
+                cell(20, "No Instructional Day", "Gravitas '26"),
+                cell(27, "Instructional Day", "Last instructional day for lab and theory classes"),
+            ),
+        )
+        assertEquals(4, cal.timetableDay(LocalDate.of(2026, 10, 17)))
+        assertNull(cal.timetableDay(LocalDate.of(2026, 10, 11)))
+        assertNull(cal.timetableDay(LocalDate.of(2026, 10, 19)))
+        assertNull(cal.timetableDay(LocalDate.of(2026, 10, 20)))
+        assertEquals("CAT-2", cal.day(LocalDate.of(2026, 10, 3))!!.type)
+        assertEquals(LocalDate.of(2026, 10, 5), cal.firstDay)
+        assertEquals(LocalDate.of(2026, 10, 27), cal.lastTheory)
+        assertEquals(LocalDate.of(2026, 10, 27), cal.lastLab)
+        assertEquals("General Freshers", AcademicCalendar.fromJson(cal.toJson()).group)
+    }
+
+    @Test
+    fun bothVtopDateFormats() {
+        assertEquals(LocalDate.of(2026, 10, 17), vtopDate("17-10-2026"))
+        assertEquals(LocalDate.of(2026, 10, 17), vtopDate("17-Oct-2026"))
+        assertNull(vtopDate("-"))
     }
 
     @Test

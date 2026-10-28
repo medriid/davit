@@ -13,11 +13,16 @@ enum class AlertChannel(val id: String, val title: String) {
 /** One notification. [key] identifies the event, so it's only ever posted once. */
 data class Alert(val channel: AlertChannel, val key: String, val title: String, val text: String)
 
-private val vtopDay = DateTimeFormatter.ofPattern("dd-MMM-yyyy", Locale.ENGLISH)
+private val vtopDays = listOf(
+    DateTimeFormatter.ofPattern("dd-MMM-yyyy", Locale.ENGLISH),
+    DateTimeFormatter.ofPattern("dd-MM-yyyy", Locale.ENGLISH),
+)
 
-/** VTOP's "15-Oct-2026" (sometimes followed by a time); null for "-" or anything else. */
-fun vtopDate(text: String): LocalDate? =
-    runCatching { LocalDate.parse(text.trim().substringBefore(' '), vtopDay) }.getOrNull()
+/** VTOP's "15-Oct-2026" or "15-10-2026" (sometimes followed by a time); null for "-" or anything else. */
+fun vtopDate(text: String): LocalDate? {
+    val t = text.trim().substringBefore(' ')
+    return vtopDays.firstNotNullOfOrNull { f -> runCatching { LocalDate.parse(t, f) }.getOrNull() }
+}
 
 /**
  * What a background sync should tell you, from the snapshot before it and after it.

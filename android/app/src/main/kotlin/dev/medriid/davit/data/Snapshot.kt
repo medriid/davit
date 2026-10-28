@@ -65,7 +65,9 @@ data class Snapshot(
         }))
         put("history", JSONObject().apply {
             history.forEach { (k, days) ->
-                put(k, JSONArray(days.map { JSONObject().put("date", it.date).put("slot", it.slot).put("status", it.status.name) }))
+                put(k, JSONArray(days.map {
+                    JSONObject().put("date", it.date).put("slot", it.slot).put("status", it.status.name).put("order", it.dayOrder ?: 0)
+                }))
             }
         })
         put("timetable", JSONArray(timetable.map {
@@ -174,6 +176,7 @@ data class Snapshot(
                             AttendanceDay(
                                 it.getString("date"), it.getString("slot"),
                                 runCatching { AttendanceDay.Status.valueOf(it.getString("status")) }.getOrDefault(AttendanceDay.Status.Other),
+                                it.optInt("order").takeIf { o -> o in 1..7 },
                             )
                         }
                     }

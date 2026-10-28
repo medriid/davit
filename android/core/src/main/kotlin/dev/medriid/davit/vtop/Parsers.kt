@@ -170,7 +170,47 @@ object Parsers {
                 raw == "od" || "duty" in raw -> AttendanceDay.Status.OnDuty
                 else -> AttendanceDay.Status.Other
             }
-            AttendanceDay(clean(c[1].text()), clean(c[2].text()), status)
+            val dayOrder = DayNames.indexOf(clean(c[3].text()).take(3).uppercase()).takeIf { it >= 0 }?.plus(1)
+            AttendanceDay(clean(c[1].text()), clean(c[2].text()), status, dayOrder)
+        }
+    }
+
+    private val DayNames = listOf("MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN")
+
+    // ---- academic calendar ---------------------------------------------------------
+
+    /** `getDateForSemesterPreview`: the class-group dropdown. */
+    fun classGroups(html: String): List<ClassGroup> =
+        Jsoup.parse(html).select("select#classGroupId option").mapNotNull { o ->
+            val id = o.attr("value").trim()
+            if (id.isEmpty()) null else ClassGroup(id, clean(o.text()))
+        }
+
+    /** `getListForSemester`: the month buttons, as `calDate` values ("01-OCT-2026"). */
+    fun calendarMonths(html: String): List<String> =
+        Regex("""processViewCalendar\('([^']+)'\)""").findAll(Jsoup.parse(html).select("[onclick]").joinToString(" ") { it.attr("onclick") })
+            .map { it.groupValues[1] }.distinct().toList()
+
+    /**
+     * `processViewCalendar`: one month. The last `.calendar-table` is a Sunday-first grid;
+     * each day is `<span>day</span><span>label</span><span>(note)</span>`. [calDate] gives the
+     * month when the heading is missing.
+     */
+    fun calendarMonth(html: String, calDate: String): List<CalendarCell> {
+        val doc = Jsoup.parse(html)
+        val table = doc.select("table.calendar-table").lastOrNull() ?: return emptyList()
+        val month = runCatching {
+            java.time.YearMonth.parse(calDate.trim().uppercase().substringAfter('-'), java.time.format.DateTimeFormatterBuilder()
+                .parseCaseInsensitive().appendPattern("MMM-yyyy").toFormatter(java.util.Locale.ENGLISH))
+        }.getOrNull() ?: return emptyList()
+        return table.select("td").mapNotNull { td ->
+            val spans = td.select("span")
+            val day = spans.firstOrNull()?.let { clean(it.text()).toIntOrNull() } ?: return@mapNotNull null
+            if (day !in 1..month.lengthOfMonth()) return@mapNotNull null
+            val label = spans.drop(1).map { clean(it.text()) }.firstOrNull { it.isNotEmpty() }.orEmpty()
+            val note = spans.drop(2).map { clean(it.text()).removePrefix("(").removeSuffix(")").trim() }
+                .filter { it.isNotEmpty() }.joinToString(" | ")
+            CalendarCell(month.atDay(day), label, note)
         }
     }
 
