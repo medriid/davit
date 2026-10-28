@@ -111,6 +111,7 @@ object Parsers {
                 total = clean(cells[6].text()).toIntOrNull() ?: 0,
                 vtopPercent = Regex("""\d+""").find(pctText)?.value?.toIntOrNull(),
                 classId = normalizeClassId(m?.groupValues?.get(3).orEmpty()),
+                detail = m?.groupValues?.let { DetailKey(it[1].trim(), it[2].trim(), it[3].trim(), it[4].trim().uppercase()) } ?: DetailKey(),
             )
         }
     }
@@ -152,6 +153,24 @@ object Parsers {
                 venue = if (nil) "" else slotVenue.substringAfter(" - ", "").trim(),
                 faculty = clean(cells[8].text()).substringBefore(" - ").trim(),
             )
+        }
+    }
+
+    /** `POST /processViewAttendanceDetail`: `#StudentAttendanceDetailDataTable`, cells 1 date, 2 slot, 4 status. */
+    fun attendanceDetail(html: String): List<AttendanceDay> {
+        val table = Jsoup.parse(html).getElementById("StudentAttendanceDetailDataTable") ?: return emptyList()
+        return table.select("tbody tr").mapNotNull { tr ->
+            if (tr.selectFirst("td.dataTables_empty") != null) return@mapNotNull null
+            val c = tr.select("td")
+            if (c.size < 5) return@mapNotNull null
+            val raw = clean(c[4].text()).lowercase()
+            val status = when {
+                raw.startsWith("present") -> AttendanceDay.Status.Present
+                raw.startsWith("absent") -> AttendanceDay.Status.Absent
+                raw == "od" || "duty" in raw -> AttendanceDay.Status.OnDuty
+                else -> AttendanceDay.Status.Other
+            }
+            AttendanceDay(clean(c[1].text()), clean(c[2].text()), status)
         }
     }
 
@@ -280,6 +299,72 @@ object Parsers {
         }
     }
 
+    // ---- profile and hostel ---------------------------------------------------------
+
+    /**
+     * `POST /studentsRecord/StudentProfileAllView`: label/value `<td>` pairs (STUDENT NAME,
+     * GENDER), the photo as an inline image, and a "HOSTEL INFORMATION" accordion.
+     */
+    fun profile(html: String): Profile {
+        val doc = Jsoup.parse(html)
+        val tds = doc.select("td")
+        fun after(label: String): String {
+            val i = tds.indexOfFirst { clean(it.text()).equals(label, ignoreCase = true) }
+            return if (i >= 0 && i + 1 < tds.size) clean(tds[i + 1].text()) else ""
+        }
+        val name = after("STUDENT NAME").split(' ').filter { it.isNotEmpty() }
+            .joinToString(" ") { w -> w.lowercase().replaceFirstChar { it.uppercase() } }
+        val photo = (doc.selectFirst("img.img.border.border-primary[src^=data:image/]") ?: doc.selectFirst("img[src^=data:image/]"))
+            ?.attr("src")?.takeIf { it.length > 100 }
+        val hostelTable = doc.select(".accordion-button").firstOrNull { "HOSTEL INFORMATION" in clean(it.text()).uppercase() }
+            ?.closest(".accordion-item")?.selectFirst("table")
+        val hostel = hostelTable?.let { t ->
+            val cells = t.select("td")
+            fun value(label: String): String {
+                val i = cells.indexOfFirst { clean(it.text()).equals(label, ignoreCase = true) }
+                return if (i >= 0 && i + 1 < cells.size) clean(cells[i + 1].text()) else ""
+            }
+            HostelInfo(value("Block Name"), value("Room No."), value("Bed Type"), value("Mess Information"))
+                .takeIf { it.block.isNotEmpty() || value("Application Number").isNotEmpty() }
+        }
+        return Profile(name, after("GENDER"), photo, hostel)
+    }
+
+    /** Visible cell texts of a request row: cells holding only hidden inputs or buttons are skipped. */
+    private fun requestValues(tr: Element): List<String> =
+        tr.select("td").filter { it.selectFirst("input[type=hidden], input[type=button]") == null }.map { clean(it.text()) }
+
+    /** `#LateHourStatusTable`: the last 8 visible cells are venue, event, details, applied to, from, to, time, status. */
+    fun nightSlips(html: String): List<NightSlip> {
+        val table = Jsoup.parse(html).getElementById("LateHourStatusTable") ?: return emptyList()
+        return table.select("tbody tr").mapNotNull { tr ->
+            val v = requestValues(tr)
+            if (v.size < 8) return@mapNotNull null
+            val (venue, event, details, appliedTo, from) = v.takeLast(8)
+            val rest = v.takeLast(3)
+            NightSlip(
+                venue = venue,
+                purpose = if (event.isNotEmpty() && details.isNotEmpty()) "$event - $details" else details.ifEmpty { event },
+                appliedTo = appliedTo,
+                from = from,
+                to = rest[0],
+                time = rest[1],
+                status = rest[2],
+            )
+        }
+    }
+
+    /** `#LeaveAppliedTable` / `#LeaveHistoryTable`: the last 6 visible cells are place, reason, type, from, to, status. */
+    fun leaves(html: String, tableId: String): List<Leave> {
+        val table = Jsoup.parse(html).getElementById(tableId) ?: return emptyList()
+        return table.select("tbody tr").mapNotNull { tr ->
+            val v = requestValues(tr)
+            if (v.size < 6) return@mapNotNull null
+            val l = v.takeLast(6)
+            Leave(l[0], l[1], l[2], l[3], l[4], l[5])
+        }
+    }
+
     /** VIT's grade points. P, W, U and anything unknown don't count towards CGPA. */
     private val gradePoints = mapOf("S" to 10, "A" to 9, "B" to 8, "C" to 7, "D" to 6, "E" to 5, "F" to 0, "N" to 0)
 
@@ -327,7 +412,15 @@ object Parsers {
             val credits = graded.sumOf { it.credits }
             if (credits > 0) cgpa = graded.sumOf { it.credits * gradePoints.getValue(it.grade!!.uppercase()) } / credits
         }
-        return GradeHistory(cgpa, earned, entries)
+        val curriculum = doc.select("table.customTable").firstOrNull { "Curriculum Details" in it.text() }
+            ?.select("tr.tableContent, tr.fixedContent")?.mapNotNull { tr ->
+                val c = tr.select("td")
+                if (c.size < 3) return@mapNotNull null
+                val name = clean(c[0].text()).replace(Regex("""\(.*?\)"""), "").trim()
+                val required = number(c[1].text()) ?: return@mapNotNull null
+                CreditDomain(name, required, number(c[2].text()) ?: 0.0)
+            }.orEmpty()
+        return GradeHistory(cgpa, earned, entries, curriculum)
     }
 
     private fun number(s: String): Double? = clean(s).toDoubleOrNull()

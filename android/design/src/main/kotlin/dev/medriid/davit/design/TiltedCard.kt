@@ -39,7 +39,7 @@ fun TiltedCard(
                         dots,
                         radius = r,
                         center = Offset(size.width + bleed - r, size.height + bleed - r),
-                        blendMode = BlendMode.Multiply,
+                        blendMode = inks.blend,
                     )
                 }
                 drawContent()

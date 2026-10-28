@@ -127,7 +127,7 @@ private fun DrawScope.drawMascot(m: Mascot, inks: Inks) = with(Grid(size.minDime
     }
 
     drawRect(inks.paper)
-    drawCircle(inks.b.copy(alpha = 0.14f), 36 * u, p(50f, 44f), blendMode = BlendMode.Multiply)
+    drawCircle(inks.b.copy(alpha = 0.14f), 36 * u, p(50f, 44f), blendMode = inks.blend)
 
     // ---- behind the head: back hair, buns, pigtails, ponytail -------------------
     if (m.female) {
@@ -155,7 +155,7 @@ private fun DrawScope.drawMascot(m: Mascot, inks: Inks) = with(Grid(size.minDime
     for (x in listOf(20f, 80f)) {
         drawCircle(body, 7f * u, p(x, 47f))
         drawCircle(inks.text, 7f * u, p(x, 47f), style = line)
-        drawCircle(inks.a.copy(alpha = 0.35f), 3.2f * u, p(x, 47f), blendMode = BlendMode.Multiply)
+        drawCircle(inks.a.copy(alpha = 0.35f), 3.2f * u, p(x, 47f), blendMode = inks.blend)
     }
     val head = rect(20f, 20f, 80f, 74f)
     drawRoundRect(body, head.topLeft, head.size, CornerRadius(27f * u))
@@ -206,7 +206,7 @@ private fun DrawScope.drawMascot(m: Mascot, inks: Inks) = with(Grid(size.minDime
             drawLine(inks.text, p(64.4f, 43f), p(67.6f, 40.6f), thin.width, StrokeCap.Round)
         }
     }
-    for (x in listOf(30f, 70f)) drawOval(inks.a.copy(alpha = 0.5f), p(x - 4.5f, 54f), Size(9f * u, 5f * u), blendMode = BlendMode.Multiply)
+    for (x in listOf(30f, 70f)) drawOval(inks.a.copy(alpha = 0.5f), p(x - 4.5f, 54f), Size(9f * u, 5f * u), blendMode = inks.blend)
     val mouth = rect(45f, 52f, 55f, 61f)
     drawArc(inks.text, 20f, 140f, false, mouth.topLeft, mouth.size, style = line)
 

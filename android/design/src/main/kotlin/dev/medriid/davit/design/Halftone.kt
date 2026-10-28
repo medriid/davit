@@ -51,7 +51,8 @@ fun halftoneBrush(color: Color, cellPx: Int, dotRatio: Float): ShaderBrush {
 @Composable
 fun Modifier.halftone(color: Color = LocalInks.current.b, cell: Dp = 8.dp): Modifier {
     val brush = rememberHalftoneBrush(color, cell)
-    return drawBehind { drawRect(brush, blendMode = BlendMode.Multiply) }
+    val blend = LocalInks.current.blend
+    return drawBehind { drawRect(brush, blendMode = blend) }
 }
 
 /**
@@ -85,16 +86,16 @@ fun HalftoneBar(
                 // track
                 drawRect(inks.rule, style = Stroke(stroke))
                 if (atRisk) {
-                    drawRect(inks.a, size = Size(fillW, size.height), blendMode = BlendMode.Multiply)
+                    drawRect(inks.a, size = Size(fillW, size.height), blendMode = inks.blend)
                     val shift = 2.dp.toPx()
                     drawRect(
                         dots,
                         topLeft = Offset(shift, shift * 0.6f),
                         size = Size((fillW - shift).coerceAtLeast(0f), size.height - shift * 0.6f),
-                        blendMode = BlendMode.Multiply,
+                        blendMode = inks.blend,
                     )
                 } else {
-                    drawRect(dots, size = Size(fillW, size.height), blendMode = BlendMode.Multiply)
+                    drawRect(dots, size = Size(fillW, size.height), blendMode = inks.blend)
                 }
                 if (threshold != null) {
                     val x = size.width * threshold

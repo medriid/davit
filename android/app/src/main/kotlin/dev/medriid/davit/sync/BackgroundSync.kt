@@ -103,7 +103,7 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
             error != null || after == null -> Result.success()
             else -> {
                 if (repo.state.value.alerts) {
-                    val alerts = alertsFor(before, after, LocalDate.now())
+                    val alerts = alertsFor(before, after, LocalDate.now(), repo.state.value.reminders)
                     Log.i("daVIT", "background sync: ${alerts.size} alert(s)")
                     Notifier.post(applicationContext, alerts)
                 }

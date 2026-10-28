@@ -36,7 +36,7 @@ fun Seal(
         fun p(x: Float, y: Float) = Offset((x - Origin) * u, (y - Origin) * u)
 
         drawRoundRect(inks.a, cornerRadius = CornerRadius(corner.toPx()))
-        Dots.forEach { (x, y, r) -> drawCircle(inks.text, r * u, p(x, y), blendMode = BlendMode.Multiply) }
+        Dots.forEach { (x, y, r) -> drawCircle(inks.text, r * u, p(x, y), blendMode = inks.blend) }
         drawRect(inks.paper, p(31f, 31f), Size(46 * u, 46 * u), style = Stroke(3 * u))
         val d = Path().apply {
             p(42f, 40f).let { moveTo(it.x, it.y) }

@@ -49,6 +49,10 @@ import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.foundation.Image
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.runtime.rememberCoroutineScope
 import dev.medriid.davit.data.Updates
 import kotlinx.coroutines.Dispatchers
@@ -80,6 +84,8 @@ internal fun AccountSheet(
     mascot: Mascot,
     onMascot: (Mascot) -> Unit,
     onInk: (Int) -> Unit,
+    onTheme: (Int) -> Unit,
+    onAppLock: (Boolean) -> Unit,
     onSemester: (String) -> Unit,
     onSync: () -> Unit,
     onDumpPages: (Boolean) -> Unit,
@@ -119,9 +125,36 @@ internal fun AccountSheet(
                     .padding(horizontal = Gutter, vertical = 20.dp),
             ) {
                 Heading("Account", 24.sp)
-                Spacer(Modifier.height(4.dp))
-                InkText(state.regNo ?: "", style = RisoType.title)
-                state.snapshot?.let { InkText(it.semester.name, style = RisoType.small) }
+                Spacer(Modifier.height(8.dp))
+                val profile = state.snapshot?.profile
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    profile?.photo?.let { uri -> VtopPhoto(uri) }
+                    Column {
+                        InkText(profile?.name?.ifBlank { null } ?: state.regNo.orEmpty(), style = RisoType.title)
+                        if (profile?.name?.isNotBlank() == true) InkText(state.regNo.orEmpty(), style = RisoType.small)
+                        state.snapshot?.let { InkText(it.semester.name, style = RisoType.small) }
+                    }
+                }
+
+                profile?.hostel?.let { h ->
+                    SheetLabel("Hostel")
+                    InkText(listOf(h.block, h.room.ifBlank { null }?.let { "Room $it" }).filterNotNull().filter { it.isNotBlank() }.joinToString(" · "), style = RisoType.title)
+                    InkText(listOf(h.bed, h.mess).filter { it.isNotBlank() }.joinToString(" · "), style = RisoType.small)
+                    val req = state.snapshot?.hostel
+                    if (req != null) {
+                        Spacer(Modifier.height(10.dp))
+                        val active = req.activeSlips.map { "Night slip · ${it.from} · ${it.time}" to it.status } +
+                            req.activeLeave.map { "Leave · ${it.from} to ${it.to} · ${it.place}" to it.status }
+                        if (active.isEmpty()) InkText("No open night slips or leave requests.", style = RisoType.small)
+                        active.forEach { (what, status) -> RequestRow(what, status) }
+                        val past = req.pastSlips.map { "Night slip · ${it.from}" to it.status } + req.pastLeave.map { "Leave · ${it.from} · ${it.place}" to it.status }
+                        if (past.isNotEmpty()) {
+                            Spacer(Modifier.height(6.dp))
+                            InkText("Earlier", label = true)
+                            past.takeLast(3).forEach { (what, status) -> RequestRow(what, status) }
+                        }
+                    }
+                }
 
                 SheetLabel("Your mascot")
                 MascotEditor(mascot, onMascot)
@@ -153,6 +186,9 @@ internal fun AccountSheet(
                         }
                     }
                 }
+
+                SheetLabel("Paper")
+                ChoiceRow(listOf("System", "Paper", "Night print"), state.theme) { onTheme(it) }
 
                 SheetLabel("Ink pair")
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -203,6 +239,14 @@ internal fun AccountSheet(
                     ActionRow("Home screen widget", "Your class now or next, its attendance, and what's due.", "Add") {
                         widgets.requestPinAppWidget(ComponentName(context, DavitWidgetReceiver::class.java), null, null)
                     }
+                }
+                val activity = context as? androidx.activity.ComponentActivity
+                if (activity != null && dev.medriid.davit.MainActivity.canLock(activity)) {
+                    ToggleRow(
+                        "App lock",
+                        "Fingerprint, face or screen lock to open daVIT after a minute away. The widget and notifications still show.",
+                        state.appLock,
+                    ) { onAppLock(!state.appLock) }
                 }
                 val blocked = state.alerts && !Notifier.permitted(context)
                 ToggleRow(
@@ -328,6 +372,32 @@ private fun ActionRow(title: String, body: String, action: String, onClick: () -
     }
 }
 
+/** VTOP's profile photo, decoded once, in a small ink-framed square. */
+@Composable
+private fun VtopPhoto(dataUri: String) {
+    val inks = LocalInks.current
+    val bitmap = remember(dataUri) {
+        runCatching {
+            val bytes = android.util.Base64.decode(dataUri.substringAfter(','), android.util.Base64.DEFAULT)
+            android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
+        }.getOrNull()
+    } ?: return
+    Image(
+        bitmap, contentDescription = "Your VTOP photo",
+        contentScale = ContentScale.Crop,
+        modifier = Modifier.padding(end = 14.dp).size(60.dp).clip(CardShape).border(2.dp, inks.text, CardShape),
+    )
+}
+
+@Composable
+private fun RequestRow(what: String, status: String) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        InkText(what, style = RisoType.small, modifier = Modifier.weight(1f))
+        Spacer(Modifier.width(8.dp))
+        InkChip(status.ifBlank { "–" }, solid = status.contains("approv", ignoreCase = true))
+    }
+}
+
 @Composable
 private fun SheetLabel(text: String) {
     Spacer(Modifier.height(22.dp))
@@ -352,8 +422,8 @@ private fun InkSwatch(pair: Inks, selected: Boolean, onClick: () -> Unit) {
     ) {
         Canvas(Modifier.fillMaxSize()) {
             val r = size.minDimension * 0.34f
-            drawCircle(pair.a, r, Offset(r, r), blendMode = BlendMode.Multiply)
-            drawCircle(pair.b, r, Offset(size.width - r, size.height - r), blendMode = BlendMode.Multiply)
+            drawCircle(pair.a, r, Offset(r, r), blendMode = current.blend)
+            drawCircle(pair.b, r, Offset(size.width - r, size.height - r), blendMode = current.blend)
         }
     }
 }

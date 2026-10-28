@@ -23,9 +23,17 @@ fun vtopDate(text: String): LocalDate? =
  * What a background sync should tell you, from the snapshot before it and after it.
  * Nothing on a first sync ([old] null), so signing in doesn't fire a flood.
  */
-fun alertsFor(old: Snapshot?, new: Snapshot, today: LocalDate): List<Alert> {
+fun alertsFor(old: Snapshot?, new: Snapshot, today: LocalDate, reminders: List<Reminder> = emptyList()): List<Alert> {
     if (old == null) return emptyList()
     val out = mutableListOf<Alert>()
+
+    // Your own reminders: today and tomorrow, like assignments.
+    for (r in reminders) {
+        val days = r.date.toEpochDay() - today.toEpochDay()
+        if (days == 0L || days == 1L) {
+            out += Alert(AlertChannel.Deadlines, "rem:${r.id}|$days", (if (days == 0L) "Today: " else "Tomorrow: ") + r.title, "Your reminder")
+        }
+    }
 
     // Attendance: crossing below 75%, or landing exactly on it with no skips left.
     if (!new.attendanceExempt && old.semester.id == new.semester.id) {

@@ -1,12 +1,19 @@
 package dev.medriid.davit.data
 
 import dev.medriid.davit.vtop.Assignment
+import dev.medriid.davit.vtop.AttendanceDay
 import dev.medriid.davit.vtop.AttendanceRow
+import dev.medriid.davit.vtop.DetailKey
 import dev.medriid.davit.vtop.CourseAssignments
 import dev.medriid.davit.vtop.CourseMarks
 import dev.medriid.davit.vtop.Exam
 import dev.medriid.davit.vtop.GradeEntry
 import dev.medriid.davit.vtop.GradeHistory
+import dev.medriid.davit.vtop.HostelInfo
+import dev.medriid.davit.vtop.HostelRequests
+import dev.medriid.davit.vtop.Leave
+import dev.medriid.davit.vtop.NightSlip
+import dev.medriid.davit.vtop.Profile
 import dev.medriid.davit.vtop.MarkItem
 import dev.medriid.davit.vtop.Semester
 import dev.medriid.davit.vtop.TimetableCourse
@@ -27,6 +34,13 @@ data class Snapshot(
     /** Null until the first successful grade-history fetch. */
     val grades: GradeHistory? = null,
     val assignments: List<CourseAssignments> = emptyList(),
+    /** Day-by-day attendance per course, keyed by [AttendanceRow.key]. */
+    val history: Map<String, List<AttendanceDay>> = emptyMap(),
+    val profile: Profile? = null,
+    val profileAt: Long = 0,
+    /** Only for hostellers. */
+    val hostel: HostelRequests? = null,
+    val hostelAt: Long = 0,
 ) {
     /** CGPA ≥ 9 is exempt from the 75% attendance rule. Unknown CGPA (first semester) isn't. */
     val attendanceExempt: Boolean get() = (grades?.cgpa ?: 0.0) >= 9.0
@@ -39,7 +53,14 @@ data class Snapshot(
             JSONObject().put("code", it.courseCode).put("name", it.courseName).put("type", it.classType)
                 .put("attended", it.attended).put("total", it.total).put("pct", it.vtopPercent ?: -1)
                 .put("classId", it.classId)
+                .put("dSem", it.detail.semesterId).put("dReg", it.detail.regNo)
+                .put("dCourse", it.detail.courseId).put("dType", it.detail.courseType)
         }))
+        put("history", JSONObject().apply {
+            history.forEach { (k, days) ->
+                put(k, JSONArray(days.map { JSONObject().put("date", it.date).put("slot", it.slot).put("status", it.status.name) }))
+            }
+        })
         put("timetable", JSONArray(timetable.map {
             JSONObject().put("classId", it.classId).put("code", it.courseCode).put("name", it.courseName)
                 .put("type", it.courseType).put("credits", it.credits).put("slot", it.slot)
@@ -65,6 +86,24 @@ data class Snapshot(
                         .put("due", it.due).put("updated", it.updated ?: JSONObject.NULL)
                 }))
         }))
+        profile?.let { p ->
+            put("profile", JSONObject().put("name", p.name).put("gender", p.gender).put("photo", p.photo ?: JSONObject.NULL)
+                .put("hostel", p.hostel?.let { h -> JSONObject().put("block", h.block).put("room", h.room).put("bed", h.bed).put("mess", h.mess) } ?: JSONObject.NULL))
+            put("profileAt", profileAt)
+        }
+        hostel?.let { h ->
+            fun slips(l: List<NightSlip>) = JSONArray(l.map {
+                JSONObject().put("venue", it.venue).put("purpose", it.purpose).put("to", it.appliedTo).put("from", it.from)
+                    .put("until", it.to).put("time", it.time).put("status", it.status)
+            })
+            fun leaves(l: List<Leave>) = JSONArray(l.map {
+                JSONObject().put("place", it.place).put("reason", it.reason).put("type", it.type).put("from", it.from)
+                    .put("to", it.to).put("status", it.status)
+            })
+            put("hostel", JSONObject().put("activeSlips", slips(h.activeSlips)).put("pastSlips", slips(h.pastSlips))
+                .put("activeLeave", leaves(h.activeLeave)).put("pastLeave", leaves(h.pastLeave)))
+            put("hostelAt", hostelAt)
+        }
         grades?.let { g ->
             put("grades", JSONObject().putNum("cgpa", g.cgpa).putNum("earned", g.creditsEarned).put("entries", JSONArray(g.entries.map {
                 JSONObject().put("code", it.courseCode).put("title", it.courseTitle).put("credits", it.credits)
@@ -87,6 +126,7 @@ data class Snapshot(
                         it.getString("code"), it.getString("name"), it.getString("type"),
                         it.getInt("attended"), it.getInt("total"),
                         it.getInt("pct").takeIf { p -> p >= 0 }, it.getString("classId"),
+                        DetailKey(it.optString("dSem"), it.optString("dReg"), it.optString("dCourse"), it.optString("dType")),
                     )
                 },
                 timetable = o.getJSONArray("timetable").objects().map {
@@ -115,6 +155,34 @@ data class Snapshot(
                         it.getString("date"), it.getString("session"), it.getString("time"), it.getString("venue"), it.getString("seat"),
                     )
                 }.orEmpty(),
+                history = o.optJSONObject("history")?.let { h ->
+                    h.keys().asSequence().associateWith { k ->
+                        h.getJSONArray(k).objects().map {
+                            AttendanceDay(
+                                it.getString("date"), it.getString("slot"),
+                                runCatching { AttendanceDay.Status.valueOf(it.getString("status")) }.getOrDefault(AttendanceDay.Status.Other),
+                            )
+                        }
+                    }
+                }.orEmpty(),
+                profile = o.optJSONObject("profile")?.let { p ->
+                    Profile(
+                        p.getString("name"), p.getString("gender"), if (p.isNull("photo")) null else p.getString("photo"),
+                        p.optJSONObject("hostel")?.let { HostelInfo(it.getString("block"), it.getString("room"), it.getString("bed"), it.getString("mess")) },
+                    )
+                },
+                profileAt = o.optLong("profileAt"),
+                hostel = o.optJSONObject("hostel")?.let { h ->
+                    fun slips(k: String) = h.getJSONArray(k).objects().map {
+                        NightSlip(it.getString("venue"), it.getString("purpose"), it.getString("to"), it.getString("from"),
+                            it.getString("until"), it.getString("time"), it.getString("status"))
+                    }
+                    fun leaves(k: String) = h.getJSONArray(k).objects().map {
+                        Leave(it.getString("place"), it.getString("reason"), it.getString("type"), it.getString("from"), it.getString("to"), it.getString("status"))
+                    }
+                    HostelRequests(slips("activeSlips"), slips("pastSlips"), leaves("activeLeave"), leaves("pastLeave"))
+                },
+                hostelAt = o.optLong("hostelAt"),
                 assignments = o.optJSONArray("assignments")?.objects()?.map { c ->
                     CourseAssignments(
                         c.getString("classId"), c.getString("code"), c.getString("name"), c.getString("type"),

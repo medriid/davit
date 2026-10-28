@@ -15,6 +15,9 @@ data class ClassSlot(val course: TimetableCourse, val meeting: Meeting, val atte
 
 fun isLabType(type: String) = "lab" in type.lowercase()
 
+/** Identifies a course's attendance row across syncs: theory and lab of one course differ. */
+val AttendanceRow.key: String get() = "$courseCode|$classType"
+
 /*
  * The 75% rule (with CGPA under 9) is on the exact fraction: 30/40 is in, 74.5% is out
  * even though VTOP may print it as 75%. So the shown percentage rounds *down* (a "75%"

@@ -1,6 +1,16 @@
 package dev.medriid.davit.ui
 
+import dev.medriid.davit.design.LocalInks
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.ExperimentalMaterial3Api
 import android.Manifest
+import android.graphics.Color as AndroidColor
+import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
+import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.isSystemInDarkTheme
 import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -73,10 +83,25 @@ private val Tabs = listOf(
 
 /** Root: the sign-in poster until there are credentials, then the four tabs. */
 @Composable
-fun AppScreen(repo: Repo) {
+fun AppScreen(repo: Repo, locked: Boolean = false, onUnlock: () -> Unit = {}) {
     val state by repo.state.collectAsState()
-    RisoTheme(InkPairs.all[state.inkIndex.coerceIn(0, InkPairs.all.lastIndex)]) {
+    val dark = when (state.theme) {
+        1 -> false
+        2 -> true
+        else -> isSystemInDarkTheme()
+    }
+    // Bar icons follow the paper: dark icons on paper, light ones at night.
+    val activity = LocalContext.current as? ComponentActivity
+    LaunchedEffect(dark) {
+        val bars = if (dark) SystemBarStyle.dark(AndroidColor.TRANSPARENT) else SystemBarStyle.light(AndroidColor.TRANSPARENT, AndroidColor.TRANSPARENT)
+        activity?.enableEdgeToEdge(statusBarStyle = bars, navigationBarStyle = bars)
+    }
+    RisoTheme(InkPairs.of(state.inkIndex, dark)) {
         Grain(Modifier.fillMaxSize()) {
+            if (locked && state.signedIn) {
+                LockScreen(onUnlock)
+                return@Grain
+            }
             Crossfade(state.signedIn, label = "signedIn") { signedIn ->
                 if (signedIn) Main(state, repo) else SignInScreen(state, repo::signIn)
             }
@@ -84,6 +109,7 @@ fun AppScreen(repo: Repo) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun Main(state: UiState, repo: Repo) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
@@ -112,14 +138,34 @@ private fun Main(state: UiState, repo: Repo) {
             AnimatedVisibility(state.error != null) {
                 ErrorBanner(state.error.orEmpty(), onRetry = repo::sync, onDismiss = repo::dismissError)
             }
-            Box(Modifier.weight(1f)) {
+            val pull = rememberPullToRefreshState()
+            val inks = LocalInks.current
+            PullToRefreshBox(
+                isRefreshing = state.busy != null,
+                onRefresh = repo::sync,
+                modifier = Modifier.weight(1f),
+                state = pull,
+                indicator = {
+                    PullToRefreshDefaults.Indicator(
+                        state = pull,
+                        isRefreshing = state.busy != null,
+                        modifier = Modifier.align(Alignment.TopCenter),
+                        containerColor = inks.paper,
+                        color = inks.a,
+                    )
+                },
+            ) {
                 val snapshot = state.snapshot
                 if (snapshot == null) {
                     FirstSync(state.busy)
                 } else {
                     Crossfade(tab, label = "tab") { t ->
                         when (t) {
-                            0 -> TodayTab(snapshot, onOpenAttendance = { tab = 1 }, onOpenWeek = { tab = 3 }, onOpenAcademics = { tab = 2 })
+                            0 -> TodayTab(
+                                snapshot, state.reminders,
+                                onOpenAttendance = { tab = 1 }, onOpenWeek = { tab = 3 }, onOpenAcademics = { tab = 2 },
+                                onAddReminder = repo::addReminder, onRemoveReminder = repo::removeReminder,
+                            )
                             1 -> AttendanceTab(snapshot)
                             2 -> AcademicsTab(snapshot)
                             else -> WeekTab(snapshot)
@@ -135,6 +181,8 @@ private fun Main(state: UiState, repo: Repo) {
             mascot = mascot,
             onMascot = { repo.setMascot(it.encode()) },
             onInk = repo::setInk,
+            onTheme = repo::setTheme,
+            onAppLock = repo::setAppLock,
             onSemester = repo::chooseSemester,
             onSync = { repo.sync(); sheet = false },
             onDumpPages = repo::setDumpPages,
@@ -248,4 +296,20 @@ internal fun TabColumn(content: @Composable ColumnScope.() -> Unit) {
 @Composable
 internal fun SectionTitle(text: String, modifier: Modifier = Modifier) {
     Heading(text, 22.sp, modifier.padding(top = 26.dp, bottom = 12.dp))
+}
+
+/** Shown while the app lock is on and you haven't unlocked yet. */
+@Composable
+private fun LockScreen(onUnlock: () -> Unit) {
+    Column(
+        Modifier.fillMaxSize().padding(horizontal = Gutter),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
+    ) {
+        Seal(size = 72.dp)
+        Spacer(Modifier.height(22.dp))
+        Heading("Locked", 30.sp)
+        Spacer(Modifier.height(18.dp))
+        InkButton("Unlock", onUnlock, fillWidth = true, modifier = Modifier.fillMaxWidth())
+    }
 }

@@ -1,5 +1,18 @@
 package dev.medriid.davit.ui
 
+import dev.medriid.davit.data.atRisk
+import dev.medriid.davit.data.ClassSlot
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.draw.clip
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -44,9 +57,20 @@ internal fun WeekTab(snapshot: Snapshot) {
     val days = (1..7).filter { it <= 6 || week[it].orEmpty().isNotEmpty() }
     var day by rememberSaveable { mutableIntStateOf(if (today in days) today else days.first()) }
     val inks = LocalInks.current
+    var grid by rememberSaveable { mutableStateOf(false) }
 
     TabColumn {
-        Heading("Week", 28.sp, Modifier.padding(top = 8.dp, bottom = 14.dp))
+        Row(Modifier.padding(top = 8.dp, bottom = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Heading("Week", 28.sp, Modifier.weight(1f))
+            ChoiceRow(listOf("Day", "Grid"), if (grid) 1 else 0) { grid = it == 1 }
+        }
+        if (grid) {
+            WeekGrid(week, days, today, now.hour * 60 + now.minute, snapshot.attendanceExempt) {
+                day = it
+                grid = false
+            }
+            return@TabColumn
+        }
         ChoiceRow(days.map { DayOfWeek.of(it).getDisplayName(TextStyle.SHORT, Locale.ENGLISH) }, days.indexOf(day)) {
             day = days[it]
         }
@@ -92,4 +116,76 @@ internal fun WeekTab(snapshot: Snapshot) {
             }
         }
     }
+}
+
+/**
+ * Mon–Sat side by side, each class a block at its real time; at-risk courses print in
+ * ink A. A line marks now in today's column. Tapping a block opens that day.
+ */
+@Composable
+private fun WeekGrid(week: Map<Int, List<ClassSlot>>, days: List<Int>, today: Int, minute: Int, exempt: Boolean, onDay: (Int) -> Unit) {
+    val inks = LocalInks.current
+    val all = days.flatMap { week[it].orEmpty() }
+    if (all.isEmpty()) {
+        InkText("No classes.")
+        return
+    }
+    val startH = all.minOf { it.meeting.start } / 60
+    val endH = (all.maxOf { it.meeting.end } + 59) / 60
+    val hour = 54.dp
+    val head = 24.dp
+    Row(Modifier.fillMaxWidth()) {
+        Column(Modifier.width(30.dp)) {
+            Spacer(Modifier.height(head))
+            for (h in startH until endH) Box(Modifier.height(hour)) { InkText("%02d".format(h), style = RisoType.small) }
+        }
+        days.forEach { d ->
+            Column(Modifier.weight(1f)) {
+                Box(Modifier.fillMaxWidth().height(head), contentAlignment = Alignment.Center) {
+                    InkText(DayOfWeek.of(d).getDisplayName(TextStyle.SHORT, Locale.ENGLISH), label = true)
+                }
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(hour * (endH - startH))
+                        .background(if (d == today) inks.b.copy(alpha = 0.07f) else Color.Transparent),
+                ) {
+                    Canvas(Modifier.matchParentSize()) {
+                        val hp = hour.toPx()
+                        for (i in 0..(endH - startH)) drawLine(inks.rule, Offset(0f, i * hp), Offset(size.width, i * hp), 1.dp.toPx())
+                        if (d == today && minute in startH * 60..endH * 60) {
+                            val y = (minute - startH * 60) / 60f * hp
+                            drawLine(inks.a, Offset(0f, y), Offset(size.width, y), 2.5.dp.toPx())
+                        }
+                    }
+                    week[d].orEmpty().forEach { slot ->
+                        val m = slot.meeting
+                        val risk = slot.attendance?.atRisk == true && !exempt
+                        Box(
+                            Modifier
+                                .padding(top = hour * ((m.start - startH * 60) / 60f))
+                                .padding(horizontal = 2.dp)
+                                .fillMaxWidth()
+                                .height(hour * ((m.end - m.start) / 60f))
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(if (risk) inks.a else inks.b)
+                                .clickable(role = Role.Button) { onDay(d) }
+                                .padding(3.dp),
+                        ) {
+                            Column {
+                                BasicText(initials(slot.course.courseName), style = RisoType.small.copy(color = inks.paper, fontSize = 11.sp, fontWeight = FontWeight.SemiBold), maxLines = 1)
+                                BasicText(slot.course.venue, style = RisoType.small.copy(color = inks.paper, fontSize = 9.sp), maxLines = 1)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** "Problem Solving using Python" → "PSP"; short names stay as they are. */
+private fun initials(name: String): String {
+    val words = name.split(' ', '-').filter { it.isNotBlank() && it.lowercase() !in setOf("using", "and", "of", "the", "for", "in", "to", "with") }
+    return if (words.size <= 1) name.take(6) else words.take(4).joinToString("") { it.first().uppercase() }
 }

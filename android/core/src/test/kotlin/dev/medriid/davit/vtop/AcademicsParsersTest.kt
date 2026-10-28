@@ -51,6 +51,7 @@ class AcademicsParsersTest {
         // The hidden detail row is skipped; the ungraded course is kept with no grade.
         assertEquals(listOf("BMAT101L", "BPHY101L", "BENG101L", "BCSE101L"), g.entries.map { it.courseCode })
         assertNull(g.entries[3].grade)
+        assertEquals(listOf(CreditDomain("Foundation Core", 51.0, 7.0), CreditDomain("University Core", 12.0, 2.0)), g.curriculum)
     }
 
     @Test
@@ -77,6 +78,48 @@ class AcademicsParsersTest {
         assertEquals(10.0, items[1].weightage!!, 0.0)
         assertEquals("-", items[2].due)
         assertNull(items[2].max)
+    }
+
+    @Test
+    fun attendanceHistoryReadsStatuses() {
+        val days = Parsers.attendanceDetail(res("attendance_detail.html"))
+        assertEquals(4, days.size)
+        assertEquals("03-Sep-2026", days[1].date)
+        assertEquals(
+            listOf(AttendanceDay.Status.Present, AttendanceDay.Status.Absent, AttendanceDay.Status.OnDuty, AttendanceDay.Status.Present),
+            days.map { it.status },
+        )
+    }
+
+    @Test
+    fun attendanceRowsCarryTheirDetailLink() {
+        val row = Parsers.attendance(res("attendance.html")).first()
+        assertEquals(DetailKey("VL20262701", "REGNO", "VL2026270100101", "ETH"), row.detail)
+    }
+
+    @Test
+    fun profileReadsNamePhotoAndHostel() {
+        val p = Parsers.profile(res("profile.html"))
+        assertEquals("Asha Raman", p.name)
+        assertEquals("FEMALE", p.gender)
+        assertTrue(p.photo!!.startsWith("data:image/jpeg"))
+        assertEquals(HostelInfo("G Block", "412", "4 Bed AC", "Special Mess"), p.hostel)
+    }
+
+    @Test
+    fun dayScholarsHaveNoHostel() {
+        assertNull(Parsers.profile("<table><tr><td>STUDENT NAME</td><td>X</td></tr></table>").hostel)
+    }
+
+    @Test
+    fun hostelRequestsSkipHiddenCells() {
+        val html = res("hostel_requests.html")
+        val slip = Parsers.nightSlips(html).single()
+        assertEquals("Anna Auditorium", slip.venue)
+        assertEquals("Club - Rehearsal", slip.purpose)
+        assertEquals("09:30 PM to 11:00 PM", slip.time)
+        assertEquals("Approved", slip.status)
+        assertEquals(Leave("Chennai", "Family function", "Weekend", "07-Nov-2026", "09-Nov-2026", "Pending"), Parsers.leaves(html, "LeaveAppliedTable").single())
     }
 
     @Test

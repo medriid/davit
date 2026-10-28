@@ -15,6 +15,7 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun Rule(modifier: Modifier = Modifier) {
     val ink = LocalInks.current.b
+    val blend = LocalInks.current.blend
     Spacer(
         modifier
             .fillMaxWidth()
@@ -22,12 +23,12 @@ fun Rule(modifier: Modifier = Modifier) {
             .drawBehind {
                 val thick = 2.dp.toPx()
                 val thin = 1.dp.toPx()
-                drawRect(ink, size = Size(size.width, thick), blendMode = BlendMode.Multiply)
+                drawRect(ink, size = Size(size.width, thick), blendMode = blend)
                 drawRect(
                     ink,
                     topLeft = Offset(0f, size.height - thin),
                     size = Size(size.width, thin),
-                    blendMode = BlendMode.Multiply,
+                    blendMode = blend,
                 )
             },
     )

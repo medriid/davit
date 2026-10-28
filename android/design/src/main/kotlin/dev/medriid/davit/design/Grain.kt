@@ -33,7 +33,7 @@ fun Grain(
             .background(inks.paper)
             .drawWithContent {
                 drawContent()
-                drawRect(grain, alpha = alpha, blendMode = BlendMode.Multiply)
+                drawRect(grain, alpha = alpha, blendMode = inks.blend)
             },
         content = content,
     )

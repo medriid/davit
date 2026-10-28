@@ -26,7 +26,17 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.graphics.drawscope.Stroke
 import dev.medriid.davit.data.Snapshot
+import dev.medriid.davit.data.key
+import dev.medriid.davit.data.vtopDate
+import dev.medriid.davit.vtop.AttendanceDay
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import dev.medriid.davit.data.THRESHOLD
 import dev.medriid.davit.data.afterMissing
 import dev.medriid.davit.data.atRisk
@@ -64,14 +74,16 @@ internal fun AttendanceTab(snapshot: Snapshot) {
         }
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
             rows.sortedBy { it.percent }.forEach { row ->
-                key(row.courseCode + row.classType) { CourseCard(row) }
+                val faculty = snapshot.timetable.firstOrNull { it.classId.isNotEmpty() && it.classId == row.classId }?.faculty
+                    ?: snapshot.timetable.firstOrNull { it.courseCode == row.courseCode && isLabType(it.courseType) == isLabType(row.classType) }?.faculty
+                key(row.key) { CourseCard(row, snapshot.history[row.key].orEmpty(), faculty.orEmpty()) }
             }
         }
     }
 }
 
 @Composable
-private fun CourseCard(row: AttendanceRow) {
+private fun CourseCard(row: AttendanceRow, history: List<AttendanceDay>, faculty: String) {
     val inks = LocalInks.current
     val risk = row.atRisk
     val ink by animateColorAsState(if (risk) inks.a else inks.b, label = "ink")
@@ -126,7 +138,48 @@ private fun CourseCard(row: AttendanceRow) {
                         )
                     }
                 }
+                if (history.isNotEmpty()) {
+                    Spacer(Modifier.height(14.dp))
+                    InkText("History · last ${minOf(40, history.size)} classes", label = true)
+                    Spacer(Modifier.height(8.dp))
+                    HistoryDots(history.takeLast(40))
+                    val missed = history.filter { it.status == AttendanceDay.Status.Absent }
+                    Spacer(Modifier.height(8.dp))
+                    InkText(
+                        if (missed.isEmpty()) "No absences."
+                        else "Missed: " + missed.takeLast(12).joinToString(", ") { shortDate(it.date) } + if (missed.size > 12) " and earlier" else "",
+                        style = RisoType.small,
+                    )
+                }
+                if (faculty.isNotBlank()) {
+                    Spacer(Modifier.height(10.dp))
+                    InkText("Faculty: $faculty", style = RisoType.small)
+                }
             }
         }
     }
 }
+
+/** Present: filled ink B. Absent: filled ink A. On duty: an ink-B ring. Anything else: a faint dot. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun HistoryDots(days: List<AttendanceDay>) {
+    val inks = LocalInks.current
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        days.forEach { d ->
+            Canvas(Modifier.size(12.dp)) {
+                val r = size.minDimension / 2
+                when (d.status) {
+                    AttendanceDay.Status.Present -> drawCircle(inks.b, r)
+                    AttendanceDay.Status.Absent -> drawCircle(inks.a, r)
+                    AttendanceDay.Status.OnDuty -> drawCircle(inks.b, r - 1.dp.toPx(), style = Stroke(2.dp.toPx()))
+                    AttendanceDay.Status.Other -> drawCircle(inks.rule, r * 0.5f)
+                }
+            }
+        }
+    }
+}
+
+/** "03-Sep-2026" → "3 Sep"; anything else unchanged. */
+private fun shortDate(text: String): String =
+    vtopDate(text)?.format(DateTimeFormatter.ofPattern("d MMM", Locale.ENGLISH)) ?: text

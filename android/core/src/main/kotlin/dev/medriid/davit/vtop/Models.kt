@@ -17,7 +17,19 @@ data class AttendanceRow(
     val vtopPercent: Int?,
     /** VL... class id, from the detail link. Empty if VTOP didn't give one. */
     val classId: String,
+    /** The detail link's arguments, for fetching day-by-day history. Empty if there was no link. */
+    val detail: DetailKey = DetailKey(),
 )
+
+/** Arguments of VTOP's `callStudentAttendanceDetailDisplay(sem, regNo, courseId, courseType)`. */
+data class DetailKey(val semesterId: String = "", val regNo: String = "", val courseId: String = "", val courseType: String = "") {
+    val usable: Boolean get() = courseId.isNotEmpty()
+}
+
+/** One class in a course's attendance history. Date as VTOP prints it ("02-Sep-2026"). */
+data class AttendanceDay(val date: String, val slot: String, val status: Status) {
+    enum class Status { Present, Absent, OnDuty, Other }
+}
 
 data class TimetableCourse(
     val classId: String,
@@ -106,7 +118,11 @@ data class GradeHistory(
     val cgpa: Double?,
     val creditsEarned: Double?,
     val entries: List<GradeEntry>,
+    /** Credit progress per curriculum category ("Foundation Core", "Discipline Elective"…). */
+    val curriculum: List<CreditDomain> = emptyList(),
 )
+
+data class CreditDomain(val name: String, val required: Double, val earned: Double)
 
 /** One digital assignment. Dates are VTOP's text ("15-Oct-2026"). */
 data class Assignment(
@@ -124,4 +140,30 @@ data class CourseAssignments(
     val courseName: String,
     val courseType: String,
     val items: List<Assignment>,
+)
+
+data class HostelInfo(val block: String, val room: String, val bed: String, val mess: String)
+
+/** From the profile page. [photo] is VTOP's inline data URI, or null. */
+data class Profile(val name: String, val gender: String, val photo: String?, val hostel: HostelInfo?)
+
+/** A late-hour (night slip) request. */
+data class NightSlip(
+    val venue: String,
+    val purpose: String,
+    val appliedTo: String,
+    val from: String,
+    val to: String,
+    val time: String,
+    val status: String,
+)
+
+/** A hostel leave request. */
+data class Leave(val place: String, val reason: String, val type: String, val from: String, val to: String, val status: String)
+
+data class HostelRequests(
+    val activeSlips: List<NightSlip> = emptyList(),
+    val pastSlips: List<NightSlip> = emptyList(),
+    val activeLeave: List<Leave> = emptyList(),
+    val pastLeave: List<Leave> = emptyList(),
 )

@@ -1,6 +1,8 @@
 package dev.medriid.davit.widget
 
 import android.content.Context
+import android.content.res.Configuration
+import androidx.glance.LocalContext
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.TextUnit
@@ -70,7 +72,9 @@ class DavitWidgetReceiver : GlanceAppWidgetReceiver() {
 
 @Composable
 private fun Content(s: UiState, now: LocalDateTime) {
-    val inks = InkPairs.all[s.inkIndex.coerceIn(0, InkPairs.all.lastIndex)]
+    val context = LocalContext.current
+    val systemNight = (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+    val inks = InkPairs.of(s.inkIndex, s.theme == 2 || (s.theme == 0 && systemNight))
     Column(
         GlanceModifier
             .fillMaxSize()

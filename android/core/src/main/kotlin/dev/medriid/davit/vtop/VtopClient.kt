@@ -187,6 +187,22 @@ class VtopClient(
         rows
     }
 
+    /** Day-by-day history for one course, using the arguments from its summary row's link. */
+    fun attendanceDetail(row: AttendanceRow, semesterId: String): List<AttendanceDay> = timed("history") {
+        val k = row.detail
+        Parsers.attendanceDetail(
+            authed(
+                "/processViewAttendanceDetail",
+                mapOf(
+                    "semesterSubId" to k.semesterId.ifEmpty { semesterId },
+                    "registerNumber" to k.regNo,
+                    "courseId" to k.courseId,
+                    "courseType" to k.courseType,
+                ),
+            ),
+        )
+    }
+
     fun timetable(semesterId: String): List<TimetableCourse> = timed("timetable") {
         Parsers.timetable(authed("/processViewTimeTable", mapOf("semesterSubId" to semesterId)))
     }
@@ -215,6 +231,21 @@ class VtopClient(
             }
             CourseAssignments(c.classId, c.courseCode, c.courseName, c.courseType, items)
         }
+    }
+
+    fun profile(): Profile = timed("profile") {
+        Parsers.profile(authed("/studentsRecord/StudentProfileAllView", mapOf("verifyMenu" to "true")))
+    }
+
+    /** Night slips and leave, active and past. Each page needs its menu warmed up first. */
+    fun hostelRequests(): HostelRequests = timed("hostel") {
+        authed("/hostels/late/hour/student/request/1", mapOf("verifyMenu" to "true"))
+        val activeSlips = Parsers.nightSlips(authed("/hostels/late/hour/student/request/9", mapOf("form" to "", "control" to "status")))
+        val pastSlips = Parsers.nightSlips(authed("/hostels/late/hour/student/request/11", mapOf("form" to "", "control" to "history")))
+        authed("/hostels/student/leave/1", mapOf("verifyMenu" to "true"))
+        val activeLeave = Parsers.leaves(authed("/hostels/student/leave/4", mapOf("form" to "", "control" to "status")), "LeaveAppliedTable")
+        val pastLeave = Parsers.leaves(authed("/hostels/student/leave/6", mapOf("form" to "", "control" to "history")), "LeaveHistoryTable")
+        HostelRequests(activeSlips, pastSlips, activeLeave, pastLeave)
     }
 
     /** Across all semesters, so no semester id. */

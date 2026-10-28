@@ -21,8 +21,8 @@ android {
         applicationId = "dev.medriid.davit"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "0.2.0"
+        versionCode = 4
+        versionName = "0.3.0"
     }
 
     signingConfigs {
@@ -74,6 +74,7 @@ dependencies {
     val bom = platform(libs.compose.bom)
     implementation(bom)
     implementation(libs.compose.ui.tooling.preview)
+    implementation(libs.compose.material3)
     debugImplementation(libs.compose.ui.tooling)
     testImplementation(libs.junit)
 }

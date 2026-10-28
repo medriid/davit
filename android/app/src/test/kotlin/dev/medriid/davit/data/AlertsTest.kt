@@ -82,3 +82,18 @@ class AlertsTest {
         assertEquals("09:30 AM - 11:00 AM · SJT-401 · Seat 14 (R2)", alerts.single().text)
     }
 }
+
+class ReminderAlertsTest {
+    @Test
+    fun remindersAlertTodayAndTomorrow() {
+        val sem = dev.medriid.davit.vtop.Semester("VL1", "Fall")
+        val s = Snapshot(sem, listOf(sem), emptyList(), emptyList(), 0, emptyList())
+        val today = LocalDate.of(2026, 10, 28)
+        val reminders = listOf(
+            Reminder(1, "Fee payment", today),
+            Reminder(2, "Lab record", today.plusDays(1)),
+            Reminder(3, "Later", today.plusDays(5)),
+        )
+        assertEquals(listOf("Today: Fee payment", "Tomorrow: Lab record"), alertsFor(s, s, today, reminders).map { it.title })
+    }
+}

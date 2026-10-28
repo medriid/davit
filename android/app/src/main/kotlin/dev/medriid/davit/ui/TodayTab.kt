@@ -1,5 +1,14 @@
 package dev.medriid.davit.ui
 
+import java.time.LocalDate
+import dev.medriid.davit.design.InkField
+import dev.medriid.davit.design.InkButton
+import dev.medriid.davit.data.Reminder
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.animation.AnimatedVisibility
+import android.app.DatePickerDialog
 import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -62,10 +71,14 @@ import java.util.Locale
 @Composable
 internal fun TodayTab(
     snapshot: Snapshot,
+    reminders: List<Reminder>,
     onOpenAttendance: () -> Unit,
     onOpenWeek: () -> Unit,
     onOpenAcademics: () -> Unit,
+    onAddReminder: (String, LocalDate) -> Unit,
+    onRemoveReminder: (Long) -> Unit,
 ) {
+    var adding by rememberSaveable { mutableStateOf(false) }
     var now by remember { mutableStateOf(LocalDateTime.now()) }
     LaunchedEffect(Unit) {
         while (true) {
@@ -139,34 +152,45 @@ internal fun TodayTab(
             Spacer(Modifier.height(8.dp))
         }
 
-        // Due: what you still have to hand in in the next two weeks, soonest first.
-        val due = snapshot.assignments
+        // Due: assignments still to hand in over the next two weeks, and your own reminders.
+        val assignmentsDue = snapshot.assignments
             .flatMap { c -> c.items.map { c to it } }
             .filter { (_, a) -> a.updated == null }
             .mapNotNull { (c, a) -> a.dueDay()?.let { Triple(c, a, it) } }
             .filter { (_, _, d) -> !d.isBefore(today) && d.toEpochDay() - today.toEpochDay() <= 14 }
-            .sortedBy { it.third }
-        if (due.isNotEmpty()) {
-            SectionTitle("Due")
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                due.take(5).forEach { (c, a, d) ->
+        val due: List<Pair<LocalDate, @Composable () -> Unit>> =
+            assignmentsDue.map { (c, a, d) ->
+                d to @Composable {
                     InkCard(Modifier.fillMaxWidth(), onClick = onOpenAcademics, plateOffset = 4.dp) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
                                 InkText(a.title, style = RisoType.title.copy(fontSize = 17.sp), maxLines = 2)
-                                InkText(
-                                    "${c.courseName} · ${d.format(DateTimeFormatter.ofPattern("EEE d MMM", Locale.ENGLISH))}",
-                                    style = RisoType.small,
-                                    maxLines = 2,
-                                )
+                                InkText("${c.courseName} · ${d.format(dueFormat)}", style = RisoType.small, maxLines = 2)
                             }
                             Spacer(Modifier.width(10.dp))
                             AssignmentChip(a, today)
                         }
                     }
                 }
-                if (due.size > 5) InkText("+ ${due.size - 5} more in Academics", style = RisoType.small)
+            } + reminders.filter { it.date.toEpochDay() - today.toEpochDay() <= 30 }.map { r ->
+                r.date to @Composable { ReminderCard(r, today) { onRemoveReminder(r.id) } }
             }
+        Row(Modifier.padding(top = 26.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Heading("Due", 22.sp, Modifier.weight(1f))
+            Box(Modifier.clickable(role = Role.Button) { adding = !adding }.padding(4.dp)) {
+                InkChip(if (adding) "Cancel" else "+ Add", solid = !adding)
+            }
+        }
+        AnimatedVisibility(adding) {
+            AddReminder { title, date ->
+                onAddReminder(title, date)
+                adding = false
+            }
+        }
+        if (due.isEmpty() && !adding) InkText("Nothing due in the next two weeks.", style = RisoType.small)
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            due.sortedBy { it.first }.take(6).forEach { it.second() }
+            if (due.size > 6) InkText("+ ${due.size - 6} more", style = RisoType.small)
         }
 
         if (snapshot.changes.isNotEmpty()) {
@@ -268,5 +292,50 @@ private fun NextCard(slot: ClassSlot, plan: TodayPlan, now: LocalDateTime, onCli
                 slot.attendance?.let { InkText("${it.percent}% · ${it.hint()}", style = RisoType.small) }
             }
         }
+    }
+}
+
+private val dueFormat = DateTimeFormatter.ofPattern("EEE d MMM", Locale.ENGLISH)
+
+@Composable
+private fun ReminderCard(r: Reminder, today: LocalDate, onDone: () -> Unit) {
+    val days = r.date.toEpochDay() - today.toEpochDay()
+    InkCard(Modifier.fillMaxWidth(), plate = LocalInks.current.b, plateOffset = 4.dp) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                InkText(r.title, style = RisoType.title.copy(fontSize = 17.sp), maxLines = 2)
+                InkText(
+                    "Your reminder · ${r.date.format(dueFormat)} · " + when {
+                        days < 0 -> "overdue"
+                        days == 0L -> "today"
+                        days == 1L -> "tomorrow"
+                        else -> "in $days days"
+                    },
+                    style = RisoType.small,
+                )
+            }
+            Spacer(Modifier.width(10.dp))
+            Box(Modifier.clickable(role = Role.Button, onClick = onDone).padding(4.dp)) { InkChip("Done") }
+        }
+    }
+}
+
+/** Title and a date from the system picker; Save adds it. */
+@Composable
+private fun AddReminder(onSave: (String, LocalDate) -> Unit) {
+    val context = LocalContext.current
+    var title by rememberSaveable { mutableStateOf("") }
+    var date by remember { mutableStateOf(LocalDate.now().plusDays(1)) }
+    Column(Modifier.padding(bottom = 14.dp)) {
+        InkField(title, { title = it.take(80) }, "Reminder", modifier = Modifier.fillMaxWidth())
+        Spacer(Modifier.height(10.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            InkText(date.format(dueFormat), style = RisoType.title, modifier = Modifier.weight(1f))
+            InkButton("Change date", {
+                DatePickerDialog(context, { _, y, m, d -> date = LocalDate.of(y, m + 1, d) }, date.year, date.monthValue - 1, date.dayOfMonth).show()
+            }, quiet = true)
+        }
+        Spacer(Modifier.height(10.dp))
+        InkButton("Save", { onSave(title, date) }, enabled = title.isNotBlank(), fillWidth = true, modifier = Modifier.fillMaxWidth())
     }
 }

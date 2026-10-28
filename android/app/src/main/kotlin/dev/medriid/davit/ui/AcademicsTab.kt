@@ -1,5 +1,14 @@
 package dev.medriid.davit.ui
 
+import java.time.ZoneId
+import java.time.LocalTime
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.clickable
+import android.provider.CalendarContract
+import android.content.Intent
+import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -20,7 +29,13 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.remember
+import dev.medriid.davit.data.GradePoints
 import dev.medriid.davit.data.Snapshot
+import dev.medriid.davit.data.neededAverage
+import dev.medriid.davit.data.projectCgpa
+import dev.medriid.davit.design.HalftoneBar
 import dev.medriid.davit.data.vtopDate
 import dev.medriid.davit.design.Heading
 import dev.medriid.davit.design.InkCard
@@ -216,6 +231,12 @@ internal fun ExamCard(exam: Exam, today: LocalDate, modifier: Modifier = Modifie
                 InkText(exam.courseName, style = RisoType.body.copy(fontWeight = FontWeight.SemiBold), maxLines = 2)
                 InkText(listOf(exam.time, exam.venue).filter { it.isNotBlank() }.joinToString(" · "), style = RisoType.small)
                 if (exam.seat.isNotBlank()) InkText("Seat ${exam.seat}", style = RisoType.small)
+                if (days != null && days >= 0) {
+                    val context = LocalContext.current
+                    Box(Modifier.padding(top = 6.dp).clickable(role = Role.Button) { addToCalendar(context, exam) }) {
+                        InkChip("Add to calendar")
+                    }
+                }
             }
             if (days != null && days >= 0) {
                 Spacer(Modifier.width(8.dp))
@@ -230,6 +251,28 @@ internal fun ExamCard(exam: Exam, today: LocalDate, modifier: Modifier = Modifie
             }
         }
     }
+}
+
+/** Opens the calendar app with the exam filled in; all-day if VTOP's time can't be read. */
+private fun addToCalendar(context: Context, exam: Exam) {
+    val day = exam.day() ?: return
+    val clock = DateTimeFormatter.ofPattern("hh:mm a", Locale.ENGLISH)
+    val times = exam.time.split("-").map { it.trim().uppercase() }
+    val start = times.getOrNull(0)?.let { runCatching { LocalTime.parse(it, clock) }.getOrNull() }
+    val end = times.getOrNull(1)?.let { runCatching { LocalTime.parse(it, clock) }.getOrNull() }
+    val zone = ZoneId.systemDefault()
+    val intent = Intent(Intent.ACTION_INSERT, CalendarContract.Events.CONTENT_URI)
+        .putExtra(CalendarContract.Events.TITLE, "${exam.type.ifBlank { "Exam" }}: ${exam.courseName}")
+        .putExtra(CalendarContract.Events.EVENT_LOCATION, exam.venue)
+        .putExtra(CalendarContract.Events.DESCRIPTION, listOf(exam.courseCode, exam.seat.takeIf { it.isNotBlank() }?.let { "Seat $it" }).filterNotNull().joinToString(" · "))
+    if (start != null) {
+        intent.putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, day.atTime(start).atZone(zone).toInstant().toEpochMilli())
+        intent.putExtra(CalendarContract.EXTRA_EVENT_END_TIME, day.atTime(end ?: start.plusHours(1)).atZone(zone).toInstant().toEpochMilli())
+    } else {
+        intent.putExtra(CalendarContract.EXTRA_EVENT_ALL_DAY, true)
+        intent.putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, day.atStartOfDay(zone).toInstant().toEpochMilli())
+    }
+    runCatching { context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
 }
 
 // ---- grades ------------------------------------------------------------------------
@@ -251,6 +294,23 @@ private fun GradesSegment(snapshot: Snapshot) {
             Overprint(g?.cgpa?.let { "%.2f".format(Locale.ENGLISH, Math.floor(it * 100) / 100) } ?: "–", heroSize)
         }
     }
+    if (g?.curriculum?.isNotEmpty() == true) {
+        SectionTitle("Credits")
+        InkCard(Modifier.fillMaxWidth(), plateOffset = 3.dp) {
+            g.curriculum.forEachIndexed { i, d ->
+                if (i > 0) Spacer(Modifier.height(12.dp))
+                Row {
+                    InkText(d.name, style = RisoType.body.copy(fontWeight = FontWeight.SemiBold), modifier = Modifier.weight(1f), maxLines = 1)
+                    InkText("${fmt(d.earned)} / ${fmt(d.required)}", style = RisoType.small)
+                }
+                Spacer(Modifier.height(4.dp))
+                HalftoneBar(if (d.required > 0) (d.earned / d.required).toFloat().coerceIn(0f, 1f) else 1f, height = 8.dp)
+            }
+        }
+    }
+
+    PlannerCard(snapshot)
+
     val graded = g?.entries.orEmpty()
     if (graded.isEmpty()) {
         Spacer(Modifier.height(16.dp))
@@ -271,6 +331,50 @@ private fun GradesSegment(snapshot: Snapshot) {
                     InkChip(e.grade ?: "–", solid = e.grade != null)
                 }
             }
+        }
+    }
+}
+
+/**
+ * "Plan this semester": a grade per current course gives the CGPA it would lead to, and
+ * the average needed for 9, which lifts the 75% attendance rule.
+ */
+@Composable
+private fun PlannerCard(snapshot: Snapshot) {
+    val courses = snapshot.timetable.filter { it.credits > 0 }.distinctBy { it.courseCode + "|" + it.courseType }
+    if (courses.isEmpty()) return
+    // Grade index per course; A by default. Not saved: it's a scratchpad.
+    val picks = remember(courses.size) { mutableStateListOf(*Array(courses.size) { 1 }) }
+    val planned = courses.mapIndexed { i, c -> c.credits to GradePoints[picks[i]].second }
+    val projected = projectCgpa(snapshot.grades, planned)
+    val needed = neededAverage(snapshot.grades, courses.sumOf { it.credits })
+    val heroSize = with(LocalDensity.current) { 44.dp.toSp() }
+
+    SectionTitle("Plan this semester")
+    InkCard(Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                InkText("CGPA if these hold", label = true)
+                Spacer(Modifier.height(8.dp))
+                InkText(
+                    when {
+                        needed == null -> ""
+                        needed <= 0 -> "You're above 9 whatever happens."
+                        needed > 10 -> "9 is out of reach this semester."
+                        else -> "Needs an average of ${"%.2f".format(Locale.ENGLISH, needed)} for 9."
+                    },
+                    style = RisoType.small,
+                )
+            }
+            Overprint(projected?.let { "%.2f".format(Locale.ENGLISH, Math.floor(it * 100) / 100) } ?: "–", heroSize)
+        }
+        Spacer(Modifier.height(12.dp))
+        Rule()
+        courses.forEachIndexed { i, c ->
+            Spacer(Modifier.height(10.dp))
+            InkText(c.courseName, style = RisoType.body.copy(fontWeight = FontWeight.SemiBold), maxLines = 2)
+            InkText("${fmt(c.credits)} credits", style = RisoType.small)
+            ChoiceRow(GradePoints.map { it.first }, picks[i]) { picks[i] = it }
         }
     }
 }

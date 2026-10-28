@@ -18,13 +18,13 @@ Attendance, today's classes and your week, printed in two inks.
 
 ## Features
 
-- **Attendance.** Every course sorted by risk, with how many classes you can skip or must attend.
+- **Attendance.** Every course sorted by risk, with how many classes you can skip or must attend, and its day-by-day history.
 - **Today at a glance.** The class that's on now, what's next, what's due, and what changed since you last looked.
-- **Academics.** Marks, assignments, exams and grades with your CGPA.
-- **Your week.** Each day's classes with times, venues and slots.
+- **Academics.** Marks, assignments, exams and grades with your CGPA, credit progress and a semester planner.
+- **Your week.** Each day's classes, or the whole week as a grid.
 - **Alerts and a widget.** Syncs in the background and tells you about attendance dips, new marks, deadlines and exams. A home-screen widget shows your next class.
 - **Signs in by itself.** VTOP's captcha is solved on the phone by a tiny model; sessions are reused, so most refreshes skip login entirely.
-- **Riso look.** Four two-ink palettes, halftone bars, and a mascot you can dress up.
+- **Riso look.** Four two-ink palettes on paper or night print, halftone bars, and a mascot you can dress up.
 
 <div align="center">
 <img src="docs/assets/mascots.png" width="560" alt="Mascot styles">
@@ -38,6 +38,7 @@ Get the latest APK from [Releases](https://github.com/medriid/davit/releases). A
 
 - **Stays on your phone.** Password, session and data are sealed with AES-256-GCM under an Android Keystore key.
 - **Talks only to VTOP.** No server of ours, no accounts, no analytics. Read-only: upload endpoints are blocked in code. The one exception is *Check for updates*, which asks GitHub for the latest release when you tap it.
+- **Optional app lock** with fingerprint, face or screen lock.
 - **Sign out erases everything** it stored, key included.
 
 ## Build

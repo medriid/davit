@@ -46,6 +46,11 @@ data class UiState(
     val alerts: Boolean = true,
     /** "7:51 pm · ok" for the last background run, or null if there hasn't been one. */
     val lastBackground: String? = null,
+    val reminders: List<Reminder> = emptyList(),
+    /** 0 follows the system, 1 paper, 2 night print. */
+    val theme: Int = 0,
+    /** Ask for fingerprint, face or screen lock when opening the app. */
+    val appLock: Boolean = false,
 )
 
 /**
@@ -74,6 +79,9 @@ class Repo(private val context: Context) {
             background = prefs.getBoolean(K_BACKGROUND, true),
             alerts = prefs.getBoolean(K_ALERTS, true),
             lastBackground = prefs.getString(K_LAST_BG, null),
+            reminders = prefs.getString(K_REMINDERS, null)?.let(Vault::decrypt)?.let(::remindersFromJson).orEmpty(),
+            theme = prefs.getInt(K_THEME, 0),
+            appLock = prefs.getBoolean(K_LOCK, false),
         )
         prefs.getString(K_SESSION, null)?.let(Vault::decrypt)?.let(client::restoreSession)
     }
@@ -123,12 +131,35 @@ class Repo(private val context: Context) {
         DavitWidget.refresh(context)
     }
 
+    fun setAppLock(on: Boolean) {
+        prefs.edit().putBoolean(K_LOCK, on).apply()
+        _state.update { it.copy(appLock = on) }
+    }
+
+    fun setTheme(theme: Int) {
+        prefs.edit().putInt(K_THEME, theme).apply()
+        _state.update { it.copy(theme = theme) }
+        DavitWidget.refresh(context)
+    }
+
     fun setMascot(code: String) {
         prefs.edit().putString(K_MASCOT, code).apply()
         _state.update { it.copy(mascot = code) }
     }
 
     fun dismissError() = _state.update { it.copy(error = null) }
+
+    fun addReminder(title: String, date: java.time.LocalDate) =
+        saveReminders(_state.value.reminders + Reminder(System.currentTimeMillis(), title.trim(), date))
+
+    fun removeReminder(id: Long) = saveReminders(_state.value.reminders.filterNot { it.id == id })
+
+    private fun saveReminders(list: List<Reminder>) {
+        val sorted = list.sortedBy { it.date }
+        prefs.edit().putString(K_REMINDERS, Vault.encrypt(sorted.toJson())).apply()
+        _state.update { it.copy(reminders = sorted) }
+        DavitWidget.refresh(context)
+    }
 
     fun setBackground(on: Boolean) {
         prefs.edit().putBoolean(K_BACKGROUND, on).apply()
@@ -178,12 +209,13 @@ class Repo(private val context: Context) {
                 client.clearSession()
                 val ink = prefs.getInt(K_INK, 0)
                 val mascot = prefs.getString(K_MASCOT, "").orEmpty()
-                prefs.edit().clear().putInt(K_INK, ink).putString(K_MASCOT, mascot).apply()
+                val theme = prefs.getInt(K_THEME, 0)
+                prefs.edit().clear().putInt(K_INK, ink).putString(K_MASCOT, mascot).putInt(K_THEME, theme).apply()
                 Notifier.forget(context)
                 dumpDir().deleteRecursively()
                 Vault.deleteKey()
                 BackgroundSync.apply(context, false)
-                _state.value = UiState(inkIndex = ink, mascot = mascot)
+                _state.value = UiState(inkIndex = ink, mascot = mascot, theme = theme)
                 DavitWidget.refresh(context)
             }
         }
@@ -226,6 +258,11 @@ class Repo(private val context: Context) {
                 exams = old?.exams.orEmpty(),
                 grades = _state.value.snapshot?.grades,
                 assignments = old?.assignments.orEmpty(),
+                history = old?.history.orEmpty(),
+                profile = _state.value.snapshot?.profile,
+                profileAt = _state.value.snapshot?.profileAt ?: 0,
+                hostel = _state.value.snapshot?.hostel,
+                hostelAt = _state.value.snapshot?.hostelAt ?: 0,
             )
             _state.update { it.copy(snapshot = partial, busy = "Fetching timetable") }
 
@@ -233,6 +270,20 @@ class Repo(private val context: Context) {
             dump("timetable", creds.first)
             var full = partial.copy(timetable = timetable)
             _state.update { it.copy(snapshot = full) }
+
+            // Day-by-day history, only for courses whose count moved (or that have none yet):
+            // usually a request or two instead of one per course.
+            val before = old?.attendance.orEmpty().associateBy { it.key }
+            val history = old?.history.orEmpty().filterKeys { k -> attendance.any { it.key == k } }.toMutableMap()
+            val stale = attendance.filter { row ->
+                val prev = before[row.key]
+                row.detail.usable && (row.key !in history || prev == null || prev.attended != row.attended || prev.total != row.total)
+            }
+            stale.forEachIndexed { i, row ->
+                section("Attendance history ${i + 1}/${stale.size}", "history", creds, full) { client.attendanceDetail(row, semester.id) }
+                    ?.let { history[row.key] = it }
+            }
+            full = full.copy(history = history)
 
             // Academics: each section on its own, so one odd page keeps its old data
             // instead of failing the sync. Session expiry still re-logs in (withSession).
@@ -245,6 +296,22 @@ class Repo(private val context: Context) {
             // Grade history spans semesters, so keep it even when the semester changed.
             full = section("Fetching grades", "grades", creds, full) { client.gradeHistory() }
                 ?.let { full.copy(grades = it) } ?: full.copy(grades = _state.value.snapshot?.grades)
+            // Cool data: profile at most daily, hostel requests every few hours (hostellers only).
+            val now = System.currentTimeMillis()
+            if (full.profile == null || now - full.profileAt > 24 * 3_600_000L) {
+                section("Fetching profile", "profile", creds, full) { client.profile() }?.let { p ->
+                    full = full.copy(profile = p, profileAt = now)
+                    // First time only: dress the mascot by VTOP's gender until you pick one yourself.
+                    if (prefs.getString(K_MASCOT, null) == null && p.gender.equals("female", ignoreCase = true)) {
+                        setMascot("1,0,0,0")
+                    }
+                }
+            }
+            if (full.profile?.hostel != null && now - full.hostelAt > 3 * 3_600_000L) {
+                section("Fetching hostel requests", "hostel", creds, full) { client.hostelRequests() }
+                    ?.let { full = full.copy(hostel = it, hostelAt = now) }
+            }
+
             // Since you last looked: new marks first, then attendance moves; else keep the last list.
             val changes = Snapshot.marksDiff(old?.marks, full.marks) + Snapshot.diff(old, attendance)
             full = full.copy(syncedAt = System.currentTimeMillis(), changes = changes.ifEmpty { old?.changes.orEmpty() })
@@ -355,6 +422,9 @@ class Repo(private val context: Context) {
         private const val K_ALERTS = "alerts"
         private const val K_ASKED = "askedNotifications"
         private const val K_LAST_BG = "lastBackground"
+        private const val K_REMINDERS = "reminders"
+        private const val K_THEME = "theme"
+        private const val K_LOCK = "appLock"
     }
 }
 
