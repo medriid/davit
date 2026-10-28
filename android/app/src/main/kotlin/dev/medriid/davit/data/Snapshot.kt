@@ -7,6 +7,7 @@ import dev.medriid.davit.vtop.DetailKey
 import dev.medriid.davit.vtop.CourseAssignments
 import dev.medriid.davit.vtop.CourseMarks
 import dev.medriid.davit.vtop.Exam
+import dev.medriid.davit.vtop.FacultyInfo
 import dev.medriid.davit.vtop.GradeEntry
 import dev.medriid.davit.vtop.GradeHistory
 import dev.medriid.davit.vtop.HostelInfo
@@ -41,6 +42,12 @@ data class Snapshot(
     /** Only for hostellers. */
     val hostel: HostelRequests? = null,
     val hostelAt: Long = 0,
+    /** The published academic calendar for [semester], if one exists. */
+    val calendar: AcademicCalendar? = null,
+    val calendarAt: Long = 0,
+    /** Directory cards for this semester's faculty. */
+    val faculty: List<FacultyInfo> = emptyList(),
+    val facultyAt: Long = 0,
 ) {
     /** CGPA ≥ 9 is exempt from the 75% attendance rule. Unknown CGPA (first semester) isn't. */
     val attendanceExempt: Boolean get() = (grades?.cgpa ?: 0.0) >= 9.0
@@ -104,6 +111,12 @@ data class Snapshot(
                 .put("activeLeave", leaves(h.activeLeave)).put("pastLeave", leaves(h.pastLeave)))
             put("hostelAt", hostelAt)
         }
+        calendar?.let { put("calendar", it.toJson()).put("calendarAt", calendarAt) }
+        put("faculty", JSONArray(faculty.map {
+            JSONObject().put("id", it.empId).put("name", it.name).put("designation", it.designation).put("department", it.department)
+                .put("school", it.school).put("email", it.email).put("cabin", it.cabin)
+        }))
+        put("facultyAt", facultyAt)
         grades?.let { g ->
             put("grades", JSONObject().putNum("cgpa", g.cgpa).putNum("earned", g.creditsEarned).put("entries", JSONArray(g.entries.map {
                 JSONObject().put("code", it.courseCode).put("title", it.courseTitle).put("credits", it.credits)
@@ -183,6 +196,13 @@ data class Snapshot(
                     HostelRequests(slips("activeSlips"), slips("pastSlips"), leaves("activeLeave"), leaves("pastLeave"))
                 },
                 hostelAt = o.optLong("hostelAt"),
+                calendar = o.optJSONObject("calendar")?.let { runCatching { AcademicCalendar.fromJson(it) }.getOrNull() },
+                calendarAt = o.optLong("calendarAt"),
+                faculty = o.optJSONArray("faculty")?.objects()?.map {
+                    FacultyInfo(it.getString("id"), it.getString("name"), it.getString("designation"), it.getString("department"),
+                        it.getString("school"), it.getString("email"), it.getString("cabin"))
+                }.orEmpty(),
+                facultyAt = o.optLong("facultyAt"),
                 assignments = o.optJSONArray("assignments")?.objects()?.map { c ->
                     CourseAssignments(
                         c.getString("classId"), c.getString("code"), c.getString("name"), c.getString("type"),

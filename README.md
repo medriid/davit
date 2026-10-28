@@ -20,8 +20,8 @@ Attendance, today's classes and your week, printed in two inks.
 
 - **Attendance.** Every course sorted by risk, with how many classes you can skip or must attend, and its day-by-day history.
 - **Today at a glance.** The class that's on now, what's next, what's due, and what changed since you last looked.
-- **Academics.** Marks, assignments, exams and grades with your CGPA, credit progress and a semester planner.
-- **Your week.** Each day's classes, or the whole week as a grid.
+- **Academics.** Marks, assignments, exams, grades with your CGPA, credit progress, a semester planner, and your faculty's contact details.
+- **Your week.** Each day's classes, the whole week as a grid, and the academic calendar with holidays, exam dates and swapped days.
 - **Alerts and a widget.** Syncs in the background and tells you about attendance dips, new marks, deadlines and exams. A home-screen widget shows your next class.
 - **Signs in by itself.** VTOP's captcha is solved on the phone by a tiny model; sessions are reused, so most refreshes skip login entirely.
 - **Riso look.** Four two-ink palettes on paper or night print, halftone bars, and a mascot you can dress up.
@@ -37,7 +37,7 @@ Get the latest APK from [Releases](https://github.com/medriid/davit/releases). A
 ## Privacy
 
 - **Stays on your phone.** Password, session and data are sealed with AES-256-GCM under an Android Keystore key.
-- **Talks only to VTOP.** No server of ours, no accounts, no analytics. Read-only: upload endpoints are blocked in code. The one exception is *Check for updates*, which asks GitHub for the latest release when you tap it.
+- **Talks only to VTOP.** No server of ours, no accounts, no analytics. Read-only: upload endpoints are blocked in code. It also downloads two public files, the academic calendar and the faculty directory, and asks GitHub for the latest release when you tap *Check for updates*. None of these send anything about you.
 - **Optional app lock** with fingerprint, face or screen lock.
 - **Sign out erases everything** it stored, key included.
 
@@ -63,7 +63,7 @@ The captcha model weights and the slot timetable aren't part of this repository.
 
 ## Credits
 
-Fonts: Bagel Fat One and IBM Plex Mono (SIL OFL 1.1).
+Academic calendar and faculty directory from [IshanJ25/vtop-cal-data](https://github.com/IshanJ25/vtop-cal-data) and [vtop-fac-data](https://github.com/IshanJ25/vtop-fac-data). Fonts: Bagel Fat One and IBM Plex Mono (SIL OFL 1.1).
 
 ## License
 

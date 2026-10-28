@@ -242,7 +242,7 @@ class Repo(private val context: Context) {
                 semesters = client.semesters()
             }
             if (semesters.isEmpty()) throw UnexpectedPage("VTOP didn't list any semesters.")
-            val wanted = prefs.getString(K_SEMESTER, null)
+            val wanted = prefs.getString(K_SEMESTER, null) ?: currentSemesterId()
             val semester = semesters.firstOrNull { it.id == wanted } ?: semesters.first()
             val old = _state.value.snapshot?.takeIf { it.semester.id == semester.id }
 
@@ -263,6 +263,10 @@ class Repo(private val context: Context) {
                 profileAt = _state.value.snapshot?.profileAt ?: 0,
                 hostel = _state.value.snapshot?.hostel,
                 hostelAt = _state.value.snapshot?.hostelAt ?: 0,
+                calendar = old?.calendar,
+                calendarAt = old?.calendarAt ?: 0,
+                faculty = old?.faculty.orEmpty(),
+                facultyAt = old?.facultyAt ?: 0,
             )
             _state.update { it.copy(snapshot = partial, busy = "Fetching timetable") }
 
@@ -310,6 +314,25 @@ class Repo(private val context: Context) {
             if (full.profile?.hostel != null && now - full.hostelAt > 3 * 3_600_000L) {
                 section("Fetching hostel requests", "hostel", creds, full) { client.hostelRequests() }
                     ?.let { full = full.copy(hostel = it, hostelAt = now) }
+            }
+
+            // Public data: the academic calendar daily, faculty cards weekly. Neither sends anything about you.
+            if (full.calendar?.semesterId != semester.id || now - full.calendarAt > 24 * 3_600_000L) {
+                _state.update { it.copy(snapshot = full, busy = "Fetching calendar") }
+                runCatching { PublicData.calendar(semester) }
+                    .onFailure { Log.w(TAG, "calendar failed: ${it.javaClass.simpleName}") }
+                    .getOrNull()?.let { full = full.copy(calendar = it, calendarAt = now) }
+            }
+            if (full.timetable.isNotEmpty() && (full.facultyAt == 0L || now - full.facultyAt > 7 * 24 * 3_600_000L)) {
+                _state.update { it.copy(snapshot = full, busy = "Matching faculty") }
+                val directory = runCatching { PublicData.facultyDirectory() }.getOrDefault(emptyMap())
+                if (directory.isNotEmpty()) {
+                    val ids = full.timetable.map { facultyKey(it.faculty) }.filter { it.isNotEmpty() }.distinct().mapNotNull { directory[it] }
+                    val cards = ids.mapIndexedNotNull { i, id ->
+                        section("Faculty ${i + 1}/${ids.size}", "faculty", creds, full) { client.faculty(id) }
+                    }
+                    full = full.copy(faculty = cards.ifEmpty { full.faculty }, facultyAt = now)
+                }
             }
 
             // Since you last looked: new marks first, then attendance moves; else keep the last list.
@@ -370,6 +393,15 @@ class Repo(private val context: Context) {
         _state.update { it.copy(busy = text) }
     }
 
+    /** The published current semester id, checked at most daily; null if unknown. */
+    private fun currentSemesterId(): String? {
+        val at = prefs.getLong(K_CUR_SEM_AT, 0)
+        if (System.currentTimeMillis() - at < 24 * 3_600_000L) return prefs.getString(K_CUR_SEM, null)
+        val id = runCatching { PublicData.currentSemester()["id"] }.getOrNull()
+        prefs.edit().putString(K_CUR_SEM, id).putLong(K_CUR_SEM_AT, System.currentTimeMillis()).apply()
+        return id
+    }
+
     private fun saveSession() {
         client.exportSession()?.let { prefs.edit().putString(K_SESSION, Vault.encrypt(it)).apply() }
     }
@@ -425,6 +457,8 @@ class Repo(private val context: Context) {
         private const val K_REMINDERS = "reminders"
         private const val K_THEME = "theme"
         private const val K_LOCK = "appLock"
+        private const val K_CUR_SEM = "currentSemester"
+        private const val K_CUR_SEM_AT = "currentSemesterAt"
     }
 }
 

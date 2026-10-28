@@ -39,6 +39,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.medriid.davit.design.InkChip
+import dev.medriid.davit.design.InkPairs
 import dev.medriid.davit.design.InkText
 import dev.medriid.davit.design.Inks
 import dev.medriid.davit.design.LocalInks
@@ -83,7 +84,8 @@ data class Mascot(
 /** The mascot in a paper circle with an ink ring. */
 @Composable
 fun MascotAvatar(mascot: Mascot, size: Dp, modifier: Modifier = Modifier, ring: Dp = 2.dp) {
-    val inks = LocalInks.current
+    // Always printed on paper: at night the inks flip, and the character would come out as a negative.
+    val inks = InkPairs.onPaper(LocalInks.current)
     Canvas(
         modifier
             .requiredSize(size)

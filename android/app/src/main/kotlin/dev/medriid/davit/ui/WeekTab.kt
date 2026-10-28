@@ -1,5 +1,12 @@
 package dev.medriid.davit.ui
 
+import java.time.format.DateTimeFormatter
+import java.time.YearMonth
+import java.time.LocalDate
+import dev.medriid.davit.data.AcademicCalendar
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.border
 import dev.medriid.davit.data.atRisk
 import dev.medriid.davit.data.ClassSlot
 import androidx.compose.ui.semantics.Role
@@ -57,18 +64,23 @@ internal fun WeekTab(snapshot: Snapshot) {
     val days = (1..7).filter { it <= 6 || week[it].orEmpty().isNotEmpty() }
     var day by rememberSaveable { mutableIntStateOf(if (today in days) today else days.first()) }
     val inks = LocalInks.current
-    var grid by rememberSaveable { mutableStateOf(false) }
+    var mode by rememberSaveable { mutableIntStateOf(0) }
 
     TabColumn {
         Row(Modifier.padding(top = 8.dp, bottom = 14.dp), verticalAlignment = Alignment.CenterVertically) {
             Heading("Week", 28.sp, Modifier.weight(1f))
-            ChoiceRow(listOf("Day", "Grid"), if (grid) 1 else 0) { grid = it == 1 }
         }
-        if (grid) {
+        ChoiceRow(listOf("Day", "Grid", "Calendar"), mode) { mode = it }
+        Spacer(Modifier.height(12.dp))
+        if (mode == 1) {
             WeekGrid(week, days, today, now.hour * 60 + now.minute, snapshot.attendanceExempt) {
                 day = it
-                grid = false
+                mode = 0
             }
+            return@TabColumn
+        }
+        if (mode == 2) {
+            CalendarView(snapshot.calendar, now.toLocalDate())
             return@TabColumn
         }
         ChoiceRow(days.map { DayOfWeek.of(it).getDisplayName(TextStyle.SHORT, Locale.ENGLISH) }, days.indexOf(day)) {
@@ -188,4 +200,114 @@ private fun WeekGrid(week: Map<Int, List<ClassSlot>>, days: List<Int>, today: In
 private fun initials(name: String): String {
     val words = name.split(' ', '-').filter { it.isNotBlank() && it.lowercase() !in setOf("using", "and", "of", "the", "for", "in", "to", "with") }
     return if (words.size <= 1) name.take(6) else words.take(4).joinToString("") { it.first().uppercase() }
+}
+
+/** The semester calendar: days left, exam windows, then a month grid per month with its notes. */
+@Composable
+private fun CalendarView(cal: AcademicCalendar?, today: LocalDate) {
+    val inks = LocalInks.current
+    if (cal == null || cal.days.isEmpty()) {
+        InkText("No published calendar for this semester yet.")
+        return
+    }
+    val left = cal.instructionalDaysLeft(today)
+    InkCard(Modifier.fillMaxWidth()) {
+        Heading("$left", 40.sp)
+        Spacer(Modifier.height(6.dp))
+        InkText(
+            "teaching days left" + (cal.lastTheory?.let { " · last day ${it.format(DateTimeFormatter.ofPattern("d MMM", Locale.ENGLISH))}" } ?: ""),
+            style = RisoType.body.copy(fontWeight = FontWeight.SemiBold),
+        )
+    }
+    val exams = cal.examWindows()
+    if (exams.isNotEmpty()) {
+        SectionTitle("Exam dates")
+        InkCard(Modifier.fillMaxWidth(), plateOffset = 3.dp) {
+            exams.forEachIndexed { i, (type, from, to) ->
+                if (i > 0) Spacer(Modifier.height(10.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        InkText(type, style = RisoType.title)
+                        val f = DateTimeFormatter.ofPattern("d MMM", Locale.ENGLISH)
+                        InkText(if (from == to) from.format(f) else "${from.format(f)} – ${to.format(f)}", style = RisoType.small)
+                    }
+                    val days = from.toEpochDay() - today.toEpochDay()
+                    InkChip(
+                        when {
+                            today.isAfter(to) -> "Done"
+                            days <= 0 -> "On now"
+                            days == 1L -> "Tomorrow"
+                            else -> "$days days"
+                        },
+                        solid = days in 0..14 && !today.isAfter(to),
+                    )
+                }
+            }
+        }
+    }
+    cal.days.groupBy { YearMonth.from(it.date) }.toSortedMap().forEach { (month, list) ->
+        SectionTitle(month.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.ENGLISH)))
+        Row(Modifier.fillMaxWidth()) {
+            listOf("M", "T", "W", "T", "F", "S", "S").forEach {
+                Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { InkText(it, label = true) }
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+        val byDate = list.associateBy { it.date }
+        val first = month.atDay(1)
+        val lead = first.dayOfWeek.value - 1
+        val cells = lead + month.lengthOfMonth()
+        for (week in 0 until (cells + 6) / 7) {
+            Row(Modifier.fillMaxWidth()) {
+                for (col in 0 until 7) {
+                    val n = week * 7 + col - lead + 1
+                    Box(Modifier.weight(1f).aspectRatio(1f).padding(2.dp), contentAlignment = Alignment.Center) {
+                        if (n in 1..month.lengthOfMonth()) {
+                            val date = month.atDay(n)
+                            val d = byDate[date]
+                            val fill = when {
+                                d == null -> Color.Transparent
+                                d.exam -> inks.b
+                                !d.instructional -> inks.a.copy(alpha = 0.28f)
+                                else -> Color.Transparent
+                            }
+                            Box(
+                                Modifier
+                                    .fillMaxSize()
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(fill)
+                                    .then(if (date == today) Modifier.border(2.dp, inks.text, RoundedCornerShape(6.dp)) else Modifier),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    BasicText(
+                                        "$n",
+                                        style = RisoType.small.copy(
+                                            color = if (d?.exam == true) inks.paper else inks.text,
+                                            fontWeight = if (d?.instructional == true) FontWeight.SemiBold else FontWeight.Normal,
+                                        ),
+                                    )
+                                    if (d != null && d.instructional && d.dayOrder in 1..7 && d.dayOrder != date.dayOfWeek.value) {
+                                        BasicText(
+                                            DayOfWeek.of(d.dayOrder).getDisplayName(TextStyle.SHORT, Locale.ENGLISH),
+                                            style = RisoType.small.copy(color = inks.a, fontSize = 9.sp),
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        val notes = list.filter { it.note != null }
+        if (notes.isNotEmpty()) {
+            Spacer(Modifier.height(6.dp))
+            notes.forEach {
+                InkText("${it.date.dayOfMonth} · ${it.note}" + if (!it.instructional) " (${it.type})" else "", style = RisoType.small)
+            }
+        }
+    }
+    Spacer(Modifier.height(10.dp))
+    InkText("Calendar data: github.com/IshanJ25/vtop-cal-data", style = RisoType.small.copy(color = inks.rule))
 }

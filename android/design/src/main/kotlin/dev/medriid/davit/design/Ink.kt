@@ -51,6 +51,9 @@ object InkPairs {
         Inks("Bright Red + Black", NightPaper, Color(0xFFF15060), Color(0xFFD9D6CF), Color(0xFFEDEAE3), ruleAlpha = 0.3f, dark = true),
     )
 
+    /** The paper version of [inks]: for things that should print the same at night (the mascot). */
+    fun onPaper(inks: Inks): Inks = if (!inks.dark) inks else all.firstOrNull { it.name == inks.name } ?: ScarletTeal
+
     /** Pair [index], on paper or at night. */
     fun of(index: Int, dark: Boolean): Inks = (if (dark) night else all)[index.coerceIn(0, all.lastIndex)]
 }

@@ -123,6 +123,13 @@ class AcademicsParsersTest {
     }
 
     @Test
+    fun facultyCardReadsLabels() {
+        val f = Parsers.faculty(res("faculty.html"), "12345")!!
+        assertEquals(FacultyInfo("12345", "FACULTY A", "Assistant Professor Sr. Grade 1", "Department of Chemistry", "School of Advanced Sciences (SAS)", "faculty.a@example.edu", "SJT 411-A"), f)
+        assertNull(Parsers.faculty("<table><tr><td>x</td><td>y</td></tr></table>", "1"))
+    }
+
+    @Test
     fun noGradesMeansNoCgpa() {
         assertNull(Parsers.gradeHistory("<html><body></body></html>").cgpa)
     }

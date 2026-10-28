@@ -248,6 +248,11 @@ class VtopClient(
         HostelRequests(activeSlips, pastSlips, activeLeave, pastLeave)
     }
 
+    /** One faculty member's card; null if VTOP doesn't know the id. */
+    fun faculty(empId: String): FacultyInfo? = timed("faculty") {
+        Parsers.faculty(authed("/hrms/EmployeeSearch1ForStudent", mapOf("empId" to empId)), empId)
+    }
+
     /** Across all semesters, so no semester id. */
     fun gradeHistory(): GradeHistory = timed("grades") {
         Parsers.gradeHistory(authed("/examinations/examGradeView/StudentGradeHistory", mapOf("verifyMenu" to "true")))

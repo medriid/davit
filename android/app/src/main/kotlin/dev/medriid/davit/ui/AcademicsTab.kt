@@ -1,5 +1,7 @@
 package dev.medriid.davit.ui
 
+import dev.medriid.davit.data.facultyKey
+import android.net.Uri
 import java.time.ZoneId
 import java.time.LocalTime
 import androidx.compose.ui.semantics.Role
@@ -59,13 +61,14 @@ internal fun AcademicsTab(snapshot: Snapshot) {
     var segment by rememberSaveable { mutableIntStateOf(0) }
     TabColumn {
         Heading("Academics", 28.sp, Modifier.padding(top = 8.dp, bottom = 14.dp))
-        ChoiceRow(listOf("Marks", "Assignments", "Exams", "Grades"), segment) { segment = it }
+        ChoiceRow(listOf("Marks", "Assignments", "Exams", "Grades", "Faculty"), segment) { segment = it }
         Spacer(Modifier.height(14.dp))
         when (segment) {
             0 -> MarksSegment(snapshot)
             1 -> AssignmentsSegment(snapshot)
             2 -> ExamsSegment(snapshot.exams)
-            else -> GradesSegment(snapshot)
+            3 -> GradesSegment(snapshot)
+            else -> FacultySegment(snapshot)
         }
     }
 }
@@ -275,6 +278,47 @@ private fun addToCalendar(context: Context, exam: Exam) {
     runCatching { context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
 }
 
+// ---- faculty -----------------------------------------------------------------------
+
+@Composable
+private fun FacultySegment(snapshot: Snapshot) {
+    val context = LocalContext.current
+    if (snapshot.faculty.isEmpty()) {
+        val names = snapshot.timetable.map { it.faculty }.filter { it.isNotBlank() }.distinct()
+        InkText(if (names.isEmpty()) "No faculty in your timetable yet." else "Faculty details arrive with the next sync.")
+        names.forEach { InkText(it, style = RisoType.small) }
+        return
+    }
+    // Which of your courses each person teaches, from the timetable.
+    val courses = snapshot.timetable.groupBy { facultyKey(it.faculty) }
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        snapshot.faculty.forEach { f ->
+            InkCard(Modifier.fillMaxWidth(), plateOffset = 4.dp) {
+                InkText(f.name.split(' ').joinToString(" ") { w -> w.lowercase().replaceFirstChar { it.uppercase() } }, style = RisoType.title)
+                if (f.designation.isNotBlank()) InkText(f.designation, style = RisoType.small)
+                InkText(listOf(f.department, f.school).filter { it.isNotBlank() }.joinToString(" · "), style = RisoType.small)
+                courses[facultyKey(f.name)]?.map { it.courseName }?.distinct()?.let {
+                    Spacer(Modifier.height(6.dp))
+                    InkText(it.joinToString(", "), style = RisoType.small.copy(fontWeight = FontWeight.SemiBold))
+                }
+                Spacer(Modifier.height(10.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (f.cabin.isNotBlank()) InkChip("Cabin ${f.cabin}")
+                    if (f.email.isNotBlank()) {
+                        Box(Modifier.clickable(role = Role.Button) {
+                            runCatching {
+                                context.startActivity(Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:" + f.email)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                            }
+                        }) { InkChip(f.email, solid = true) }
+                    }
+                }
+            }
+        }
+    }
+    Spacer(Modifier.height(10.dp))
+    InkText("Matched via github.com/IshanJ25/vtop-fac-data; details from VTOP.", style = RisoType.small)
+}
+
 // ---- grades ------------------------------------------------------------------------
 
 @Composable
@@ -305,6 +349,22 @@ private fun GradesSegment(snapshot: Snapshot) {
                 }
                 Spacer(Modifier.height(4.dp))
                 HalftoneBar(if (d.required > 0) (d.earned / d.required).toFloat().coerceIn(0f, 1f) else 1f, height = 8.dp)
+            }
+        }
+    }
+
+    val byGrade = g?.entries.orEmpty().filter { it.grade != null && it.credits > 0 }.groupBy { it.grade!!.uppercase() }
+    if (byGrade.isNotEmpty()) {
+        SectionTitle("Credits by grade")
+        InkCard(Modifier.fillMaxWidth(), plateOffset = 3.dp) {
+            val most = byGrade.values.maxOf { l -> l.sumOf { it.credits } }
+            (GradePoints.map { it.first } + byGrade.keys.filter { k -> GradePoints.none { it.first == k } }).forEach { grade ->
+                val credits = byGrade[grade]?.sumOf { it.credits } ?: return@forEach
+                Row(Modifier.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    InkText(grade, style = RisoType.title, modifier = Modifier.width(32.dp))
+                    Box(Modifier.weight(1f)) { HalftoneBar((credits / most).toFloat(), height = 10.dp) }
+                    InkText(fmt(credits), style = RisoType.small, modifier = Modifier.padding(start = 10.dp).width(36.dp))
+                }
             }
         }
     }

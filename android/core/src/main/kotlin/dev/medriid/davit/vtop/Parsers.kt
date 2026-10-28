@@ -365,6 +365,27 @@ object Parsers {
         }
     }
 
+    /**
+     * `POST /hrms/EmployeeSearch1ForStudent` + empId: label/value rows. Null when the page
+     * has no name (unknown id, or VTOP changed).
+     */
+    fun faculty(html: String, empId: String): FacultyInfo? {
+        val fields = Jsoup.parse(html).select("table tr").mapNotNull { tr ->
+            val c = tr.select("td")
+            if (c.size < 2) null else clean(c[0].text()).uppercase() to clean(c[1].text())
+        }.toMap()
+        val name = fields["NAME OF THE FACULTY"].orEmpty().ifEmpty { return null }
+        return FacultyInfo(
+            empId = empId,
+            name = name,
+            designation = fields["DESIGNATION"].orEmpty(),
+            department = fields["NAME OF DEPARTMENT"].orEmpty(),
+            school = fields["SCHOOL / CENTRE NAME"].orEmpty(),
+            email = fields["E-MAIL ID"].orEmpty(),
+            cabin = fields["CABIN NUMBER"].orEmpty(),
+        )
+    }
+
     /** VIT's grade points. P, W, U and anything unknown don't count towards CGPA. */
     private val gradePoints = mapOf("S" to 10, "A" to 9, "B" to 8, "C" to 7, "D" to 6, "E" to 5, "F" to 0, "N" to 0)
 

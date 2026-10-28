@@ -4,6 +4,7 @@ import dev.medriid.davit.vtop.AttendanceRow
 import dev.medriid.davit.vtop.Meeting
 import dev.medriid.davit.vtop.SlotTimes
 import dev.medriid.davit.vtop.TimetableCourse
+import java.time.LocalDate
 import java.time.LocalDateTime
 
 const val THRESHOLD = 0.75
@@ -72,18 +73,30 @@ data class TodayPlan(
     /** Days from today to [next] (0 = today). */
     val nextInDays: Int,
     val done: Int,
+    /** The date [next] falls on (its weekday can differ from the slot's when a day order swaps it). */
+    val nextDate: LocalDate? = null,
+    /** Today's calendar entry, when the calendar knows it (a holiday, an exam day…). */
+    val calendarDay: CalDay? = null,
 )
 
-fun planFor(week: Map<Int, List<ClassSlot>>, at: LocalDateTime): TodayPlan {
-    val day = at.dayOfWeek.value
+/**
+ * Now and next. With a [calendar], holidays and exam days have no classes and a
+ * substituted day (a Saturday running Monday's order) uses that weekday's timetable.
+ */
+fun planFor(week: Map<Int, List<ClassSlot>>, at: LocalDateTime, calendar: AcademicCalendar? = null): TodayPlan {
+    val date = at.toLocalDate()
+    fun classesOn(d: LocalDate): List<ClassSlot> {
+        val wd = if (calendar != null) calendar.timetableDay(d) else d.dayOfWeek.value
+        return wd?.let { week[it] }.orEmpty()
+    }
     val minute = at.hour * 60 + at.minute
-    val today = week[day].orEmpty()
+    val today = classesOn(date)
     val now = today.firstOrNull { minute >= it.meeting.start && minute < it.meeting.end }
     var next = today.firstOrNull { it.meeting.start > minute }
     var inDays = 0
     if (next == null) {
-        for (d in 1..7) {
-            val first = week[(day - 1 + d) % 7 + 1]?.firstOrNull()
+        for (d in 1..21) {
+            val first = classesOn(date.plusDays(d.toLong())).firstOrNull()
             if (first != null) {
                 next = first
                 inDays = d
@@ -91,7 +104,45 @@ fun planFor(week: Map<Int, List<ClassSlot>>, at: LocalDateTime): TodayPlan {
             }
         }
     }
-    return TodayPlan(today, now, next, inDays, today.count { it.meeting.end <= minute })
+    return TodayPlan(
+        today, now, next, inDays, today.count { it.meeting.end <= minute },
+        next?.let { date.plusDays(inDays.toLong()) }, calendar?.day(date),
+    )
+}
+
+/**
+ * Classes of [row]'s course still to come this semester, from [at] to the last theory
+ * (or lab) day. Null without a calendar, since the end date is unknown.
+ */
+fun Snapshot.remainingFor(row: AttendanceRow, at: LocalDateTime): Int? {
+    val cal = calendar ?: return null
+    val meetings = weekOf(this).values.flatten().filter { it.attendance?.key == row.key }.map { it.meeting }
+    if (meetings.isEmpty()) return null
+    val end = (if (isLabType(row.classType)) cal.lastLab else cal.lastTheory) ?: return null
+    val today = at.toLocalDate()
+    val minute = at.hour * 60 + at.minute
+    var count = 0
+    var d = today
+    while (!d.isAfter(end)) {
+        val wd = cal.timetableDay(d)
+        if (wd != null) count += meetings.count { it.day == wd && (d != today || it.start > minute) }
+        d = d.plusDays(1)
+    }
+    return count
+}
+
+/** How many of the [remaining] classes you can miss and still finish at or above 75%. Negative: out of reach. */
+fun AttendanceRow.skipTillEnd(remaining: Int): Int = Math.floorDiv(4 * attended + remaining - 3 * total, 4)
+
+/** The hint under a course: a semester budget when [remaining] is known, else the next-classes version. */
+fun AttendanceRow.hint(remaining: Int?): String {
+    if (remaining == null) return hint()
+    val k = skipTillEnd(remaining)
+    return when {
+        k < 0 -> "75% can't be reached with $remaining classes left"
+        atRisk -> "attend the next $mustAttend to reach 75% ($remaining left)"
+        else -> "can skip ${minOf(k, remaining)} of the $remaining left"
+    }
 }
 
 fun clock(minutes: Int) = "%02d:%02d".format(minutes / 60, minutes % 60)

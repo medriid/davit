@@ -37,6 +37,7 @@ import dev.medriid.davit.data.clock
 import dev.medriid.davit.data.hint
 import dev.medriid.davit.data.percent
 import dev.medriid.davit.data.planFor
+import dev.medriid.davit.data.remainingFor
 import dev.medriid.davit.data.vtopDate
 import dev.medriid.davit.data.weekOf
 import dev.medriid.davit.design.InkPairs
@@ -94,7 +95,7 @@ private fun Content(s: UiState, now: LocalDateTime) {
             !s.signedIn -> Text("Sign in to daVIT to see your classes.", style = style(inks.text, 13.sp))
             snap == null -> Text("Waiting for the first sync.", style = style(inks.text, 13.sp))
             else -> {
-                val plan = planFor(weekOf(snap), now)
+                val plan = planFor(weekOf(snap), now, snap.calendar)
                 val slot = plan.now ?: plan.next
                 if (slot == null) {
                     Text("No classes in your timetable.", style = style(inks.text, 13.sp))
@@ -103,7 +104,7 @@ private fun Content(s: UiState, now: LocalDateTime) {
                     val label = if (plan.now != null) "NOW · until ${clock(m.end)}" else "NEXT · " + when (plan.nextInDays) {
                         0 -> clock(m.start)
                         1 -> "tomorrow ${clock(m.start)}"
-                        else -> DayOfWeek.of(m.day).getDisplayName(JavaTextStyle.SHORT, Locale.ENGLISH) + " " + clock(m.start)
+                        else -> (plan.nextDate?.dayOfWeek ?: DayOfWeek.of(m.day)).getDisplayName(JavaTextStyle.SHORT, Locale.ENGLISH) + " " + clock(m.start)
                     }
                     Text(label, style = style(inks.a, 11.sp, bold = true))
                     Text(slot.course.courseName, style = style(inks.text, 16.sp, bold = true), maxLines = 1)
@@ -114,7 +115,7 @@ private fun Content(s: UiState, now: LocalDateTime) {
                     )
                     slot.attendance?.let { row ->
                         Text(
-                            "${row.percent}% · ${row.hint()}",
+                            "${row.percent}% · ${row.hint(snap.remainingFor(row, now))}",
                             style = style(if (row.atRisk && !snap.attendanceExempt) inks.a else inks.b, 12.sp, bold = true),
                             maxLines = 1,
                         )

@@ -46,6 +46,8 @@ import dev.medriid.davit.data.hint
 import dev.medriid.davit.data.mustAttend
 import dev.medriid.davit.data.percent
 import dev.medriid.davit.data.planFor
+import dev.medriid.davit.data.remainingFor
+import dev.medriid.davit.data.skipTillEnd
 import dev.medriid.davit.data.weekOf
 import dev.medriid.davit.design.HalftoneBar
 import dev.medriid.davit.design.Heading
@@ -87,7 +89,8 @@ internal fun TodayTab(
         }
     }
     val week = remember(snapshot) { weekOf(snapshot) }
-    val plan = planFor(week, now)
+    val plan = planFor(week, now, snapshot.calendar)
+    val calDay = plan.calendarDay
     val att = snapshot.attendance
     val risky = att.count { it.atRisk }
     val attended = att.sumOf { it.attended }
@@ -96,10 +99,19 @@ internal fun TodayTab(
     TabColumn {
         InkText(now.format(DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.ENGLISH)), style = RisoType.title)
         InkText(
-            when (plan.today.size) {
-                0 -> "No classes today"
-                else -> "${plan.today.size} class${if (plan.today.size > 1) "es" else ""} today · ${plan.done} done"
-            },
+            listOfNotNull(
+                when {
+                    calDay != null && !calDay.instructional -> listOfNotNull(calDay.type, calDay.note).joinToString(" · ")
+                    calDay != null && calDay.dayOrder in 1..7 && calDay.dayOrder != now.dayOfWeek.value ->
+                        "Follows ${DayOfWeek.of(calDay.dayOrder).getDisplayName(TextStyle.FULL, Locale.ENGLISH)}'s timetable"
+                    else -> null
+                },
+                when (plan.today.size) {
+                    0 -> "No classes today"
+                    else -> "${plan.today.size} class${if (plan.today.size > 1) "es" else ""} today · ${plan.done} done"
+                },
+                snapshot.calendar?.instructionalDaysLeft(now.toLocalDate())?.takeIf { it > 0 }?.let { "$it teaching days left" },
+            ).joinToString(" · "),
             style = RisoType.small,
         )
         Spacer(Modifier.height(16.dp))
@@ -116,12 +128,12 @@ internal fun TodayTab(
 
         if (plan.now != null) {
             SectionTitle("Now")
-            NowCard(plan.now, now, onOpenAttendance)
+            NowCard(plan.now, now, plan.now.attendance?.let { snapshot.remainingFor(it, now) }, onOpenAttendance)
             Spacer(Modifier.height(14.dp))
         } else if (plan.today.isNotEmpty() || plan.next != null) {
             Spacer(Modifier.height(20.dp))
         }
-        plan.next?.let { NextCard(it, plan, now, onOpenWeek) }
+        plan.next?.let { NextCard(it, plan, now, it.attendance?.let { a -> snapshot.remainingFor(a, now) }, onOpenWeek) }
         if (snapshot.timetable.isEmpty()) {
             Spacer(Modifier.height(20.dp))
             InkText("No timetable for ${snapshot.semester.name} yet, so no Now/Next.", style = RisoType.small)
@@ -215,7 +227,7 @@ private fun StatTile(value: String, label: String, modifier: Modifier, onClick: 
 }
 
 @Composable
-private fun NowCard(slot: ClassSlot, now: LocalDateTime, onClick: () -> Unit) {
+private fun NowCard(slot: ClassSlot, now: LocalDateTime, remaining: Int?, onClick: () -> Unit) {
     val inks = LocalInks.current
     val m = slot.meeting
     val minute = now.hour * 60 + now.minute + now.second / 60f
@@ -254,6 +266,9 @@ private fun NowCard(slot: ClassSlot, now: LocalDateTime, onClick: () -> Unit) {
                     if (row.atRisk) {
                         InkText("attend ${row.mustAttend}", style = RisoType.body.copy(fontWeight = FontWeight.SemiBold))
                         InkText("to recover", style = RisoType.small)
+                    } else if (remaining != null) {
+                        InkText("skip ${minOf(row.skipTillEnd(remaining), remaining).coerceAtLeast(0)}", style = RisoType.body.copy(fontWeight = FontWeight.SemiBold))
+                        InkText("of $remaining left", style = RisoType.small)
                     } else {
                         InkText("skip ${row.canSkipNow}", style = RisoType.body.copy(fontWeight = FontWeight.SemiBold))
                         InkText("and stay at 75%", style = RisoType.small)
@@ -265,7 +280,7 @@ private fun NowCard(slot: ClassSlot, now: LocalDateTime, onClick: () -> Unit) {
 }
 
 @Composable
-private fun NextCard(slot: ClassSlot, plan: TodayPlan, now: LocalDateTime, onClick: () -> Unit) {
+private fun NextCard(slot: ClassSlot, plan: TodayPlan, now: LocalDateTime, remaining: Int?, onClick: () -> Unit) {
     val minute = now.hour * 60 + now.minute
     val whenText = when (plan.nextInDays) {
         0 -> {
@@ -273,7 +288,7 @@ private fun NextCard(slot: ClassSlot, plan: TodayPlan, now: LocalDateTime, onCli
             if (mins < 60) "in $mins min" else "in ${mins / 60} h ${mins % 60} min"
         }
         1 -> "tomorrow"
-        else -> DayOfWeek.of(slot.meeting.day).getDisplayName(TextStyle.FULL, Locale.ENGLISH)
+        else -> (plan.nextDate?.dayOfWeek ?: DayOfWeek.of(slot.meeting.day)).getDisplayName(TextStyle.FULL, Locale.ENGLISH)
     }
     InkCard(
         Modifier.fillMaxWidth(),
@@ -289,11 +304,14 @@ private fun NextCard(slot: ClassSlot, plan: TodayPlan, now: LocalDateTime, onCli
                 val tail = listOfNotNull(whenText, if (slot.isLab) "Lab" else "Theory", slot.course.venue.takeIf { it.isNotBlank() })
                     .joinToString(" · ")
                 InkText(tail, style = RisoType.small)
-                slot.attendance?.let { InkText("${it.percent}% · ${it.hint()}", style = RisoType.small) }
+                slot.attendance?.let { InkText("${it.percent}% · ${it.hint(remaining)}", style = RisoType.small) }
             }
         }
     }
 }
+
+/** One-tap titles for the usual things. */
+private val ReminderPresets = listOf("Mess change", "Go to Allmart", "Offline quiz", "Project review", "Report submission")
 
 private val dueFormat = DateTimeFormatter.ofPattern("EEE d MMM", Locale.ENGLISH)
 
@@ -327,6 +345,8 @@ private fun AddReminder(onSave: (String, LocalDate) -> Unit) {
     var title by rememberSaveable { mutableStateOf("") }
     var date by remember { mutableStateOf(LocalDate.now().plusDays(1)) }
     Column(Modifier.padding(bottom = 14.dp)) {
+        ChoiceRow(ReminderPresets, ReminderPresets.indexOf(title)) { title = ReminderPresets[it] }
+        Spacer(Modifier.height(8.dp))
         InkField(title, { title = it.take(80) }, "Reminder", modifier = Modifier.fillMaxWidth())
         Spacer(Modifier.height(10.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {

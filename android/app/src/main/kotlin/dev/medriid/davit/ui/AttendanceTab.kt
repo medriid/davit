@@ -33,6 +33,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.ui.graphics.drawscope.Stroke
 import dev.medriid.davit.data.Snapshot
 import dev.medriid.davit.data.key
+import dev.medriid.davit.data.remainingFor
+import java.time.LocalDateTime
 import dev.medriid.davit.data.vtopDate
 import dev.medriid.davit.vtop.AttendanceDay
 import java.time.format.DateTimeFormatter
@@ -76,14 +78,15 @@ internal fun AttendanceTab(snapshot: Snapshot) {
             rows.sortedBy { it.percent }.forEach { row ->
                 val faculty = snapshot.timetable.firstOrNull { it.classId.isNotEmpty() && it.classId == row.classId }?.faculty
                     ?: snapshot.timetable.firstOrNull { it.courseCode == row.courseCode && isLabType(it.courseType) == isLabType(row.classType) }?.faculty
-                key(row.key) { CourseCard(row, snapshot.history[row.key].orEmpty(), faculty.orEmpty()) }
+                val remaining = remember(snapshot, row.key) { snapshot.remainingFor(row, LocalDateTime.now()) }
+                key(row.key) { CourseCard(row, remaining, snapshot.history[row.key].orEmpty(), faculty.orEmpty()) }
             }
         }
     }
 }
 
 @Composable
-private fun CourseCard(row: AttendanceRow, history: List<AttendanceDay>, faculty: String) {
+private fun CourseCard(row: AttendanceRow, remaining: Int?, history: List<AttendanceDay>, faculty: String) {
     val inks = LocalInks.current
     val risk = row.atRisk
     val ink by animateColorAsState(if (risk) inks.a else inks.b, label = "ink")
@@ -123,7 +126,7 @@ private fun CourseCard(row: AttendanceRow, history: List<AttendanceDay>, faculty
             atRisk = risk,
         )
         Spacer(Modifier.height(10.dp))
-        InkText(row.hint().replaceFirstChar { it.uppercase() }, style = RisoType.body.copy(fontWeight = FontWeight.SemiBold))
+        InkText(row.hint(remaining).replaceFirstChar { it.uppercase() }, style = RisoType.body.copy(fontWeight = FontWeight.SemiBold))
         AnimatedVisibility(open) {
             Column(Modifier.padding(top = 12.dp)) {
                 InkText("If you miss the next…", label = true)

@@ -167,3 +167,14 @@ data class HostelRequests(
     val activeLeave: List<Leave> = emptyList(),
     val pastLeave: List<Leave> = emptyList(),
 )
+
+/** A faculty member's directory card from VTOP's employee search. */
+data class FacultyInfo(
+    val empId: String,
+    val name: String,
+    val designation: String,
+    val department: String,
+    val school: String,
+    val email: String,
+    val cabin: String,
+)
