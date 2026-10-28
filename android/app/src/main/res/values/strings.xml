@@ -1,0 +1,4 @@
+<resources>
+    <string name="widget_name">daVIT · Now and next</string>
+    <string name="widget_description">Your current or next class, its attendance, and what is due.</string>
+</resources>

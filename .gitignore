@@ -1,0 +1,33 @@
+# Private notes and plans. Never pushed.
+/notes/
+
+# Private data: captcha weights and the slot table (see docs/05-captcha-solver.md)
+web/model/captcha_model.json
+android/core/src/main/resources/dev/medriid/davit/vtop/captcha_model.bin
+android/core/src/main/resources/dev/medriid/davit/vtop/slot_times.txt
+
+# Secrets: the web build's encrypted credential vault
+web/vault.enc
+web/*.tmp
+
+# Python
+__pycache__/
+*.pyc
+
+# Android / Gradle
+.gradle/
+.kotlin/
+build/
+local.properties
+keystore.properties
+captures/
+*.apk
+*.aab
+*.jks
+*.keystore
+.idea/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db

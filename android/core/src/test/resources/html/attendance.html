@@ -1,0 +1,42 @@
+<!-- Hand-written fixture in the shape the scrapers read (docs/04).
+     Not a real VTOP page: replace with a scrubbed dump once one is captured. -->
+<div>
+  <input type="hidden" name="_csrf" value="csrf-after-attendance">
+  <select id="semesterSubId" name="semesterSubId">
+    <option value="">-- Choose Semester --</option>
+    <option value="VL20262701">Fall Semester 2026-27 - VLR</option>
+    <option value="VL20252605">Winter Semester 2025-26 - VLR</option>
+  </select>
+  <table id="AttendanceDetailDataTable">
+    <thead><tr><th>Sl</th><th>Group</th><th>Course</th><th>Class</th><th>Faculty</th><th>Attended</th><th>Total</th><th>%</th><th>Debar</th><th>View</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>1</td><td>General</td>
+        <td>PHY1001 - Engineering Physics - Embedded Theory</td>
+        <td>F1+TF1</td><td>FACULTY A</td>
+        <td>37</td><td>50</td>
+        <td><span style="color:red">74%</span></td>
+        <td>-</td>
+        <td><a href="#" onclick="javascript:callStudentAttendanceDetailDisplay('VL20262701','REGNO','VL2026270100101','ETH');">View</a></td>
+      </tr>
+      <tr>
+        <td>2</td><td>General</td>
+        <td>CSE2001 - Data Structures - Embedded Lab</td>
+        <td>L31+L32</td><td>FACULTY B</td>
+        <td>13</td><td>16</td>
+        <td><span style="color:green">82%</span></td>
+        <td>-</td>
+        <td><a href="#" onclick="javascript:callStudentAttendanceDetailDisplay('VL20262701','REGNO','VL2026270100202','ELA');">View</a></td>
+      </tr>
+      <tr>
+        <td>3</td><td>General</td>
+        <td>ENG1001 - Technical English - Communication - Theory Only</td>
+        <td>A1+TA1</td><td>FACULTY C</td>
+        <td>41</td><td>50</td>
+        <td>82</td>
+        <td>-</td>
+        <td></td>
+      </tr>
+    </tbody>
+  </table>
+</div>

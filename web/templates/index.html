@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>daVIT · Attendance</title>
+<style>
+  :root {
+    --bg:#0f1115; --card:#171a21; --line:#272b35; --fg:#e8eaed; --muted:#9aa0aa;
+    --accent:#4c8bf5; --good:#2ea043; --warn:#d29922; --bad:#e5534b;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg);
+    font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    padding:env(safe-area-inset-top,0) 16px env(safe-area-inset-bottom,0); }
+  .wrap { max-width:860px; margin:0 auto; padding-block:28px; }
+  h1 { font-size:22px; margin:0 0 2px; }
+  .brand { color:var(--accent); }
+  .sub { color:var(--muted); margin:0 0 20px; font-size:13px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px;
+    padding:18px; margin-bottom:18px; }
+  label { display:block; font-size:12px; color:var(--muted); margin:0 0 5px; text-transform:uppercase; letter-spacing:.04em; }
+  input { width:100%; padding:11px 12px; border-radius:9px; border:1px solid var(--line);
+    background:#0e1014; color:var(--fg); font-size:15px; }
+  .row { display:flex; gap:12px; flex-wrap:wrap; }
+  .row > div { flex:1 1 200px; }
+  button { margin-top:16px; width:100%; padding:12px; border:0; border-radius:9px;
+    background:var(--accent); color:#fff; font-size:15px; font-weight:600; cursor:pointer; }
+  button.ghost { background:transparent; border:1px solid var(--line); color:var(--fg); font-weight:500; }
+  button:disabled { opacity:.6; cursor:default; }
+  .btnrow { display:flex; gap:10px; }
+  .btnrow button { flex:1; }
+  .note { font-size:12px; color:var(--muted); margin-top:10px; }
+  details { margin-top:4px; }
+  summary { cursor:pointer; color:var(--muted); font-size:13px; padding:6px 0; }
+  .msg { padding:11px 13px; border-radius:9px; margin-bottom:16px; display:none; font-size:14px; }
+  .msg.err { background:#3a1d1c; border:1px solid var(--bad); color:#ffb4ae; display:block; }
+  .msg.info { background:#15233a; border:1px solid var(--accent); color:#bcd4ff; display:block; }
+  .msg.ok { background:#16301d; border:1px solid var(--good); color:#aee8bf; display:block; }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  th, td { text-align:left; padding:10px; border-bottom:1px solid var(--line); }
+  th { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.03em; }
+  td.num, th.num { text-align:right; white-space:nowrap; }
+  .pct { font-weight:700; }
+  .pct.good { color:var(--good); } .pct.warn { color:var(--warn); } .pct.bad { color:var(--bad); }
+  .sem { color:var(--muted); font-size:13px; margin:2px 0 14px; }
+  .tablewrap { overflow-x:auto; }
+  .spin { display:inline-block; width:15px; height:15px; border:2px solid #fff6;
+    border-top-color:#fff; border-radius:50%; animation:s .7s linear infinite; vertical-align:-2px; margin-right:8px; }
+  @keyframes s { to { transform:rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1><span class="brand">da</span>VIT · Attendance</h1>
+  <p class="sub">Local tool &middot; your login goes straight to vtop.vit.ac.in and is never stored unless you save it to the encrypted vault.</p>
+
+  <!-- Saved (vault) login, shown only when a vault exists -->
+  <div class="card" id="vaultCard" style="display:none">
+    <label for="mu">Unlock saved login</label>
+    <input id="mu" type="password" placeholder="Master passphrase" autocomplete="off">
+    <div class="btnrow">
+      <button id="vaultGo" type="button">Unlock &amp; get attendance</button>
+      <button id="vaultDel" type="button" class="ghost">Forget</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <form id="f">
+      <div class="row">
+        <div>
+          <label for="u">VTOP Username</label>
+          <input id="u" autocomplete="username" autocapitalize="characters" spellcheck="false">
+        </div>
+        <div>
+          <label for="p">Password</label>
+          <input id="p" type="password" autocomplete="current-password" placeholder="VTOP password">
+        </div>
+      </div>
+      <button id="go" type="submit">Get attendance</button>
+      <p class="note">The captcha is solved automatically. If VTOP shows Google reCAPTCHA, it'll ask you to retry.</p>
+
+      <details>
+        <summary>Save this login (encrypted, optional)</summary>
+        <label for="ms" style="margin-top:10px">Master passphrase</label>
+        <input id="ms" type="password" placeholder="Choose a master passphrase" autocomplete="off">
+        <button id="save" type="button" class="ghost">Encrypt &amp; save login</button>
+        <p class="note">Stored locally as AES-256-GCM, unlocked only by this passphrase. The plaintext password never touches disk; forget the passphrase and it's unrecoverable.</p>
+      </details>
+    </form>
+  </div>
+
+  <div id="msg" class="msg"></div>
+  <div id="out" class="card" style="display:none">
+    <div id="sem" class="sem"></div>
+    <div class="tablewrap"><table id="t"></table></div>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const f = $("f"), go = $("go"), msg = $("msg"), out = $("out");
+
+function setMsg(text, kind) { msg.className = "msg " + (kind || ""); msg.innerHTML = text; }
+function clearMsg() { msg.className = "msg"; }
+function pctClass(p) { const n = parseFloat(p); if (isNaN(n)) return ""; return n >= 85 ? "good" : n >= 75 ? "warn" : "bad"; }
+
+function render(data) {
+  const s = data.semester || {};
+  $("sem").textContent = s.name ? ("Semester: " + s.name) : (s.id ? ("Semester: " + s.id) : "");
+  const rows = data.summary || [];
+  const t = $("t");
+  if (!rows.length) {
+    t.innerHTML = "<tbody><tr><td>No attendance rows found for this semester.</td></tr></tbody>";
+    out.style.display = "block"; return;
+  }
+  let html = "<thead><tr><th>Course</th><th>Type</th><th class='num'>Attended</th>"
+           + "<th class='num'>Total</th><th class='num'>%</th></tr></thead><tbody>";
+  for (const r of rows) {
+    html += "<tr><td><strong>" + (r.courseCode || "") + "</strong><br><span style='color:var(--muted)'>"
+      + (r.courseName || "") + "</span></td><td>" + (r.classType || "") + "</td>"
+      + "<td class='num'>" + r.attended + "</td><td class='num'>" + r.total + "</td>"
+      + "<td class='num'><span class='pct " + pctClass(r.percentage) + "'>" + (r.percentage || "") + "</span></td></tr>";
+  }
+  t.innerHTML = html + "</tbody>";
+  out.style.display = "block";
+}
+
+async function fetchAttendance(body, busyText) {
+  out.style.display = "none";
+  go.disabled = true;
+  setMsg("<span class='spin'></span>" + busyText, "info");
+  try {
+    const res = await fetch("/api/attendance", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!data.ok) { setMsg(data.error || "Something went wrong.", "err"); return; }
+    clearMsg(); render(data);
+  } catch (err) {
+    setMsg("Network error talking to the local server: " + err, "err");
+  } finally { go.disabled = false; }
+}
+
+f.addEventListener("submit", (e) => {
+  e.preventDefault();
+  const username = $("u").value.trim(), password = $("p").value;
+  if (!username || !password) { setMsg("Enter both username and password.", "err"); return; }
+  fetchAttendance({ username, password }, "Logging in and solving captcha&hellip; this can take a few seconds.");
+});
+
+// ---- Encrypted vault wiring ----
+async function refreshVault() {
+  try {
+    const r = await fetch("/api/vault/status"); const d = await r.json();
+    $("vaultCard").style.display = d.exists ? "block" : "none";
+  } catch (e) {}
+}
+$("save").addEventListener("click", async () => {
+  const username = $("u").value.trim(), password = $("p").value, master = $("ms").value;
+  if (!username || !password) { setMsg("Fill username and password first.", "err"); return; }
+  if (!master) { setMsg("Choose a master passphrase to save.", "err"); return; }
+  const r = await fetch("/api/vault/save", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password, master }) });
+  const d = await r.json();
+  if (d.ok) { setMsg("Login saved (encrypted). Next time, unlock it up top.", "ok"); $("ms").value = ""; refreshVault(); }
+  else setMsg(d.error || "Could not save.", "err");
+});
+$("vaultGo").addEventListener("click", () => {
+  const master = $("mu").value;
+  if (!master) { setMsg("Enter your master passphrase.", "err"); return; }
+  fetchAttendance({ useVault: true, master }, "Unlocking vault, logging in and solving captcha&hellip;");
+});
+$("vaultDel").addEventListener("click", async () => {
+  await fetch("/api/vault/delete", { method: "POST" });
+  setMsg("Saved login forgotten.", "ok"); refreshVault();
+});
+refreshVault();
+</script>
+</body>
+</html>

@@ -1,0 +1,18 @@
+<!-- Hand-written fixture in the shape the grade history scraper reads (docs/04):
+     an "Effective Grades" table with hidden per-course detail rows, and a summary
+     table carrying the CGPA. Generic data. -->
+<html><body>
+<table class="customTable">
+  <tr class="tableHeader"><td colspan="9">Effective Grades</td></tr>
+  <tr class="tableHeader"><td>Sl.No</td><td>Course Code</td><td>Course Title</td><td>Course Type</td><td>Credits</td><td>Grade</td><td>Exam Month</td><td>Result Declared On</td><td>Course Distribution</td></tr>
+  <tr class="tableContent"><td>1</td><td>BMAT101L</td><td>Calculus</td><td>TH</td><td>3.0</td><td>A</td><td>Nov-2025</td><td>10-Dec-2025</td><td>FC</td></tr>
+  <tr class="tableContent" id="detailsView_1" style="display: none;"><td>x</td><td>x</td><td>x</td><td>x</td><td>9</td><td>F</td></tr>
+  <tr class="tableContent"><td>2</td><td>BPHY101L</td><td>Engineering Physics</td><td>ETH</td><td>4.0</td><td>S</td><td>Nov-2025</td><td>10-Dec-2025</td><td>FC</td></tr>
+  <tr class="tableContent"><td>3</td><td>BENG101L</td><td>Technical English</td><td>TH</td><td>2.0</td><td>B</td><td>Nov-2025</td><td>10-Dec-2025</td><td>UC</td></tr>
+  <tr class="tableContent"><td>4</td><td>BCSE101L</td><td>Programming</td><td>TH</td><td>3.0</td><td>-</td><td>Apr-2026</td><td>-</td><td>DC</td></tr>
+</table>
+<table class="table">
+  <tr><th>Credits Registered</th><th>Credits Earned</th><th>CGPA</th><th>S</th><th>A</th></tr>
+  <tr><td>12.0</td><td>9.0</td><td>9.11</td><td>1</td><td>1</td></tr>
+</table>
+</body></html>
