@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 // Release signing comes from android/keystore.properties (gitignored): storeFile, passwordFile
@@ -21,8 +22,8 @@ android {
         applicationId = "dev.medriid.davit"
         minSdk = 26
         targetSdk = 35
-        versionCode = 6
-        versionName = "0.4.1"
+        versionCode = 7
+        versionName = "0.5.0"
     }
 
     signingConfigs {

@@ -20,7 +20,11 @@ Attendance, today's classes and your week, printed in two inks.
 
 - **Attendance.** Every course sorted by risk, with how many classes you can skip or must attend, and its day-by-day history.
 - **Today at a glance.** The class that's on now, what's next, what's due, and what changed since you last looked.
-- **Academics.** Marks, assignments, exams, grades with your CGPA, credit progress, a semester planner, and your faculty's contact details.
+- **Academics.** Marks, assignments, exams, grades with your CGPA and each semester's GPA, credit progress, a semester planner, and your faculty, proctor, HOD and dean.
+- **Assignments, end to end.** Download the question paper and your own submission, and upload from the phone: type and size checked first, a confirm tap, progress, and VTOP's emailed code when you replace a file.
+- **Course materials.** Every course page with your own faculty's uploads first, by module. Files download with progress and open offline; a forgiving search (typos are fine) runs across all your courses.
+- **VTOP's verdicts.** Debarment remarks on your attendance and on Today, with an alert when one appears; the registration window with a reminder; pending feedback.
+- **The rest of VTOP.** Class and proctor messages, Spot-light, club events, hostel leave (apply, status, history), gate log, receipts, fees letters, library dues, and your curriculum with syllabus PDFs.
 - **Your week.** Each day's classes, the whole week as a grid, and the academic calendar with holidays, exam dates and swapped days.
 - **Alerts and a widget.** Syncs in the background and tells you about attendance dips, new marks, deadlines and exams. A home-screen widget shows your next class.
 - **Signs in by itself.** VTOP's captcha is solved on the phone by a tiny model; sessions are reused, so most refreshes skip login entirely.
@@ -37,7 +41,9 @@ Get the latest APK from [Releases](https://github.com/medriid/davit/releases). A
 ## Privacy
 
 - **Stays on your phone.** Password, session and data are sealed with AES-256-GCM under an Android Keystore key.
-- **Talks only to VTOP.** No server of ours, no accounts, no analytics. Read-only: upload endpoints are blocked in code. It also downloads two public files, the academic calendar and the faculty directory, and asks GitHub for the latest release when you tap *Check for updates*. None of these send anything about you.
+- **Talks only to VTOP.** No server of ours, no accounts, no analytics. It also downloads two public files, the academic calendar and the faculty directory, and asks GitHub for the latest release when you tap *Check for updates*. None of these send anything about you.
+- **Writes only when you ask.** Background sync only reads. An assignment upload or a hostel leave application goes to VTOP only after you've confirmed it on screen; every other write (payments, registration, password changes) is blocked in code.
+- **Files stay local.** Course materials and documents you open are kept in the app's private storage for offline use; delete them any time from Downloads.
 - **Optional app lock** with fingerprint, face or screen lock.
 - **Sign out erases everything** it stored, key included.
 

@@ -1,0 +1,28 @@
+<!-- Hand-written fixture in the shape of processDigitalAssignment (Oct 2026): a two-row header,
+     then 9 cells per assignment. Buttons say what can be done: downloadQuestion (question paper),
+     editAssignment (upload, while open), downloadStudentDA (your file). Generic data. -->
+<html><body><form id="daUpload" name="daUpload" method="post">
+<input type="hidden" name="authorizedID" id="authorizedID" value="REGNO"><input type="hidden" name="_csrf" value="CSRF">
+<table class="customTable"><tbody>
+<tr class="fixedContent tableHeader"><td>Semester</td><td>Course Code</td><td>Course Title</td><td>Course Type</td><td>Class Number</td></tr>
+<tr class="fixedContent tableContent"><td>Fall Semester 2026-27</td><td>BXYZ101</td><td>Sample Engineering</td><td>ELA</td><td>VL2026270100201</td></tr>
+</tbody></table>
+<table class="customTable"><tbody>
+<tr class="fixedContent tableHeader"><td rowspan="2">Sl.No.</td><td rowspan="2">Title</td><td rowspan="2">Max. Mark</td><td rowspan="2">Weightage %</td><td rowspan="2">Due Date</td><td rowspan="2">QP</td><td colspan="3">Document Details</td></tr>
+<tr class="fixedContent tableHeader"><td>Last Updated On</td><td>Upload/Edit</td><td>Download</td></tr>
+<tr class="fixedContent tableContent"><td>1</td><td>Drawing Workbook</td><td>20</td><td>13</td><td><span style="color: green;">03-Nov-2026</span></td>
+  <td><span><button type="button" class="btn btn-link bi bi-download" id="downloadQuestion" name="downloadQuestion" data-code="CBDP" data-classid="VL2026270100201"></button></span></td>
+  <td><span style="color: green;"></span></td>
+  <td><br><span><span><input type="hidden" name="code" value="CBDP"><input type="hidden" name="opt" value="Drawing Workbook"><span><button type="button" class="icon-button" onclick="doDAssignmentProcess();" id="editAssignment" name="editAssignment" data-editclassid="VL2026270100201" data-editcode="CBDP"><span class="bi bi-pencil-fill"></span></button></span></span></span></td>
+  <td><div><span class="text-danger">-</span></div></td></tr>
+<tr class="fixedContent tableContent"><td>2</td><td>Circuit Analysis</td><td>20</td><td>12</td><td><span style="color: green;">03-Nov-2026</span></td>
+  <td></td>
+  <td><span>26 Sep 2026 01:34 PM</span></td>
+  <td><br><span><span><input type="hidden" name="code" value="CP"><input type="hidden" name="opt" value="Circuit Analysis"><span><button type="button" class="icon-button" onclick="doDAssignmentProcess();" id="editAssignment" name="editAssignment" data-editclassid="VL2026270100201" data-editcode="CP"><span class="bi bi-pencil-fill"></span></button></span></span></span></td>
+  <td><div><button type="button" class="btn btn-link bi bi-download" id="downloadStudentDA" name="downloadStudentDA" data-code="CP" data-classid="VL2026270100201"><span></span></button></div></td></tr>
+<tr class="fixedContent tableContent"><td>3</td><td>Lab Record</td><td>10</td><td>10</td><td><span style="color: red;">31-Aug-2026</span></td>
+  <td></td>
+  <td><span>30 Aug 2026 09:10 PM</span></td>
+  <td><br><span> </span></td>
+  <td><div><button type="button" class="btn btn-link bi bi-download" id="downloadStudentDA" name="downloadStudentDA" data-code="AST03" data-classid="VL2026270100201"><span></span></button></div></td></tr>
+</tbody></table></form></body></html>

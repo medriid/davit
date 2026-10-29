@@ -1,6 +1,7 @@
 plugins {
     `java-library`
     alias(libs.plugins.kotlin.jvm)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 // Pure JVM: no Android here, so the scrapers and the captcha solver run as plain
@@ -13,6 +14,7 @@ java {
 dependencies {
     api(libs.okhttp)
     implementation(libs.jsoup)
+    api(libs.kotlinx.serialization.json)
     testImplementation(libs.junit)
     testImplementation(libs.okhttp.mockwebserver)
 }

@@ -1,0 +1,14 @@
+<!-- Hand-written fixture: the course page after processDigitalAssignmentUpload, with the
+     #daUpload form now holding the file input, mCode, and a code/opt pair per assessment. -->
+<html><body><form role="form" id="daUpload" name="daUpload" method="post" autocomplete="off">
+<input type="hidden" name="authorizedID" id="authorizedID" value="REGNO">
+<input type="hidden" name="_csrf" value="FORM-CSRF">
+<input type="hidden" name="classId" value="VL2026270100201">
+<input type="hidden" name="mCode" value="CP">
+<table class="customTable"><tbody>
+<tr class="tableContent"><td>1</td><td>Drawing Workbook</td><td><input type="hidden" name="code" value="CBDP"><input type="hidden" name="opt" value="Drawing Workbook"></td></tr>
+<tr class="tableContent"><td>2</td><td>Circuit Analysis</td><td><input type="hidden" name="code" value="CP"><input type="hidden" name="opt" value="Circuit Analysis">
+  <input type="file" name="studDaUpload" id="studDaUpload" accept=".xls,.xlsx,.pdf,.doc,.docx">
+  <button type="button" name="digitalAssignmentSubmit">Submit</button>
+  <button type="button" name="digitalAssignmentCancel" data-markclassid="VL2026270100201">Cancel</button></td></tr>
+</tbody></table></form></body></html>

@@ -8,6 +8,7 @@ enum class AlertChannel(val id: String, val title: String) {
     Attendance("attendance", "Attendance"),
     Marks("marks", "New marks"),
     Deadlines("deadlines", "Deadlines and exams"),
+    Notices("notices", "Registration and VTOP notices"),
 }
 
 /** One notification. [key] identifies the event, so it's only ever posted once. */
@@ -59,6 +60,36 @@ fun alertsFor(old: Snapshot?, new: Snapshot, today: LocalDate, reminders: List<R
                     "${row.attended}/${row.total}. Missing the next class takes you below 75%.",
                 )
             }
+        }
+    }
+
+    // Attendance remarks: a course that turns Debarred or Revoked (or changes which exams it
+    // covers). Not on the first remarks fetch: that state is on screen already.
+    if (old.feeds.remarks.isNotEmpty()) {
+        val before = old.feeds.remarks.associateBy { it.code + "|" + it.type }
+        for (r in new.feeds.remarks) {
+            if (!r.serious) continue
+            val prev = before[r.code + "|" + r.type]
+            if (prev != null && prev.remark == r.remark) continue
+            out += Alert(
+                AlertChannel.Attendance, "remark:${r.code}|${r.type}|${r.remark}",
+                (if (r.debarred) "Debarred: " else "Revoked: ") + r.name.ifBlank { r.code },
+                "VTOP's remark: ${r.remark}" + (r.attendance?.let { " · attendance ${num(it)}%" } ?: ""),
+            )
+        }
+    }
+
+    // Registration: a window VTOP has just announced.
+    if (old.feeds.dailyAt > 0) {
+        val clock = DateTimeFormatter.ofPattern("EEE d MMM, h:mm a", Locale.ENGLISH)
+        for (w in new.feeds.registration) {
+            val start = w.start ?: continue
+            if (start.toLocalDate().isBefore(today) || old.feeds.registration.any { it.start == start }) continue
+            out += Alert(
+                AlertChannel.Notices, "reg:$start",
+                "${w.semester.ifBlank { "Course" }} registration",
+                "Opens ${start.format(clock)}" + (w.end?.let { " · closes ${it.format(DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH))}" } ?: ""),
+            )
         }
     }
 

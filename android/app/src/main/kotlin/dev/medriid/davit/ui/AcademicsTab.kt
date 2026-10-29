@@ -33,6 +33,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.animation.togetherWith
+import dev.medriid.davit.design.printIn
 import dev.medriid.davit.data.GradePoints
 import dev.medriid.davit.data.Snapshot
 import dev.medriid.davit.data.neededAverage
@@ -59,16 +65,33 @@ import java.util.Locale
 @Composable
 internal fun AcademicsTab(snapshot: Snapshot) {
     var segment by rememberSaveable { mutableIntStateOf(0) }
+    val motion = dev.medriid.davit.design.rememberMotionEnabled()
     TabColumn {
         Heading("Academics", 28.sp, Modifier.padding(top = 8.dp, bottom = 14.dp))
-        ChoiceRow(listOf("Marks", "Assignments", "Exams", "Grades", "Faculty"), segment) { segment = it }
+        val haptics = dev.medriid.davit.design.rememberHaptics()
+        ChoiceRow(listOf("Marks", "Assignments", "Exams", "Grades", "Materials", "Faculty"), segment) {
+            if (it != segment) haptics.tick()
+            segment = it
+        }
         Spacer(Modifier.height(14.dp))
-        when (segment) {
-            0 -> MarksSegment(snapshot)
-            1 -> AssignmentsSegment(snapshot)
-            2 -> ExamsSegment(snapshot.exams)
-            3 -> GradesSegment(snapshot)
-            else -> FacultySegment(snapshot)
+        androidx.compose.animation.AnimatedContent(
+            segment,
+            transitionSpec = {
+                if (!motion) androidx.compose.animation.EnterTransition.None togetherWith androidx.compose.animation.ExitTransition.None
+                else androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(180)) togetherWith androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(120))
+            },
+            label = "segment",
+        ) { s ->
+            Column {
+                when (s) {
+                    0 -> MarksSegment(snapshot)
+                    1 -> AssignmentsSegment(snapshot)
+                    2 -> ExamsSegment(snapshot.exams)
+                    3 -> GradesSegment(snapshot)
+                    4 -> MaterialsSegment(snapshot)
+                    else -> FacultySegment(snapshot)
+                }
+            }
         }
     }
 }
@@ -156,20 +179,32 @@ private fun AssignmentsSegment(snapshot: Snapshot) {
             c.items.filter { it.updated == null }.mapNotNull { it.dueDay() }.filter { !it.isBefore(today) }.minOrNull()
         },
     )
+    val nav = LocalNav.current
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        ordered.forEach { c ->
-            InkCard(Modifier.fillMaxWidth(), plateOffset = 4.dp) {
+        ordered.forEachIndexed { ci, c ->
+            InkCard(Modifier.fillMaxWidth().printIn(ci), plateOffset = 4.dp) {
                 InkText(c.courseName, style = RisoType.title, maxLines = 2)
                 InkText("${c.courseCode} · ${c.courseType}", style = RisoType.small, maxLines = 1)
                 Spacer(Modifier.height(10.dp))
                 Rule()
-                c.items.forEach { a ->
-                    Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                c.items.forEachIndexed { i, a ->
+                    // Each assignment opens its own screen (downloads, upload), growing out of its row.
+                    val route = Route.Assignment(c.classId, a.routeCode(i))
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .sharedCard(route.sharedKey)
+                            .clickable(role = androidx.compose.ui.semantics.Role.Button) { nav.go(route) }
+                            .padding(top = 10.dp, bottom = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
                         Column(Modifier.weight(1f)) {
                             InkText(a.title, style = RisoType.body.copy(fontWeight = FontWeight.SemiBold), maxLines = 2)
                             val bits = listOfNotNull(
                                 a.dueDay()?.let { "Due ${it.format(DateTimeFormatter.ofPattern("d MMM", Locale.ENGLISH))}" },
                                 a.weightage?.let { "${fmt(it)}%" },
+                                "question paper".takeIf { a.hasQuestion },
+                                "upload open".takeIf { a.canUpload && a.updated == null },
                             )
                             if (bits.isNotEmpty()) InkText(bits.joinToString(" · "), style = RisoType.small)
                         }
@@ -283,6 +318,20 @@ private fun addToCalendar(context: Context, exam: Exam) {
 @Composable
 private fun FacultySegment(snapshot: Snapshot) {
     val context = LocalContext.current
+    val repo = LocalRepo.current
+    val nav = LocalNav.current
+    val campus by repo.campus.state.collectAsState()
+    LaunchedEffect(Unit) { repo.campus.refresh(dev.medriid.davit.data.Section.People) }
+    // Your proctor first: the person to go to about attendance, leave and debarment.
+    campus.proctor?.let {
+        PersonCard(it, 0)
+        Spacer(Modifier.height(10.dp))
+    }
+    if (campus.hodDean.isNotEmpty()) {
+        Box(Modifier.sharedCard(Route.People.sharedKey).clickable(role = Role.Button) { nav.go(Route.People) }.padding(bottom = 14.dp)) {
+            InkChip("HOD and dean: " + campus.hodDean.joinToString(", ") { titleCase(it.name.removePrefix("Dr. ")) }, solid = true)
+        }
+    }
     if (snapshot.faculty.isEmpty()) {
         val names = snapshot.timetable.map { it.faculty }.filter { it.isNotBlank() }.distinct()
         InkText(if (names.isEmpty()) "No faculty in your timetable yet." else "Faculty details arrive with the next sync.")
@@ -335,7 +384,19 @@ private fun GradesSegment(snapshot: Snapshot) {
                 InkChip(if (snapshot.attendanceExempt) "Exempt from 75% rule" else "75% attendance rule applies", solid = !snapshot.attendanceExempt)
             }
             // Two decimals, cut not rounded: 8.996 must not read as 9.00.
-            Overprint(g?.cgpa?.let { "%.2f".format(Locale.ENGLISH, Math.floor(it * 100) / 100) } ?: "–", heroSize)
+            Overprint(g?.cgpa?.let { "%.2f".format(Locale.ENGLISH, Math.floor(it * 100) / 100) } ?: "–", heroSize, registerKey = g?.cgpa)
+        }
+    }
+    val nav = LocalNav.current
+    Spacer(Modifier.height(12.dp))
+    Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        InkCard(Modifier.weight(1f).fillMaxHeight().sharedCard(Route.SemesterGrades.sharedKey), onClick = { nav.go(Route.SemesterGrades) }, plateOffset = 4.dp) {
+            InkText("Semester GPA", style = RisoType.title.copy(fontSize = 17.sp))
+            InkText("Each term", style = RisoType.small)
+        }
+        InkCard(Modifier.weight(1f).fillMaxHeight().sharedCard(Route.Curriculum.sharedKey), onClick = { nav.go(Route.Curriculum) }, plateOffset = 4.dp) {
+            InkText("Curriculum", style = RisoType.title.copy(fontSize = 17.sp))
+            InkText("Syllabus PDFs", style = RisoType.small)
         }
     }
     if (g?.curriculum?.isNotEmpty() == true) {

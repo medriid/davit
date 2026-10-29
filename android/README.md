@@ -6,9 +6,17 @@ Kotlin + Jetpack Compose, min SDK 26.
 
 | Module | What's in it |
 |---|---|
-| `core/` | Plain JVM, no Android: `VtopClient` (login, session reuse, read-only guard, per-stage timings), `CaptchaSolver`, Jsoup `Parsers`, `SlotTimes`. `./gradlew :core:test` runs on a laptop. |
-| `design/` | Riso components: ink pairs, `Overprint`, `Halftone`, `InkButton`, `InkCard`, `Seal` (the app mark), `Grain`, motion. Fonts and licences in [`design/FONTS.md`](design/FONTS.md). |
-| `app/` | `data/`: `Repo` (sign-in, sync, sign-out), `Vault` (Keystore AES-256-GCM), `Snapshot` (encrypted cache), `Schedule` (week, now/next, the 75% maths). `ui/`: sign-in, the four tabs, the account sheet and the mascot. |
+| `core/` | Plain JVM, no Android: `VtopClient` (login, session reuse, downloads, the guard, per-stage timings), `CaptchaSolver`, Jsoup `Parsers`, `Feeds` (home page feeds and records) and `CoursePages` (materials, upload pages), `search/Fuzzy`, `SlotTimes`. `./gradlew :core:test` runs on a laptop. |
+| `design/` | Riso components: ink pairs, `Overprint`, `Halftone`, `InkButton`, `InkCard`, `Seal` (the app mark), `Grain`, motion, and `Printing` (list entrances, the first-sync sheet, the pull drum, loading plates, haptics). Fonts and licences in [`design/FONTS.md`](design/FONTS.md). |
+| `app/` | `data/`: `Repo` (sign-in, sync, sign-out), `Vault` (Keystore AES-256-GCM), `Snapshot` and `HomeFeeds` (encrypted cache), `CampusStore`, `MaterialsStore`, `FileStore` (downloads), `Uploads`, `Schedule` (week, now/next, the 75% maths). `ui/`: sign-in, the four tabs, screens above them (`Nav`, shared-element transitions), the account sheet and the mascot. |
+
+## Writes
+
+The guard in `VtopClient` blocks every write endpoint unless the request carries a
+`WritePermit`, and only the consent-taking methods (`openUpload`, `upload`,
+`submitUploadOtp`, `applyLeave`, each needing a `UserConsent` from a confirm button)
+make one. Background sync never has one. Payments, password changes and registration
+are blocked whatever the permit. `WriteFlowTest` checks this against a mock VTOP.
 
 ## Build and install
 
@@ -22,6 +30,10 @@ Needs JDK 17 and the Android SDK (platform 35). Create `local.properties` with
 ```bash
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
+
+Debug builds can show made-up demo data without an account, for checking screens on
+an emulator: `adb shell run-as dev.medriid.davit.dev touch files/demo`, then restart
+the app. Release builds have no demo.
 
 To sign in, the build needs the captcha model and the slot table in
 `core/src/main/resources/dev/medriid/davit/vtop/` (both gitignored); see

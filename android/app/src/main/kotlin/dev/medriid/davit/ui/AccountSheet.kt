@@ -30,6 +30,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -91,6 +92,10 @@ internal fun AccountSheet(
     onDumpPages: (Boolean) -> Unit,
     onBackground: (Boolean) -> Unit,
     onAlerts: (Boolean) -> Unit,
+    onCalendarGroup: (String?) -> Unit = {},
+    /** The class group picked by hand for this semester; null when it's detected. */
+    manualGroup: String? = null,
+    onOpen: (Route) -> Unit = {},
     onSignOut: () -> Unit,
     onClose: () -> Unit,
 ) {
@@ -153,6 +158,39 @@ internal fun AccountSheet(
                             InkText("Earlier", label = true)
                             past.takeLast(3).forEach { (what, status) -> RequestRow(what, status) }
                         }
+                    }
+                }
+
+                if (profile?.hostel != null) {
+                    Spacer(Modifier.height(6.dp))
+                    ActionRow("Hostel", "Apply for leave; leave and night-slip status.", "Open") { onOpen(Route.Hostel) }
+                }
+
+                SheetLabel("From VTOP")
+                ActionRow("More from VTOP", "Messages, Spot-light, proctor, gate log, receipts, curriculum.", "Open") { onOpen(Route.Campus) }
+                val repo = LocalRepo.current
+                val saved by repo.files.saved.collectAsState()
+                ActionRow(
+                    "Downloads",
+                    if (saved.isEmpty()) "Files you open from VTOP stay here for offline." else "${saved.size} file${if (saved.size == 1) "" else "s"} on this phone.",
+                    "Manage",
+                ) { onOpen(Route.Downloads) }
+
+                val groups = state.snapshot?.feeds?.classGroups.orEmpty()
+                val cal = state.snapshot?.calendar
+                if (groups.isNotEmpty()) {
+                    SheetLabel("Calendar class group")
+                    InkText(
+                        when {
+                            manualGroup != null -> "You chose ${groups.firstOrNull { it.id == manualGroup }?.let { "${it.id} (${it.name})" } ?: manualGroup}."
+                            cal?.group?.isNotBlank() == true -> "Detected from your attendance: ${cal.group}."
+                            else -> "Not detected yet; using General."
+                        } + " Freshers' Saturdays and some exam days differ by group.",
+                        style = RisoType.small,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    ChoiceRow(listOf("Auto") + groups.map { it.id }, if (manualGroup == null) 0 else groups.indexOfFirst { it.id == manualGroup } + 1) {
+                        onCalendarGroup(if (it == 0) null else groups[it - 1].id)
                     }
                 }
 

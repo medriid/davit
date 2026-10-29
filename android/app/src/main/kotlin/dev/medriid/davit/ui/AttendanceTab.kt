@@ -53,6 +53,16 @@ import dev.medriid.davit.design.InkText
 import dev.medriid.davit.design.LocalInks
 import dev.medriid.davit.design.RisoType
 import dev.medriid.davit.vtop.AttendanceRow
+import dev.medriid.davit.vtop.CourseRemark
+import dev.medriid.davit.data.remarkFor
+import dev.medriid.davit.design.Overprint
+import dev.medriid.davit.design.printIn
+import androidx.compose.ui.unit.DpOffset
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.ui.draw.clip
 
 /** Every course, sorted by risk. Tap a card for a what-if. */
 @Composable
@@ -75,18 +85,18 @@ internal fun AttendanceTab(snapshot: Snapshot) {
             InkText("VTOP has no attendance for ${snapshot.semester.name} yet.")
         }
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            rows.sortedBy { it.percent }.forEach { row ->
+            rows.sortedBy { it.percent }.forEachIndexed { index, row ->
                 val faculty = snapshot.timetable.firstOrNull { it.classId.isNotEmpty() && it.classId == row.classId }?.faculty
                     ?: snapshot.timetable.firstOrNull { it.courseCode == row.courseCode && isLabType(it.courseType) == isLabType(row.classType) }?.faculty
                 val remaining = remember(snapshot, row.key) { snapshot.remainingFor(row, LocalDateTime.now()) }
-                key(row.key) { CourseCard(row, remaining, snapshot.history[row.key].orEmpty(), faculty.orEmpty()) }
+                key(row.key) { CourseCard(row, remaining, snapshot.history[row.key].orEmpty(), faculty.orEmpty(), snapshot.feeds.remarkFor(row), Modifier.printIn(index)) }
             }
         }
     }
 }
 
 @Composable
-private fun CourseCard(row: AttendanceRow, remaining: Int?, history: List<AttendanceDay>, faculty: String) {
+private fun CourseCard(row: AttendanceRow, remaining: Int?, history: List<AttendanceDay>, faculty: String, remark: CourseRemark?, modifier: Modifier = Modifier) {
     val inks = LocalInks.current
     val risk = row.atRisk
     val ink by animateColorAsState(if (risk) inks.a else inks.b, label = "ink")
@@ -103,10 +113,10 @@ private fun CourseCard(row: AttendanceRow, remaining: Int?, history: List<Attend
         }
     }
 
-    InkCard(Modifier.fillMaxWidth(), onClick = { open = !open }, plate = ink) {
+    InkCard(modifier.fillMaxWidth(), onClick = { open = !open }, plate = ink) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.width(104.dp)) {
-                Heading("$pct%", 34.sp, color = ink)
+                Overprint("$pct%", 34.sp, plateA = ink, rest = DpOffset(2.dp, 1.5.dp), from = DpOffset(12.dp, (-7).dp), dot = 3.5.dp, registerKey = row.percent)
                 Spacer(Modifier.height(8.dp))
                 InkText("${row.attended}/${row.total}", style = RisoType.small.copy(fontWeight = FontWeight.SemiBold))
             }
@@ -127,6 +137,20 @@ private fun CourseCard(row: AttendanceRow, remaining: Int?, history: List<Attend
         )
         Spacer(Modifier.height(10.dp))
         InkText(row.hint(remaining).replaceFirstChar { it.uppercase() }, style = RisoType.body.copy(fontWeight = FontWeight.SemiBold))
+        if (remark != null && remark.remark.isNotBlank()) {
+            Spacer(Modifier.height(10.dp))
+            if (remark.serious) {
+                // VTOP's verdict, reversed out of ink A: it decides more than the percentage does.
+                Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(6.dp)).background(inks.a).padding(horizontal = 10.dp, vertical = 8.dp)) {
+                    BasicText(
+                        "VTOP: ${remark.remark}",
+                        style = RisoType.body.copy(color = inks.paper, fontWeight = FontWeight.SemiBold),
+                    )
+                }
+            } else {
+                InkText("VTOP: ${remark.remark}", style = RisoType.small)
+            }
+        }
         AnimatedVisibility(open) {
             Column(Modifier.padding(top = 12.dp)) {
                 InkText("If you miss the next…", label = true)

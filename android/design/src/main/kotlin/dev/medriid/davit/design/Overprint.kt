@@ -30,7 +30,7 @@ import kotlinx.coroutines.launch
  * plates overlap the paper takes the darker third colour.
  *
  * On first composition, and whenever [registerKey] changes, the top plate starts at
- * [RisoMotion.RegisterFrom] and springs to [rest]. Pressing nudges the plate the other
+ * [from] and springs to [rest]. Pressing nudges the plate the other
  * way, like the web hover. With animations off it simply sits at [rest].
  */
 @Composable
@@ -41,13 +41,14 @@ fun Overprint(
     plateA: Color = LocalInks.current.a,
     plateB: Color = LocalInks.current.b,
     rest: DpOffset = RisoMotion.Misreg,
+    from: DpOffset = RisoMotion.RegisterFrom,
     dot: Dp = RisoMotion.Dot,
     registerKey: Any? = Unit,
     style: TextStyle = RisoType.display(fontSize),
 ) {
     val motion = rememberMotionEnabled()
     val dots = rememberHalftoneBrush(plateB, cell = dot, dotRatio = 0.28f)
-    val plate = remember { Animatable(if (motion) RisoMotion.RegisterFrom else rest, DpOffset.VectorConverter) }
+    val plate = remember { Animatable(if (motion) from else rest, DpOffset.VectorConverter) }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(registerKey, motion) {
@@ -55,7 +56,7 @@ fun Overprint(
             plate.snapTo(rest)
             return@LaunchedEffect
         }
-        plate.snapTo(RisoMotion.RegisterFrom)
+        plate.snapTo(from)
         delay(200)
         plate.animateTo(rest, RisoMotion.register())
     }

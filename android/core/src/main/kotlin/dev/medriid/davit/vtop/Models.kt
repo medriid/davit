@@ -108,6 +108,7 @@ data class Exam(
     val seat: String,
 )
 
+@kotlinx.serialization.Serializable
 data class GradeEntry(
     val courseCode: String,
     val courseTitle: String,
@@ -136,6 +137,14 @@ data class Assignment(
     val due: String,
     /** When you last uploaded; null means nothing submitted yet. */
     val updated: String?,
+    /** VTOP's code for it ("AST01", "CP"…), which every download and upload names. Empty if the page showed none. */
+    val code: String = "",
+    /** A question paper is there to download. */
+    val hasQuestion: Boolean = false,
+    /** Your uploaded file is there to download. */
+    val hasSubmission: Boolean = false,
+    /** VTOP offers the upload/edit button (the deadline hasn't passed). */
+    val canUpload: Boolean = false,
 )
 
 data class CourseAssignments(
@@ -184,6 +193,7 @@ data class FacultyInfo(
 )
 
 /** A class group in VTOP's Academic Calendar ("ALL03" = "General Freshers"). */
+@kotlinx.serialization.Serializable
 data class ClassGroup(val id: String, val name: String)
 
 /** One day of VTOP's academic calendar grid: "Instructional Day" + "Thursday Day Order", "Holiday" + "Deepavali"… */

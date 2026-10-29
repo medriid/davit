@@ -6,10 +6,19 @@ import okhttp3.FormBody
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Interceptor
+import okhttp3.MediaType
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
+import okio.BufferedSink
+import okio.ForwardingSink
+import okio.buffer
 import java.io.IOException
+import java.io.OutputStream
 import java.text.SimpleDateFormat
 import java.util.Base64
 import java.util.Date
@@ -40,6 +49,7 @@ class VtopClient(
         .addInterceptor(ReadOnlyGuard(base.host))
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(25, TimeUnit.SECONDS)
+        .writeTimeout(60, TimeUnit.SECONDS)
         .build()
 
     var session: VtopSession? = null
@@ -277,6 +287,246 @@ class VtopClient(
         Parsers.gradeHistory(authed("/examinations/examGradeView/StudentGradeHistory", mapOf("verifyMenu" to "true")))
     }
 
+    // ---- home page feeds (read only) -------------------------------------------------
+
+    /** Attendance remarks per course ("CAT1 - Debarred"), from the home page's course table. */
+    fun remarks(): List<CourseRemark> = timed("remarks") {
+        Feeds.remarks(authed("/get/dashboard/current/semester/course/details", emptyMap()))
+    }
+
+    fun feedbackStatus(): List<FeedbackItem> = timed("feedback") { Feeds.feedbacks(authed("/get/last/five/feedbacks", emptyMap())) }
+
+    fun events(): List<ClubEvent> = timed("events") { Feeds.events(authed("/get/scheduled/events", emptyMap())) }
+
+    /** The proctor's note on the home page; null when there's none. */
+    fun proctorNote(): String? = timed("proctor note") {
+        val doc = org.jsoup.Jsoup.parse(authed("/get/dashboard/proctor/message", emptyMap()))
+        doc.select("script, style").remove()
+        Html.clean(doc.text()).takeIf { it.length > 2 && !it.contains("no message", ignoreCase = true) }
+    }
+
+    /** Spot-light lives in the home page itself. */
+    fun spotlight(): List<SpotlightItem> = timed("spotlight") { Feeds.spotlight(authed("/content", emptyMap())) }
+
+    fun registrationSchedule(): List<RegistrationWindow> = timed("registration") {
+        Feeds.registration(authed("/academics/common/studentAllocationView", mapOf("verifyMenu" to "true")))
+    }
+
+    // ---- people and records (read only) ---------------------------------------------
+
+    fun proctor(): Person? = timed("proctor") { Feeds.proctor(authed("/proctor/viewProctorDetails", mapOf("verifyMenu" to "true"))) }
+
+    fun hodDean(): List<Person> = timed("hod") { Feeds.hodDean(authed("/hrms/viewHodDeanDetails", mapOf("verifyMenu" to "true"))) }
+
+    fun classMessages(): List<VtopMessage> = timed("class messages") {
+        Feeds.messages(authed("/academics/common/StudentClassMessage", mapOf("verifyMenu" to "true")))
+    }
+
+    fun proctorMessages(): List<VtopMessage> = timed("proctor messages") {
+        Feeds.messages(authed("/proctor/viewMessagesSendByProctor", mapOf("verifyMenu" to "true")))
+    }
+
+    /** Gate (biometric) log from [from] on, as VTOP lists it. */
+    fun biometric(from: java.time.LocalDate): SimpleTable = timed("biometric") {
+        authed("/academics/common/BiometricInfo", mapOf("verifyMenu" to "true"))
+        val day = from.format(java.time.format.DateTimeFormatter.ofPattern("dd-MMM-yyyy", Locale.ENGLISH))
+        Feeds.table(authed("/getStudViewBioList", mapOf("fromDate" to day)))
+    }
+
+    fun receipts(): List<Receipt> = timed("receipts") { Feeds.receipts(authed("/finance/getStudentReceipts", mapOf("verifyMenu" to "true"))) }
+
+    fun feeLetters(): List<FeeLetter> = timed("fee letters") {
+        Feeds.feeLetters(authed("/finance/getStudentFeesIntimation", mapOf("verifyMenu" to "true")))
+    }
+
+    /** Library dues, amounts only. The page's pay button is never touched. */
+    fun libraryDues(): List<Pair<String, Double?>> = timed("library") {
+        Feeds.libraryDues(authed("/finance/libraryPayments", mapOf("verifyMenu" to "true")))
+    }
+
+    /** Curriculum categories, then each category's courses. */
+    fun curriculum(): Pair<List<CurriculumCategory>, List<CurriculumCourse>> = timed("curriculum") {
+        val cats = Feeds.curriculumCategories(authed("/academics/common/Curriculum", mapOf("verifyMenu" to "true")))
+        val courses = cats.flatMap { c ->
+            Feeds.curriculumCourses(authed("/academics/common/curriculumCategoryView", mapOf("categoryId" to c.id)))
+                .map { it.copy(group = it.group.ifEmpty { c.name }) }
+        }
+        cats to courses.distinctBy { it.group + "|" + it.code }
+    }
+
+    fun semesterGrades(semesterId: String): SemesterGrades = timed("semester grades") {
+        authed("/examinations/examGradeView/StudentGradeView", mapOf("verifyMenu" to "true"))
+        Feeds.semesterGrades(authed("/examinations/examGradeView/doStudentGradeView", mapOf("semesterSubId" to semesterId)), semesterId)
+    }
+
+    // ---- course materials (read only) -----------------------------------------------
+
+    fun courseOptions(): List<CourseOption> = timed("course pages") {
+        CoursePages.courses(authed("/academics/common/CoursePageConsolidated", mapOf("verifyMenu" to "true")))
+    }
+
+    /** Every material on [course]'s page (about half a megabyte for a big course). */
+    fun courseMaterials(course: CourseOption): CourseMaterials = timed("materials") {
+        CoursePages.materials(
+            authed(
+                "/academics/CoursePageConsolidated/getCourseDetail",
+                mapOf("semester" to course.semesterId, "CourseId" to course.courseId, "CoursType" to course.type),
+            ),
+        )
+    }
+
+    // ---- downloads (read only) ------------------------------------------------------
+
+    fun downloadMaterial(fileId: String, sink: OutputStream, onProgress: (Long, Long?) -> Unit = { _, _ -> }) =
+        download("/downloadCourseMaterialFacultyPdf", mapOf("fileId" to fileId), sink, onProgress = onProgress)
+
+    fun downloadQuestion(classId: String, code: String, sink: OutputStream, onProgress: (Long, Long?) -> Unit = { _, _ -> }) =
+        download("/examinations/doDownloadQuestion/", mapOf("code" to code, "classIdNumber" to classId), sink, onProgress = onProgress)
+
+    /** Your own uploaded file. VTOP's form names the fields `code1` and `classId1`. */
+    fun downloadSubmission(classId: String, code: String, sink: OutputStream, onProgress: (Long, Long?) -> Unit = { _, _ -> }) =
+        download("/examinations/downloadSTudentDA/", mapOf("code1" to code, "classId1" to classId), sink, onProgress = onProgress)
+
+    /** A Spot-light file: `vtopDownload('downloadSpotLightViewFile/820')` is a GET with the tokens in the query. */
+    fun downloadSpotlight(path: String, sink: OutputStream, onProgress: (Long, Long?) -> Unit = { _, _ -> }) =
+        download("/" + path.trimStart('/'), emptyMap(), sink, get = true, onProgress = onProgress)
+
+    fun downloadSyllabus(courseCode: String, sink: OutputStream, onProgress: (Long, Long?) -> Unit = { _, _ -> }) =
+        download("/courseSyllabusDownload1", mapOf("courseCode" to courseCode), sink, onProgress = onProgress)
+
+    fun downloadCurriculum(sink: OutputStream, onProgress: (Long, Long?) -> Unit = { _, _ -> }) =
+        download("/academics/curriculDown/", mapOf("regNo" to (session?.authorizedId ?: "")), sink, onProgress = onProgress)
+
+    fun downloadFeeLetter(batchId: String, sink: OutputStream, onProgress: (Long, Long?) -> Unit = { _, _ -> }) =
+        download("/finance/downloadStudentFeesIntimationLetter", mapOf("batchId" to batchId, "studentNumber" to ""), sink, onProgress = onProgress)
+
+    /**
+     * Streams a file VTOP serves into [sink]. A page instead of a file is a bounce to the
+     * login ([SessionExpired]) or VTOP's refusal in its words ([UnexpectedPage]).
+     */
+    private fun download(
+        path: String,
+        form: Map<String, String>,
+        sink: OutputStream,
+        get: Boolean = false,
+        onProgress: (Long, Long?) -> Unit,
+    ): Download = timed("download") {
+        val s = session ?: throw SessionExpired()
+        val params = base(s) + form
+        val builder = if (get) {
+            Request.Builder().url(url(path).newBuilder().apply { params.forEach { (k, v) -> addQueryParameter(k, v) } }.build()).get()
+        } else {
+            Request.Builder().url(url(path)).post(FormBody.Builder().apply { params.forEach { (k, v) -> add(k, v) } }.build())
+        }
+        call(builder.header("Referer", url("/content").toString()).build()).use { resp ->
+            val body = resp.body ?: throw UnexpectedPage("VTOP sent nothing back.")
+            val type = body.contentType()?.let { "${it.type}/${it.subtype}" }.orEmpty()
+            val disposition = resp.header("Content-Disposition")
+            if (!resp.isSuccessful || (type == "text/html" && disposition?.contains("attachment", true) != true)) {
+                val html = body.string()
+                if (Parsers.isLoggedOutPage(html, resp.request.url.toString())) throw SessionExpired()
+                throw UnexpectedPage(Feeds.warnings(org.jsoup.Jsoup.parse(html)) ?: "VTOP sent a page instead of the file.")
+            }
+            val total = body.contentLength().takeIf { it > 0 }
+            var done = 0L
+            val buffer = ByteArray(64 * 1024)
+            body.byteStream().use { input ->
+                while (true) {
+                    val n = input.read(buffer)
+                    if (n < 0) break
+                    sink.write(buffer, 0, n)
+                    done += n
+                    onProgress(done, total)
+                }
+            }
+            Download(fileNameOf(disposition) ?: path.trimEnd('/').substringAfterLast('/'), type.ifEmpty { "application/octet-stream" }, done)
+        }
+    }
+
+    // ---- writes: only with a person's consent ---------------------------------------
+
+    /** One course's assignments, fresh (after an upload, say). */
+    fun courseAssignments(classId: String): List<Assignment> = timed("assignment") {
+        Parsers.assignments(authed("/examinations/processDigitalAssignment", mapOf("classId" to classId)))
+    }
+
+    /**
+     * Opens VTOP's upload form for one assignment, after walking to it the way the page's
+     * own buttons do (the semester's list, then the course). Sends no OTP and changes
+     * nothing, but it's part of the upload, so it needs the [consent] too.
+     */
+    fun openUpload(consent: UserConsent, semesterId: String?, classId: String, code: String): UploadForm = timed("upload form") {
+        if (semesterId != null) authed("/examinations/doDigitalAssignment", mapOf("semesterSubId" to semesterId))
+        authed("/examinations/processDigitalAssignment", mapOf("classId" to classId))
+        val path = "/examinations/processDigitalAssignmentUpload"
+        CoursePages.uploadForm(authed(path, mapOf("classId" to classId, "mode" to code), WritePermit(path, consent)), classId, code)
+    }
+
+    /**
+     * Sends [bytes] through [form], as VTOP's own page does (multipart, every field of the
+     * form). Replacing a file comes back as [UploadOutcome.NeedsOtp].
+     */
+    fun upload(
+        consent: UserConsent,
+        form: UploadForm,
+        fileName: String,
+        mimeType: String,
+        bytes: ByteArray,
+        onProgress: (Long, Long) -> Unit = { _, _ -> },
+    ): UploadOutcome = timed("upload") {
+        val s = session ?: throw SessionExpired()
+        val path = "/examinations/doDAssignmentUploadMethod"
+        val body = MultipartBody.Builder().setType(MultipartBody.FORM).apply {
+            form.fields.forEach { (k, v) -> addFormDataPart(k, if (k == "_csrf") s.csrf else v) }
+            addFormDataPart(form.fileField, fileName, Counting(bytes.toRequestBody(mimeType.toMediaTypeOrNull()), onProgress))
+        }.build()
+        val (html, headers) = multipart(path, body, WritePermit(path, consent))
+        CoursePages.uploadOutcome(html, form.code, headers["error"], headers["message"])
+    }
+
+    /** The emailed code for a replacement that VTOP is holding. */
+    fun submitUploadOtp(consent: UserConsent, pending: UploadOutcome.NeedsOtp, otp: String, code: String): UploadOutcome = timed("upload otp") {
+        val s = session ?: throw SessionExpired()
+        val path = "/examinations/doDAssignmentOtpUpload"
+        val body = MultipartBody.Builder().setType(MultipartBody.FORM).apply {
+            pending.fields.forEach { (k, v) -> addFormDataPart(k, if (k == "_csrf") s.csrf else v) }
+            if (pending.fields.none { it.first == "authorizedID" }) addFormDataPart("authorizedID", s.authorizedId)
+            addFormDataPart(pending.otpField, otp.trim())
+        }.build()
+        val (html, headers) = multipart(path, body, WritePermit(path, consent))
+        CoursePages.uploadOutcome(html, code, headers["error"], headers["message"])
+    }
+
+    /** Leaves an upload or an OTP page the way VTOP's Cancel does: by reopening the course. The old file stays. */
+    fun cancelUpload(classId: String) {
+        runCatching { authed("/examinations/processDigitalAssignment", mapOf("classId" to classId)) }
+    }
+
+    /** The leave application form, opened the way its tab does. Null if VTOP shows none (not a hosteller). */
+    fun leaveForm(): LeaveForm? = timed("leave form") {
+        authed("/hostels/student/leave/1", mapOf("verifyMenu" to "true"))
+        Feeds.leaveForm(authed("/hostels/student/leave/2", mapOf("apply" to "", "form" to "undefined", "control" to "apply")))
+    }
+
+    /** Applies for hostel leave with [form] just read from VTOP. Dates go as the page's date inputs send them. */
+    fun applyLeave(consent: UserConsent, form: LeaveForm, request: LeaveRequest): LeaveOutcome = timed("leave apply") {
+        val path = "/hostels/student/leave/3"
+        val day = java.time.format.DateTimeFormatter.ISO_LOCAL_DATE
+        val clock = java.time.format.DateTimeFormatter.ofPattern("HH:mm")
+        val fields = form.fields.filter { it.first != "_csrf" && it.first != "authorizedID" }.toMap() + mapOf(
+            "leaveCode" to request.type,
+            "visitingPlace" to request.place.trim(),
+            "leaveFromDate" to request.from.toLocalDate().format(day),
+            "fromTime" to request.from.toLocalTime().format(clock),
+            "leaveToDate" to request.to.toLocalDate().format(day),
+            "toTime" to request.to.toLocalTime().format(clock),
+            "reason" to request.reason.trim(),
+            "form" to "LeaveRequestForm",
+            "control" to "submitControl2",
+        )
+        Feeds.leaveOutcome(authed(path, fields, WritePermit(path, consent)))
+    }
+
     /** Raw HTML of the last authenticated page, for the opt-in debug dump. */
     var lastPage: Pair<String, String>? = null
         private set
@@ -284,9 +534,9 @@ class VtopClient(
     // ---- plumbing ------------------------------------------------------------------
 
     /** An authenticated POST. Throws [SessionExpired] if VTOP bounced us to a login page. */
-    private fun authed(path: String, extra: Map<String, String>): String {
+    private fun authed(path: String, extra: Map<String, String>, permit: WritePermit? = null): String {
         val s = session ?: throw SessionExpired()
-        val (html, url) = post(path, base(s) + extra)
+        val (html, url) = post(path, base(s) + extra, permit = permit)
         if (Parsers.isLoggedOutPage(html, url)) throw SessionExpired()
         // Keep the CSRF token current if the page carries a newer one.
         Parsers.csrfOf(org.jsoup.Jsoup.parse(html))?.let { if (it != s.csrf) session = s.copy(csrf = it) }
@@ -294,17 +544,36 @@ class VtopClient(
         return html
     }
 
+    /** A multipart POST (uploads); returns the page and VTOP's `error`/`message` headers. */
+    private fun multipart(path: String, body: RequestBody, permit: WritePermit): Pair<String, Map<String, String>> {
+        val req = Request.Builder()
+            .url(url(path))
+            .post(body)
+            .header("Referer", url("/content").toString())
+            .header("X-Requested-With", "XMLHttpRequest")
+            .tag(WritePermit::class.java, permit)
+            .build()
+        return call(req).use { resp ->
+            val html = resp.body?.string().orEmpty()
+            if (Parsers.isLoggedOutPage(html, resp.request.url.toString())) throw SessionExpired()
+            Parsers.csrfOf(org.jsoup.Jsoup.parse(html))?.let { t -> session?.let { if (it.csrf != t) session = it.copy(csrf = t) } }
+            lastPage = path to html
+            html to listOfNotNull(resp.header("error")?.let { "error" to it }, resp.header("message")?.let { "message" to it }).toMap()
+        }
+    }
+
     private fun base(s: VtopSession) = mapOf("_csrf" to s.csrf, "authorizedID" to s.authorizedId, "x" to utcNow())
 
     private fun get(path: String): Response = call(Request.Builder().url(url(path)).get().build())
 
-    private fun post(path: String, form: Map<String, String>, referer: String = "/content"): Pair<String, String> {
+    private fun post(path: String, form: Map<String, String>, referer: String = "/content", permit: WritePermit? = null): Pair<String, String> {
         val body = FormBody.Builder().apply { form.forEach { (k, v) -> add(k, v) } }.build()
         val req = Request.Builder()
             .url(url(path))
             .post(body)
             .header("Referer", url(referer).toString())
             .header("X-Requested-With", "XMLHttpRequest")
+            .apply { if (permit != null) tag(WritePermit::class.java, permit) }
             .build()
         return call(req).use { (it.body?.string().orEmpty()) to it.request.url.toString() }
     }
@@ -340,22 +609,77 @@ class VtopClient(
 }
 
 /**
- * Read-only stance (docs/04): only VTOP's host, and never the upload endpoints.
- * Anything else fails before it leaves the phone.
+ * Lets one write endpoint through. Only the client's own consent-taking methods make
+ * these, each for its own path, so nothing else (background sync included) can write.
+ */
+internal class WritePermit(private val path: String, val consent: UserConsent) {
+    fun allows(requestPath: String) = requestPath.endsWith(path)
+}
+
+/**
+ * Read-only stance (docs/04): only VTOP's host; the writes daVIT makes (assignment upload,
+ * hostel leave) only with a [WritePermit] from a confirmed tap; the ones it never makes
+ * (payments, passwords, registration) never. Anything else fails before it leaves the phone.
  */
 private class ReadOnlyGuard(private val host: String) : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
-        val url = chain.request().url
+        val request = chain.request()
+        val url = request.url
         if (url.host != host) throw IOException("blocked: daVIT only talks to $host")
-        if (DENY.any { url.encodedPath.endsWith(it) }) throw IOException("blocked: write endpoint")
-        return chain.proceed(chain.request())
+        val path = url.encodedPath
+        if (NEVER.any { path.contains(it, ignoreCase = true) }) throw IOException("blocked: daVIT never does this")
+        if (WRITES.any { path.endsWith(it) } && request.tag(WritePermit::class.java)?.allows(path) != true) {
+            throw IOException("blocked: write endpoint")
+        }
+        return chain.proceed(request)
     }
 
     companion object {
-        val DENY = listOf(
+        /** The writes daVIT makes, each only from a confirmed tap. */
+        val WRITES = listOf(
             "/examinations/processDigitalAssignmentUpload",
             "/examinations/doDAssignmentUploadMethod",
+            "/examinations/doDAssignmentOtpUpload",
+            "/hostels/student/leave/3",
         )
+
+        /** Never, permit or not: money, passwords, registration and VTOP's other forms. */
+        val NEVER = listOf(
+            "otpVerfication", "otpVerification", "paymentGateway", "doPayment", "makePayment", "onlinePayment", "payFee",
+            "wallet", "password", "passwd", "BonafideSave", "saveAcademicsCourseFeedback", "PaperSeeingSubmit",
+            "messComplaint", "late/hour/student/request/3", "courseRegistration",
+        )
+    }
+}
+
+/** `attachment; filename="a b.pdf"` (or unquoted, or RFC 5987 `filename*=`) → "a b.pdf". */
+internal fun fileNameOf(disposition: String?): String? {
+    if (disposition.isNullOrBlank()) return null
+    val name = Regex("""filename\*\s*=\s*[^']*''([^;]+)""", RegexOption.IGNORE_CASE).find(disposition)
+        ?.let { runCatching { java.net.URLDecoder.decode(it.groupValues[1].trim(), "UTF-8") }.getOrNull() }
+        ?: Regex("""filename\s*=\s*("([^"]*)"|[^;]+)""", RegexOption.IGNORE_CASE).find(disposition)
+            ?.let { m -> m.groupValues[2].ifEmpty { m.groupValues[1] }.trim().trim('"') }
+        ?: return null
+    // Never let a name climb out of the folder it's saved in.
+    return name.substringAfterLast('/').substringAfterLast('\\').trim().takeIf { it.isNotEmpty() && it != "." && it != ".." }
+}
+
+/** Reports bytes as they're written, for the upload progress bar. */
+private class Counting(private val inner: RequestBody, private val onProgress: (Long, Long) -> Unit) : RequestBody() {
+    override fun contentType(): MediaType? = inner.contentType()
+    override fun contentLength(): Long = inner.contentLength()
+    override fun writeTo(sink: BufferedSink) {
+        val total = contentLength()
+        var sent = 0L
+        val counting = object : ForwardingSink(sink) {
+            override fun write(source: okio.Buffer, byteCount: Long) {
+                super.write(source, byteCount)
+                sent += byteCount
+                onProgress(sent, total)
+            }
+        }.buffer()
+        inner.writeTo(counting)
+        counting.flush()
     }
 }
 

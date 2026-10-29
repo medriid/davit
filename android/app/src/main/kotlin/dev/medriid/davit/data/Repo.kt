@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import java.io.File
 
 data class UiState(
@@ -60,12 +61,23 @@ data class UiState(
  */
 class Repo(private val context: Context) {
     private val prefs = context.getSharedPreferences("davit", Context.MODE_PRIVATE)
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val lock = Mutex()
     private val client = VtopClient(BitmapDecoder)
 
     private val _state = MutableStateFlow(UiState())
     val state: StateFlow<UiState> = _state
+
+    /** Downloaded files, kept for offline. */
+    val files by lazy { FileStore(context) }
+
+    /** Records fetched when their screen opens: proctor, messages, receipts, curriculum… */
+    val campus by lazy { CampusStore(context, this) }
+
+    val materials by lazy { MaterialsStore(context, this, files) }
+
+    /** Assignment uploads in progress, and their OTP step. */
+    val uploads by lazy { Uploads(this) }
 
     init {
         val creds = credentials()
@@ -142,12 +154,89 @@ class Repo(private val context: Context) {
         DavitWidget.refresh(context)
     }
 
+    /** Debug builds' demo seed only (see src/debug): shows [snapshot] as if signed in, with no account. */
+    internal fun showDemo(snapshot: Snapshot) {
+        _state.update { it.copy(signedIn = true, regNo = "DEMO", snapshot = snapshot) }
+    }
+
     fun setMascot(code: String) {
         prefs.edit().putString(K_MASCOT, code).apply()
         _state.update { it.copy(mascot = code) }
     }
 
     fun dismissError() = _state.update { it.copy(error = null) }
+
+    /**
+     * Runs [block] for something you opened or tapped (a download, a course page, an
+     * upload): after any sync in progress, on the saved session, signing in again once if
+     * it expired (unless [retry] is false, for steps that can't be repeated on a new session).
+     */
+    suspend fun <T> onVtop(retry: Boolean = true, block: (VtopClient) -> T): T = withContext(Dispatchers.IO) {
+        lock.withLock {
+            val creds = credentials() ?: throw SessionExpired()
+            val wasBusy = _state.value.busy
+            try {
+                (if (retry) withSession(creds) { block(client) } else block(client)).also { saveSession() }
+            } finally {
+                // A sign-in on the way shows its steps up top; put the bar back as it was.
+                if (wasBusy == null) _state.update { it.copy(busy = null) }
+            }
+        }
+    }
+
+    /** The home page feeds now (pull to refresh on events, say), not waiting for the daily turn. */
+    suspend fun refreshFeeds() {
+        val now = System.currentTimeMillis()
+        val f = onVtop { c ->
+            HomeFeeds(
+                remarks = c.remarks(), remarksAt = now,
+                feedback = c.feedbackStatus(), events = c.events(), proctorNote = c.proctorNote(),
+                registration = c.registrationSchedule(), dailyAt = now,
+            )
+        }
+        updateSnapshot { it.copy(feeds = f.copy(classGroups = it.feeds.classGroups)) }
+        scheduleRegistrationReminders(f)
+    }
+
+    /** Night slips and leave, now (after applying, say). */
+    suspend fun refreshHostel() {
+        val h = onVtop { c -> c.hostelRequests() }
+        updateSnapshot { it.copy(hostel = h, hostelAt = System.currentTimeMillis()) }
+    }
+
+    private fun updateSnapshot(change: (Snapshot) -> Snapshot) {
+        _state.update { s -> s.copy(snapshot = s.snapshot?.let(change)) }
+        _state.value.snapshot?.let { prefs.edit().putString(K_CACHE, Vault.encrypt(it.toJson())).apply() }
+        DavitWidget.refresh(context)
+    }
+
+    /** What to tell you about a failure, in plain words. */
+    fun explain(e: Throwable): String = if (e is Exception) message(e) else "Something went wrong."
+
+    /** One course's assignments after an upload or a cancelled one. */
+    fun updateAssignments(classId: String, items: List<dev.medriid.davit.vtop.Assignment>) {
+        if (items.isEmpty()) return
+        _state.update { s ->
+            val snap = s.snapshot ?: return@update s
+            s.copy(snapshot = snap.copy(assignments = snap.assignments.map { if (it.classId == classId) it.copy(items = items) else it }))
+        }
+        _state.value.snapshot?.let { prefs.edit().putString(K_CACHE, Vault.encrypt(it.toJson())).apply() }
+        DavitWidget.refresh(context)
+    }
+
+    /** The calendar's class group: [id] by hand, or null to go back to detecting it from attendance. */
+    fun setCalendarGroup(id: String?) {
+        val sem = _state.value.snapshot?.semester?.id ?: return
+        prefs.edit().apply {
+            if (id == null) remove(K_CAL_MANUAL + sem) else putString(K_CAL_MANUAL + sem, id)
+            remove(K_CAL_GROUP + sem)
+        }.apply()
+        _state.update { s -> s.copy(snapshot = s.snapshot?.copy(calendarAt = 0)) }
+        sync()
+    }
+
+    /** The group chosen by hand for this semester, or null when it's detected. */
+    fun manualCalendarGroup(): String? = _state.value.snapshot?.semester?.id?.let { prefs.getString(K_CAL_MANUAL + it, null) }
 
     fun addReminder(title: String, date: java.time.LocalDate) =
         saveReminders(_state.value.reminders + Reminder(System.currentTimeMillis(), title.trim(), date))
@@ -212,7 +301,11 @@ class Repo(private val context: Context) {
                 val theme = prefs.getInt(K_THEME, 0)
                 prefs.edit().clear().putInt(K_INK, ink).putString(K_MASCOT, mascot).putInt(K_THEME, theme).apply()
                 Notifier.forget(context)
+                dev.medriid.davit.sync.Reminders.cancelAll(context)
                 dumpDir().deleteRecursively()
+                files.wipe()
+                campus.wipe()
+                materials.wipe()
                 Vault.deleteKey()
                 BackgroundSync.apply(context, false)
                 _state.value = UiState(inkIndex = ink, mascot = mascot, theme = theme)
@@ -267,6 +360,7 @@ class Repo(private val context: Context) {
                 calendarAt = old?.calendarAt ?: 0,
                 faculty = old?.faculty.orEmpty(),
                 facultyAt = old?.facultyAt ?: 0,
+                feeds = _state.value.snapshot?.feeds ?: HomeFeeds(),
             )
             _state.update { it.copy(snapshot = partial, busy = "Fetching timetable") }
 
@@ -316,6 +410,27 @@ class Repo(private val context: Context) {
                     ?.let { full = full.copy(hostel = it, hostelAt = now) }
             }
 
+            // VTOP's home page: attendance remarks (debarment) every sync, one request; the
+            // pending feedback, club events, proctor's note and registration window about daily.
+            var feeds = full.feeds
+            section("Reading attendance remarks", "remarks", creds, full) { client.remarks() }
+                ?.let { feeds = feeds.copy(remarks = it, remarksAt = now) }
+            if (now - feeds.dailyAt > 20 * 3_600_000L) {
+                val feedback = section("Reading feedback status", "feedback", creds, full) { client.feedbackStatus() }
+                val events = section("Reading club events", "events", creds, full) { client.events() }
+                val note = section("Reading the proctor's note", "proctor", creds, full) { listOfNotNull(client.proctorNote()) }
+                val registration = section("Reading the registration schedule", "registration", creds, full) { client.registrationSchedule() }
+                feeds = feeds.copy(
+                    feedback = feedback ?: feeds.feedback,
+                    events = events ?: feeds.events,
+                    proctorNote = if (note != null) note.firstOrNull() else feeds.proctorNote,
+                    registration = registration ?: feeds.registration,
+                    dailyAt = if (listOf(feedback, events, note, registration).all { it != null }) now else feeds.dailyAt,
+                )
+            }
+            full = full.copy(feeds = feeds)
+            scheduleRegistrationReminders(feeds)
+
             // The academic calendar from VTOP, for your class group (freshers' Saturdays differ),
             // every few days; the published general calendar only if VTOP's fails.
             if (full.calendar?.semesterId != semester.id || full.calendar?.group.isNullOrEmpty() || now - full.calendarAt > 3 * 24 * 3_600_000L) {
@@ -324,6 +439,7 @@ class Repo(private val context: Context) {
                 val cal = fromVtop ?: runCatching { PublicData.calendar(semester) }
                     .onFailure { Log.w(TAG, "calendar failed: ${it.javaClass.simpleName}") }.getOrNull()
                 cal?.let { full = full.copy(calendar = it, calendarAt = now) }
+                if (groupsSeen.isNotEmpty()) full = full.copy(feeds = full.feeds.copy(classGroups = groupsSeen))
             }
             if (full.timetable.isNotEmpty() && (full.facultyAt == 0L || now - full.facultyAt > 7 * 24 * 3_600_000L)) {
                 _state.update { it.copy(snapshot = full, busy = "Matching faculty") }
@@ -404,9 +520,12 @@ class Repo(private val context: Context) {
      */
     private fun vtopCalendar(semesterId: String, shown: Snapshot): AcademicCalendar? {
         val groups = client.classGroups(semesterId)
+        groupsSeen = groups
         if (groups.isEmpty()) return null
         val names = groups.associate { it.id to it.name }
-        val saved = prefs.getString(K_CAL_GROUP + semesterId, null)?.takeIf { it in names }
+        // A group picked by hand in Account wins over the detected one.
+        val saved = prefs.getString(K_CAL_MANUAL + semesterId, null)?.takeIf { it in names }
+            ?: prefs.getString(K_CAL_GROUP + semesterId, null)?.takeIf { it in names }
         val chosen = saved ?: run {
             val evidence = shown.observedDayOrders().filter { (d, order) -> d.dayOfWeek.value != order }
             val candidates = listOf("ALL", "ALL03", "ALL04", "ALL10", "ALL02", "ALL09", "ALL06").filter { it in names }
@@ -419,6 +538,22 @@ class Repo(private val context: Context) {
         } ?: "ALL".takeIf { it in names } ?: groups.first().id
         val cells = client.calendar(semesterId, chosen)
         return if (cells.isEmpty()) null else AcademicCalendar.fromVtop(semesterId, names[chosen].orEmpty(), cells)
+    }
+
+    /** The class groups the last calendar fetch saw, for choosing one by hand. */
+    private var groupsSeen: List<dev.medriid.davit.vtop.ClassGroup> = emptyList()
+
+    /**
+     * A local reminder 30 minutes before each registration window opens. No network:
+     * WorkManager just posts the notification at that time.
+     */
+    private fun scheduleRegistrationReminders(feeds: HomeFeeds) {
+        if (!_state.value.alerts) return
+        val now = java.time.LocalDateTime.now()
+        feeds.registration.forEach { w ->
+            val start = w.start ?: return@forEach
+            if (start.isAfter(now)) dev.medriid.davit.sync.Reminders.registration(context, w)
+        }
     }
 
     /** The published current semester id, checked at most daily; null if unknown. */
@@ -487,6 +622,7 @@ class Repo(private val context: Context) {
         private const val K_THEME = "theme"
         private const val K_LOCK = "appLock"
         private const val K_CAL_GROUP = "calendarGroup:"
+        private const val K_CAL_MANUAL = "calendarGroupManual:"
         private const val K_CUR_SEM = "currentSemester"
         private const val K_CUR_SEM_AT = "currentSemesterAt"
     }

@@ -58,6 +58,7 @@ import dev.medriid.davit.design.LocalInks
 import dev.medriid.davit.design.Overprint
 import dev.medriid.davit.design.RisoType
 import dev.medriid.davit.design.TiltedCard
+import dev.medriid.davit.design.printIn
 import kotlinx.coroutines.delay
 import java.time.DayOfWeek
 import java.time.LocalDateTime
@@ -79,6 +80,7 @@ internal fun TodayTab(
     onOpenAcademics: () -> Unit,
     onAddReminder: (String, LocalDate) -> Unit,
     onRemoveReminder: (Long) -> Unit,
+    onOpen: (Route) -> Unit = {},
 ) {
     var adding by rememberSaveable { mutableStateOf(false) }
     var now by remember { mutableStateOf(LocalDateTime.now()) }
@@ -124,6 +126,38 @@ internal fun TodayTab(
                 onOpenAttendance,
             )
             StatTile("$risky", "at risk", Modifier.weight(1f).fillMaxHeight(), onOpenAttendance)
+        }
+
+        // VTOP's own verdicts first: a debarment outranks everything else on the screen.
+        val serious = snapshot.feeds.remarks.filter { it.serious }
+        if (serious.isNotEmpty()) {
+            Spacer(Modifier.height(14.dp))
+            InkCard(Modifier.fillMaxWidth().printIn(1), onClick = onOpenAttendance, plate = LocalInks.current.a, plateOffset = 6.dp) {
+                InkText(if (serious.any { it.debarred }) "Debarred" else "Revoked", label = true)
+                Spacer(Modifier.height(8.dp))
+                serious.forEach { r ->
+                    InkText(r.name.ifBlank { r.code } + " · " + r.type, style = RisoType.body.copy(fontWeight = FontWeight.SemiBold), maxLines = 2)
+                    InkText(r.remark + (r.attendance?.let { " · VTOP shows ${fmtNum(it)}%" } ?: ""), style = RisoType.small)
+                    Spacer(Modifier.height(6.dp))
+                }
+                InkText("From VTOP's home page. Talk to your faculty or proctor about it.", style = RisoType.small)
+            }
+        }
+        val reg = snapshot.feeds.nextRegistration(now)
+        if (reg?.start != null && java.time.Duration.between(now, reg.start).toDays() <= 14) {
+            Spacer(Modifier.height(14.dp))
+            RegistrationCard(reg, now, Modifier.printIn(2))
+        }
+        val pending = snapshot.feeds.pendingFeedback
+        if (pending.isNotEmpty()) {
+            Spacer(Modifier.height(14.dp))
+            InkCard(Modifier.fillMaxWidth().printIn(3), plate = LocalInks.current.b, plateOffset = 4.dp) {
+                InkText("${pending.size} feedback form${if (pending.size > 1) "s" else ""} pending", label = true)
+                Spacer(Modifier.height(6.dp))
+                pending.take(3).forEach { InkText(it.title, style = RisoType.small.copy(fontWeight = FontWeight.SemiBold), maxLines = 2) }
+                Spacer(Modifier.height(6.dp))
+                InkText("Fill them on VTOP: a pending mandatory one can lock VTOP's menus.", style = RisoType.small)
+            }
         }
 
         if (plan.now != null) {
@@ -205,6 +239,24 @@ internal fun TodayTab(
             if (due.size > 6) InkText("+ ${due.size - 6} more", style = RisoType.small)
         }
 
+        snapshot.feeds.proctorNote?.let { note ->
+            SectionTitle("From your proctor")
+            InkCard(Modifier.fillMaxWidth(), onClick = { onOpen(Route.Messages) }, plateOffset = 4.dp) { InkText(note, maxLines = 6) }
+        }
+
+        val events = snapshot.feeds.eventsOn(today) + snapshot.feeds.eventsOn(today.plusDays(1))
+        if (events.isNotEmpty()) {
+            SectionTitle("Club events")
+            InkCard(Modifier.fillMaxWidth().sharedCard(Route.Events.sharedKey), onClick = { onOpen(Route.Events) }, plateOffset = 4.dp) {
+                events.take(4).forEachIndexed { i, e ->
+                    if (i > 0) Spacer(Modifier.height(8.dp))
+                    InkText(e.title, style = RisoType.body.copy(fontWeight = FontWeight.SemiBold), maxLines = 2)
+                    InkText((if (e.date == today) "Today" else "Tomorrow") + " · " + listOf(e.category, e.club).filter { it.isNotBlank() }.joinToString(" · "), style = RisoType.small, maxLines = 1)
+                }
+                if (events.size > 4) InkText("+ ${events.size - 4} more", style = RisoType.small, modifier = Modifier.padding(top = 6.dp))
+            }
+        }
+
         if (snapshot.changes.isNotEmpty()) {
             SectionTitle("Since you last looked")
             InkCard(Modifier.fillMaxWidth(), plateOffset = 4.dp) {
@@ -214,13 +266,67 @@ internal fun TodayTab(
                 }
             }
         }
+
+        SectionTitle("More from VTOP")
+        InkCard(Modifier.fillMaxWidth().sharedCard(Route.Campus.sharedKey), onClick = { onOpen(Route.Campus) }, plateOffset = 4.dp) {
+            InkText("Messages, Spot-light, proctor and HOD, hostel leave, gate log, receipts, curriculum, semester GPA", style = RisoType.body)
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                InkChip("Open", solid = true)
+                if (snapshot.profile?.hostel != null) {
+                    Box(Modifier.sharedCard(Route.Hostel.sharedKey).clickable(role = Role.Button) { onOpen(Route.Hostel) }) { InkChip("Hostel leave") }
+                }
+            }
+        }
+    }
+}
+
+/** The registration window: when it opens, how long it's open, and a countdown. */
+@Composable
+private fun RegistrationCard(w: dev.medriid.davit.vtop.RegistrationWindow, now: LocalDateTime, modifier: Modifier = Modifier) {
+    val start = w.start ?: return
+    val live = !now.isBefore(start) && (w.end == null || now.isBefore(w.end))
+    val mins = java.time.Duration.between(now, start).toMinutes()
+    val day = DateTimeFormatter.ofPattern("EEE d MMM", Locale.ENGLISH)
+    val clockF = DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH)
+    InkCard(modifier.fillMaxWidth(), plate = if (live || mins < 24 * 60) LocalInks.current.a else LocalInks.current.b, plateOffset = 5.dp) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                InkText("Registration", label = true)
+                Spacer(Modifier.height(6.dp))
+                InkText(w.semester.ifBlank { "Course registration" }, style = RisoType.title.copy(fontSize = 18.sp), maxLines = 2)
+                // "Sun 1 Nov · 5:00–5:45 PM": one AM/PM when both ends share it.
+                val end = w.end
+                val sameHalf = end != null && (start.hour < 12) == (end.hour < 12) && start.toLocalDate() == end.toLocalDate()
+                InkText(
+                    start.format(day) + " · " +
+                        (if (sameHalf) start.format(DateTimeFormatter.ofPattern("h:mm", Locale.ENGLISH)) else start.format(clockF)) +
+                        (end?.let { "–" + it.format(clockF) } ?: ""),
+                    style = RisoType.small.copy(fontWeight = FontWeight.SemiBold),
+                )
+            }
+            Spacer(Modifier.width(10.dp))
+            InkChip(
+                when {
+                    live -> "Open now"
+                    mins < 60 -> "in $mins min"
+                    mins < 24 * 60 -> "in ${mins / 60} h"
+                    else -> "in ${mins / (24 * 60)} days"
+                },
+                solid = live || mins < 24 * 60,
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+        InkText("Register on VTOP; daVIT reminds you 30 minutes before.", style = RisoType.small)
     }
 }
 
 @Composable
 private fun StatTile(value: String, label: String, modifier: Modifier, onClick: () -> Unit) {
     InkCard(modifier, onClick = onClick, contentPadding = PaddingValues(14.dp)) {
-        Heading(value, 40.sp)
+        // The halftone plate springs into register whenever the number changes.
+        val size = with(LocalDensity.current) { 40.dp.toSp() }
+        Overprint(value, size, rest = androidx.compose.ui.unit.DpOffset(2.dp, 1.5.dp), from = androidx.compose.ui.unit.DpOffset(14.dp, (-8).dp), dot = 4.dp, registerKey = value)
         Spacer(Modifier.height(10.dp))
         InkText(label, style = RisoType.body.copy(fontWeight = FontWeight.SemiBold))
     }

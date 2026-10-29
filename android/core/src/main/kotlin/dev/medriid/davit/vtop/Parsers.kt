@@ -318,6 +318,9 @@ object Parsers {
     /**
      * `POST /examinations/processDigitalAssignment` + classId: the table with "Weightage",
      * "Due Date" and "Last Updated On". Cells: 1 title, 2 max, 3 weightage, 4 due, 6 updated.
+     * The row's buttons say what can be done: `downloadQuestion` (a question paper),
+     * `downloadStudentDA` (your file), `editAssignment` (upload, while it's open); each names
+     * the assignment's code.
      */
     fun assignments(html: String): List<Assignment> {
         val table = Jsoup.parse(html).select("table").firstOrNull {
@@ -329,12 +332,23 @@ object Parsers {
             if (c.size < 8) return@mapNotNull null
             val title = clean(c[1].text())
             if (title.isEmpty() || title.equals("Title", ignoreCase = true)) return@mapNotNull null
+            val question = tr.selectFirst("button[name=downloadQuestion]")
+            val mine = tr.selectFirst("button[name=downloadStudentDA]")
+            val edit = tr.selectFirst("button[name=editAssignment]")
+            val code = listOfNotNull(
+                edit?.attr("data-editcode"), mine?.attr("data-code"), question?.attr("data-code"),
+                tr.selectFirst("input[name=code]")?.attr("value"),
+            ).map { it.trim() }.firstOrNull { it.isNotEmpty() }.orEmpty()
             Assignment(
                 title = title,
                 max = number(c[2].text()),
                 weightage = number(c[3].text()),
                 due = clean(c[4].text()),
                 updated = clean(c[6].text()).takeUnless { it.isEmpty() || it == "-" },
+                code = code,
+                hasQuestion = question != null,
+                hasSubmission = mine != null,
+                canUpload = edit != null,
             )
         }
     }

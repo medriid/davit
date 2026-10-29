@@ -48,6 +48,8 @@ data class Snapshot(
     /** Directory cards for this semester's faculty. */
     val faculty: List<FacultyInfo> = emptyList(),
     val facultyAt: Long = 0,
+    /** Remarks, feedback, events, the proctor's note and registration, from VTOP's home page. */
+    val feeds: HomeFeeds = HomeFeeds(),
 ) {
     /** CGPA ≥ 9 is exempt from the 75% attendance rule. Unknown CGPA (first semester) isn't. */
     val attendanceExempt: Boolean get() = (grades?.cgpa ?: 0.0) >= 9.0
@@ -93,8 +95,10 @@ data class Snapshot(
                 .put("items", JSONArray(c.items.map {
                     JSONObject().put("title", it.title).putNum("max", it.max).putNum("weightage", it.weightage)
                         .put("due", it.due).put("updated", it.updated ?: JSONObject.NULL)
+                        .put("code", it.code).put("qp", it.hasQuestion).put("mine", it.hasSubmission).put("open", it.canUpload)
                 }))
         }))
+        put("feeds", feeds.toJson())
         profile?.let { p ->
             put("profile", JSONObject().put("name", p.name).put("gender", p.gender).put("photo", p.photo ?: JSONObject.NULL)
                 .put("hostel", p.hostel?.let { h -> JSONObject().put("block", h.block).put("room", h.room).put("bed", h.bed).put("mess", h.mess) } ?: JSONObject.NULL))
@@ -123,7 +127,7 @@ data class Snapshot(
             put("grades", JSONObject().putNum("cgpa", g.cgpa).putNum("earned", g.creditsEarned).put("entries", JSONArray(g.entries.map {
                 JSONObject().put("code", it.courseCode).put("title", it.courseTitle).put("credits", it.credits)
                     .put("grade", it.grade ?: "").put("month", it.examMonth)
-            })))
+            })).put("curriculum", JSONArray(g.curriculum.map { JSONObject().put("name", it.name).put("required", it.required).put("earned", it.earned) })))
         }
     }.toString()
 
@@ -213,10 +217,15 @@ data class Snapshot(
                             Assignment(
                                 it.getString("title"), it.num("max"), it.num("weightage"), it.getString("due"),
                                 if (it.isNull("updated")) null else it.getString("updated"),
+                                code = it.optString("code"),
+                                hasQuestion = it.optBoolean("qp"),
+                                hasSubmission = it.optBoolean("mine"),
+                                canUpload = it.optBoolean("open"),
                             )
                         },
                     )
                 }.orEmpty(),
+                feeds = o.optString("feeds").takeIf { it.isNotEmpty() }?.let(HomeFeeds::fromJson) ?: HomeFeeds(),
                 grades = o.optJSONObject("grades")?.let { g ->
                     GradeHistory(
                         g.num("cgpa"), g.num("earned"),
@@ -226,6 +235,9 @@ data class Snapshot(
                                 it.getString("grade").ifEmpty { null }, it.getString("month"),
                             )
                         },
+                        g.optJSONArray("curriculum")?.objects()?.map {
+                            dev.medriid.davit.vtop.CreditDomain(it.getString("name"), it.getDouble("required"), it.getDouble("earned"))
+                        }.orEmpty(),
                     )
                 },
             )
