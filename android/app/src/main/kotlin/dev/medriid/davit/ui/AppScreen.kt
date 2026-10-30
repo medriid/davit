@@ -1,5 +1,6 @@
 package dev.medriid.davit.ui
 
+import androidx.compose.ui.unit.Dp
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.layout.Arrangement
@@ -103,7 +104,7 @@ import kotlinx.coroutines.delay
 internal val Gutter = 18.dp
 
 private val Tabs = listOf(
-    NavItem("Today", RisoIcon.Today),
+    NavItem("Home", RisoIcon.Today),
     NavItem("Attendance", RisoIcon.Attendance),
     NavItem("Academics", RisoIcon.Academics),
     NavItem("Week", RisoIcon.Week),
@@ -172,7 +173,8 @@ private fun Main(state: UiState, repo: Repo) {
     CompositionLocalProvider(LocalNav provides nav, LocalRepo provides repo) {
         Box(Modifier.fillMaxSize()) {
             Column(Modifier.fillMaxSize()) {
-                TopBar(state, mascot, repo.bannerPhoto, onSync = repo::sync, onProfile = { nav.go(Route.Settings) }, onMore = { nav.go(Route.Campus) }, modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars))
+                // The display card on Home only; every other tab and screen gets the plain bar.
+                TopBar(state, mascot, repo.bannerPhoto, card = tab == 0 && stack.isEmpty(), onSync = repo::sync, onProfile = { nav.go(Route.Settings) }, onMore = { nav.go(Route.Campus) }, modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars))
                 AnimatedVisibility(state.error != null) {
                     ErrorBanner(state.error.orEmpty(), onRetry = repo::sync, onDismiss = repo::dismissError)
                 }
@@ -299,9 +301,9 @@ private fun RouteHost(route: Route) = when (route) {
 }
 
 @Composable
-internal fun TopBar(state: UiState, mascot: Mascot, photo: java.io.File, onSync: () -> Unit, onProfile: () -> Unit, onMore: () -> Unit, modifier: Modifier = Modifier) {
-    if (!state.banner.hidden) {
-        CardBar(state, mascot, photo, onSync, onProfile, onMore, modifier)
+internal fun TopBar(state: UiState, mascot: Mascot, photo: java.io.File, card: Boolean, onSync: () -> Unit, onProfile: () -> Unit, onMore: () -> Unit, modifier: Modifier = Modifier, gutter: Dp = Gutter) {
+    if (card && !state.banner.hidden) {
+        CardBar(state, mascot, photo, onSync, onProfile, onMore, modifier, gutter)
         return
     }
     Row(
@@ -357,14 +359,14 @@ internal fun TopBar(state: UiState, mascot: Mascot, photo: java.io.File, onSync:
  * status. Everything that sits on the picture gets a paper pill, so it reads on any photo.
  */
 @Composable
-private fun CardBar(state: UiState, mascot: Mascot, photo: java.io.File, onSync: () -> Unit, onProfile: () -> Unit, onMore: () -> Unit, modifier: Modifier) {
+private fun CardBar(state: UiState, mascot: Mascot, photo: java.io.File, onSync: () -> Unit, onProfile: () -> Unit, onMore: () -> Unit, modifier: Modifier, gutter: Dp) {
     val inks = LocalInks.current
     val banner = state.banner
     val shape = RoundedCornerShape(16.dp)
     val now = remember { java.time.LocalDateTime.now() }
     val left = state.snapshot?.bannerText(BannerStat.of(banner.left), state.reminders, now)
     val right = state.snapshot?.bannerText(BannerStat.of(banner.right), state.reminders, now)
-    Box(modifier.fillMaxWidth().padding(start = Gutter, end = Gutter - 4.dp, top = 6.dp, bottom = 8.dp)) {
+    Box(modifier.fillMaxWidth().padding(start = gutter, end = (gutter - 4.dp).coerceAtLeast(0.dp), top = 6.dp, bottom = 8.dp)) {
         Box(Modifier.padding(end = 4.dp, bottom = 4.dp)) {
             Box(Modifier.matchParentSize().offset(4.dp, 4.dp).clip(shape).background(inks.plate(null)))
             Box(Modifier.fillMaxWidth().clip(shape).border(2.dp, inks.text, shape)) {

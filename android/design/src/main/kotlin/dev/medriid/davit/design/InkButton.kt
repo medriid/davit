@@ -57,9 +57,15 @@ fun InkButton(
     )
 
     // Riso: an ink-B block on an ink-A plate. Sticker print: an ink-A block with black type on a black shadow.
-    val blockColor = if (quiet) inks.paper else if (inks.sticker) inks.a else inks.b
+    // Glass: a solid black (or white) block, or frosted glass when quiet, on a soft shadow.
+    val blockColor = when {
+        quiet -> if (inks.glass) inks.glassFill else inks.paper
+        inks.sticker || inks.glass -> inks.a
+        else -> inks.b
+    }
     val textColor = if (quiet || inks.sticker) inks.text else inks.paper
-    val plateColor = if (inks.sticker) inks.text else inks.a
+    val plateColor = if (inks.glass) inks.glassShadow else if (inks.sticker) inks.text else inks.a
+    val shape = if (inks.glass) GlassShape else CardShape
     Box(
         modifier
             .clickable(
@@ -74,16 +80,22 @@ fun InkButton(
             Modifier
                 .matchParentSize()
                 .offset { IntOffset(plate.x.roundToPx(), plate.y.roundToPx()) }
-                .clip(CardShape)
+                .clip(shape)
                 .background(if (enabled) plateColor else inks.rule),
         )
         Box(
             Modifier
                 .offset { IntOffset(block.x.roundToPx(), block.y.roundToPx()) }
                 .then(if (fillWidth) Modifier.fillMaxWidth() else Modifier)
-                .clip(CardShape)
+                .clip(shape)
                 .background(if (enabled) blockColor else inks.paper)
-                .then(if (quiet || !enabled || inks.sticker) Modifier.border(2.dp, inks.text, CardShape) else Modifier)
+                .then(
+                    when {
+                        inks.glass -> if (quiet || !enabled) Modifier.border(1.dp, inks.glassEdge, shape) else Modifier
+                        quiet || !enabled || inks.sticker -> Modifier.border(2.dp, inks.text, CardShape)
+                        else -> Modifier
+                    },
+                )
                 .defaultMinSize(minHeight = 54.dp)
                 .padding(horizontal = 22.dp, vertical = 14.dp),
             contentAlignment = Alignment.Center,

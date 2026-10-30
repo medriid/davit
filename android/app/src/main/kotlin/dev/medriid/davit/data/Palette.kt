@@ -69,6 +69,7 @@ data class Palette(
             tinted = tinted,
             tone = pair.tone,
             sticker = pair.sticker && !p.luminanceDark(),
+            glass = pair.glass,
         )
     }
 

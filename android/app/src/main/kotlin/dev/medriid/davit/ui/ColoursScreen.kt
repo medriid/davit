@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package dev.medriid.davit.ui
 
 import androidx.activity.compose.BackHandler
@@ -170,7 +172,7 @@ internal fun ColoursScreen(route: Route) {
             GroupLabel("Start from")
             InkText("A pair to build on. Starting over drops the colours you changed.", style = RisoType.small)
             Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 InkPairs.all.indices.forEach { i ->
                     PairChip(InkPairs.of(i, night), selected = i == palette.base) { if (palette.custom) startingOver = i else repo.setInk(i) }
                 }

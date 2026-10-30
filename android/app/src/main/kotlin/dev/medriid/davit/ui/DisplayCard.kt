@@ -206,7 +206,9 @@ internal fun DisplayCardScreen(route: Route) {
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri: Uri? ->
         if (uri != null) scope.launch { note = if (repo.setBannerPhoto(uri)) null else "Couldn't read that image." }
     }
-    RouteScreen(route, "Display card", "The top bar, printed on a background of your choice. It changes above as you pick; nothing leaves this phone.") {
+    RouteScreen(route, "Display card", "The top bar on Home, printed on a background of your choice. Nothing leaves this phone.") {
+        // As it looks on Home, changing as you pick.
+        TopBar(state, Mascot.parse(state.mascot), repo.bannerPhoto, card = true, onSync = {}, onProfile = {}, onMore = {}, gutter = 0.dp)
 
         GroupLabel("Background", Modifier.padding(top = 18.dp, bottom = 8.dp))
         Banner.Styles.chunked(3).forEachIndexed { row, names ->

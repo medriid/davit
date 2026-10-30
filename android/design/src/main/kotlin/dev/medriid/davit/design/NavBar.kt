@@ -245,10 +245,10 @@ fun RisoNavBar(items: List<NavItem>, selected: Int, onSelect: (Int) -> Unit, mod
                     Box(contentAlignment = Alignment.Center) {
                         if (on) {
                             Box(
-                                Modifier.size(pillWidth, 34.dp).offset(3.dp, 3.dp).clip(pill).background(if (inks.sticker) inks.text else inks.a),
+                                Modifier.size(pillWidth, 34.dp).offset(3.dp, 3.dp).clip(pill).background(if (inks.glass) inks.glassShadow else if (inks.sticker) inks.text else inks.a),
                             )
                             Box(
-                                Modifier.size(pillWidth, 34.dp).clip(pill).background(if (inks.sticker) inks.a else inks.b)
+                                Modifier.size(pillWidth, 34.dp).clip(pill).background(if (inks.sticker || inks.glass) inks.a else inks.b)
                                     .then(if (inks.sticker) Modifier.border(1.5.dp, inks.text, pill) else Modifier),
                             )
                         } else {

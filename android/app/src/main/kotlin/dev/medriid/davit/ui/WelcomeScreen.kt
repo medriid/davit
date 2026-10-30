@@ -1,5 +1,8 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package dev.medriid.davit.ui
 
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -65,7 +68,7 @@ internal fun WelcomeScreen(state: UiState, repo: Repo, onContinue: () -> Unit) {
 
         GroupLabel("Colours", Modifier.padding(top = 20.dp, bottom = 8.dp))
         val palette = state.palette
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             InkPairs.all.indices.forEach { i ->
                 InkSwatch(InkPairs.of(i, LocalInks.current.dark), selected = !palette.custom && i == palette.base) { repo.setInk(i) }
             }

@@ -1,5 +1,8 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package dev.medriid.davit.ui
 
+import androidx.compose.foundation.layout.FlowRow
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.ui.graphics.toArgb
@@ -218,7 +221,7 @@ internal fun SettingsScreen(route: Route) {
                 style = RisoType.body.copy(fontWeight = FontWeight.SemiBold),
             )
             Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 InkPairs.all.indices.forEach { i -> InkSwatch(InkPairs.of(i, LocalInks.current.dark), selected = !palette.custom && i == palette.base) { if (palette.custom) replacing = i else repo.setInk(i) } }
             }
             replacing?.let { i ->

@@ -56,7 +56,7 @@ data class UiState(
     val appLock: Boolean = false,
     /** What to notify about, and when (thresholds, muted courses, before-class reminders). */
     val alertPrefs: AlertPrefs = AlertPrefs(),
-    /** The display card at the top of Today. */
+    /** The display card: the top bar on Home. */
     val banner: Banner = Banner(),
     /** When your own background photo last changed, so the card reloads it. */
     val bannerPhotoAt: Long = 0,

@@ -1,5 +1,9 @@
 package dev.medriid.davit.design
 
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.drawBehind
 import android.graphics.Bitmap
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -28,6 +32,21 @@ fun Grain(
 ) {
     val inks = LocalInks.current
     val grain = remember { grainBrush() }
+    if (inks.glass) {
+        // Glass: no grain, a soft grey sheet with two pale glows, so the frosted cards have something to show through.
+        Box(
+            modifier.drawBehind {
+                drawRect(inks.paper)
+                val glow = if (inks.dark) Color.White.copy(alpha = 0.10f) else Color.White.copy(alpha = 0.85f)
+                val shade = if (inks.dark) Color.Black.copy(alpha = 0.5f) else Color.Black.copy(alpha = 0.07f)
+                drawCircle(Brush.radialGradient(listOf(glow, Color.Transparent), Offset(size.width * 0.15f, size.height * 0.12f), size.width * 0.9f))
+                drawCircle(Brush.radialGradient(listOf(glow, Color.Transparent), Offset(size.width * 0.95f, size.height * 0.6f), size.width * 0.8f), radius = size.width * 0.8f, center = Offset(size.width * 0.95f, size.height * 0.6f))
+                drawRect(Brush.verticalGradient(listOf(Color.Transparent, shade)))
+            },
+            content = content,
+        )
+        return
+    }
     Box(
         modifier
             .background(inks.paper)

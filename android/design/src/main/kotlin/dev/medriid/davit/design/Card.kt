@@ -29,6 +29,9 @@ import androidx.compose.ui.unit.dp
 
 val CardShape = RoundedCornerShape(10.dp)
 
+/** Glass cards are rounder. */
+val GlassShape = RoundedCornerShape(18.dp)
+
 /**
  * The workhorse surface: paper with a 2 dp ink border and a solid ink-A plate printed
  * [plateOffset] down-right behind it. The plate space is reserved, so cards never
@@ -52,7 +55,11 @@ fun InkCard(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val inks = LocalInks.current
-    val plateColor = plate ?: inks.plate(kind)
+    // Glass always casts the same soft shadow (a coloured one would show through the card);
+    // a card flagged with its own plate gets a bright edge instead.
+    val plateColor = if (inks.glass) inks.glassShadow else plate ?: inks.plate(kind)
+    // Glass: rounder, with a fine light edge instead of the ink border.
+    val shape = if (inks.glass) GlassShape else CardShape
     val fillColor = fill ?: inks.fill(kind)
     val motion = rememberMotionEnabled()
     val interaction = remember { MutableInteractionSource() }
@@ -69,16 +76,20 @@ fun InkCard(
             Modifier
                 .matchParentSize()
                 .offset(plateOffset, plateOffset)
-                .clip(CardShape)
+                .clip(shape)
                 .background(plateColor),
         )
         Column(
             Modifier
                 .fillMaxWidth()
                 .offset { IntOffset(push.roundToPx(), push.roundToPx()) }
-                .clip(CardShape)
+                .clip(shape)
                 .background(fillColor)
-                .border(2.dp, inks.text, CardShape)
+                .border(
+                    if (inks.glass && plate == null) 1.dp else 2.dp,
+                    if (!inks.glass) inks.text else if (plate != null) inks.a else inks.glassEdge,
+                    shape,
+                )
                 .then(
                     if (onClick != null) {
                         Modifier.clickable(interaction, indication = null, role = Role.Button, onClick = onClick)
@@ -100,8 +111,8 @@ fun InkChip(text: String, modifier: Modifier = Modifier, solid: Boolean = false)
     Box(
         modifier
             .clip(shape)
-            .background(if (solid) (if (inks.sticker) inks.a else inks.b) else Color.Transparent)
-            .border(1.5.dp, if (solid && !inks.sticker) inks.b else inks.text, shape)
+            .background(if (solid) (if (inks.sticker || inks.glass) inks.a else inks.b) else Color.Transparent)
+            .border(1.5.dp, if (inks.glass) (if (solid) inks.a else inks.rule) else if (solid && !inks.sticker) inks.b else inks.text, shape)
             .padding(horizontal = 10.dp, vertical = 5.dp),
     ) {
         BasicText(

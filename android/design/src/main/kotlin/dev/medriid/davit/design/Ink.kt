@@ -66,7 +66,17 @@ data class Inks(
      * buttons in ink A with black type.
      */
     val sticker: Boolean = false,
+    /**
+     * Monochrome glass: no colour at all, cards of frosted glass (see-through paper with a
+     * fine light edge and a soft shadow) over a soft grey sheet.
+     */
+    val glass: Boolean = false,
 ) {
+    /** Frosted glass: the card's see-through fill, its fine edge, and the soft shadow under it. */
+    val glassFill: Color get() = if (dark) Color.White.copy(alpha = 0.07f) else Color.White.copy(alpha = 0.55f)
+    val glassEdge: Color get() = if (dark) Color.White.copy(alpha = 0.16f) else Color.White.copy(alpha = 0.95f)
+    val glassShadow: Color get() = Color.Black.copy(alpha = if (dark) 0.45f else 0.10f)
+
     /** Dashed table rules and quiet borders. */
     val rule: Color get() = text.copy(alpha = ruleAlpha)
 
@@ -98,16 +108,17 @@ data class Inks(
 
     /** The plate behind a card of [kind]: a black shadow in sticker print, else its ink (ink A for none). */
     fun plate(kind: Kind?): Color = when {
+        glass -> glassShadow
         sticker -> text
         kind == null -> a
         else -> plates[kind.ordinal]
     }
 
     /** The paper of a card of [kind]: a wash of its colour when [tinted], else plain paper. */
-    fun fill(kind: Kind?): Color = if (kind == null || !tinted) paper else washes[kind.ordinal]
+    fun fill(kind: Kind?): Color = if (glass) glassFill else if (kind == null || !tinted) paper else washes[kind.ordinal]
 
-    /** The ink a kind is marked in (icons, a stripe): its plate, which in sticker print is black, so its own colour. */
-    fun mark(kind: Kind): Color = plates[kind.ordinal]
+    /** The ink a kind is marked in (icons, a stripe): its plate, which in sticker print is black, so its own colour. Grey in glass. */
+    fun mark(kind: Kind): Color = if (glass) b else plates[kind.ordinal]
 }
 
 object InkPairs {
@@ -121,6 +132,10 @@ object InkPairs {
 
     private val dayPairs = listOf(ScarletTeal, SunflowerFederal, PinkBlue, RedBlack, LimeInk)
 
+    // Monochrome glass: black, white and greys only; the cards are frosted glass.
+    val MonoGlass = Inks("Monochrome glass", Color(0xFFE5E5E5), Color(0xFF141414), Color(0xFF3A3A3A), Color(0xFF111111), ruleAlpha = 0.22f, glass = true)
+    private val MonoGlassNight = Inks("Monochrome glass", Color(0xFF0D0D0D), Color(0xFFF2F2F2), Color(0xFFCFCFCF), Color(0xFFEDEDED), ruleAlpha = 0.22f, dark = true, glass = true)
+
     // By day: sticker print, pastel cards with black outlines and hard black shadows,
     // near-black type, and each pair's ink A on the buttons.
     private val DayText = Color(0xFF161616)
@@ -128,7 +143,7 @@ object InkPairs {
 
     val all: List<Inks> = dayPairs.map {
         it.copy(paper = Paper, text = DayText, a = it.a.toned(Tone(0.9f, 1f)), tone = DayTone, sticker = true, ruleAlpha = 0.3f)
-    }
+    } + MonoGlass
 
     // Night print: warm charcoal stock, every ink toned down so nothing glows, ink B lifted so it reads.
     val NightPaper = Color(0xFF1E1C19)
@@ -138,7 +153,7 @@ object InkPairs {
     val night: List<Inks> = dayPairs.map { p ->
         val b = (if (p === RedBlack || p === LimeInk) Color(0xFFD9D6CF) else p.b.toned(Tone(0.75f, 1f))).liftedFor(NightPaper, 4f)
         Inks(p.name, NightPaper, p.a.toned(NightTone), b, NightText, ruleAlpha = 0.3f, dark = true, tone = NightTone)
-    }
+    } + MonoGlassNight
 
     /** The paper version of [inks]: for things that should print the same at night (the mascot). */
     fun onPaper(inks: Inks): Inks = if (!inks.dark) inks else inks.dayTwin?.takeIf { !it.dark }

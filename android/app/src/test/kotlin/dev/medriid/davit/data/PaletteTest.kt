@@ -39,6 +39,7 @@ class PaletteTest {
         for (i in InkPairs.all.indices) {
             val day = InkPairs.of(i, false)
             val night = InkPairs.of(i, true)
+            if (day.glass) continue // Monochrome glass has no colour to tone; its own test is below.
             // Calmer than the day's spot ink, so nothing glows on the charcoal stock.
             assertTrue(night.a.toHsv()[1] < day.a.toHsv()[1])
             assertTrue(night.b.contrast(night.paper) >= 3f)
@@ -49,6 +50,20 @@ class PaletteTest {
                 assertTrue("${k.name} plate", night.plate(k).toHsv()[1] < k.default.toHsv()[1] || k.default.toHsv()[1] == 0f)
                 assertTrue("${k.name} shows", night.plate(k).contrast(night.paper) >= 2.2f)
             }
+        }
+    }
+
+    @Test
+    fun monochromeGlassHasNoColourAndReads() {
+        val i = InkPairs.all.indexOfFirst { it.glass }
+        for (dark in listOf(false, true)) {
+            val g = Palette(base = i).inks(dark)
+            assertTrue(g.glass)
+            for (c in listOf(g.paper, g.a, g.b, g.text)) assertEquals(0f, c.toHsv()[1], 0.02f)
+            assertTrue(g.text.contrast(g.paper) >= 7f)
+            assertTrue(g.b.contrast(g.paper) >= 3f)
+            // Every kind of card is the same frosted glass.
+            assertEquals(1, Kind.entries.map { g.fill(it) }.distinct().size)
         }
     }
 

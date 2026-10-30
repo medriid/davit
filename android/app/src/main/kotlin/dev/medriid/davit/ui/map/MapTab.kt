@@ -1,5 +1,9 @@
 package dev.medriid.davit.ui.map
 
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.ui.platform.LocalView
+import dev.medriid.davit.map.Progress
+import dev.medriid.davit.map.Guide
 import android.Manifest
 import android.annotation.SuppressLint
 import androidx.core.location.LocationManagerCompat
@@ -255,6 +259,15 @@ private fun MapScreen(scene: Scene, snapshot: Snapshot) {
     var searching by rememberSaveable { mutableStateOf(false) }
     var flat by rememberSaveable { mutableStateOf(false) }
     var me by remember { mutableStateOf<Location?>(null) }
+    // Following a route: the camera rides on you, turned the way you're going, until you move the map yourself.
+    var navigating by rememberSaveable { mutableStateOf(false) }
+    var follow by remember { mutableStateOf(true) }
+    var arrived by remember { mutableStateOf(false) }
+    val view = LocalView.current
+    DisposableEffect(navigating) {
+        view.keepScreenOn = navigating
+        onDispose { view.keepScreenOn = false }
+    }
     val pinCats = chip?.let { c -> ChipCats.firstOrNull { it.first == c }?.second }
 
     // Location: only while this tab is showing, and only once you've allowed it.
@@ -283,11 +296,12 @@ private fun MapScreen(scene: Scene, snapshot: Snapshot) {
         runCatching { context.startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
         Unit
     }
-    DisposableEffect(located, locationOn) {
-        // Keeps the better of two fixes: a fresh one, or a much more accurate older one.
+    DisposableEffect(located, locationOn, navigating) {
+        // Keeps the better of two fixes: a fresh one, or a much more accurate older one. While
+        // following a route, every good fix, so the map keeps up with you.
         val listener = LocationListener { l ->
             val old = me
-            if (old == null || l.time - old.time > 20_000 || l.accuracy <= old.accuracy * 1.5f) me = l
+            if (old == null || (navigating && l.accuracy <= 50f && l.time >= old.time) || l.time - old.time > 20_000 || l.accuracy <= old.accuracy * 1.5f) me = l
         }
         if (located && locationOn) {
             // Fused first where Android has it (fast indoors), then GPS and the network.
@@ -301,7 +315,7 @@ private fun MapScreen(scene: Scene, snapshot: Snapshot) {
                 .minByOrNull { it.accuracy }
                 ?.let { if (me == null) me = it }
             providers.forEach { p ->
-                runCatching { lm.requestLocationUpdates(p, 2000L, 2f, listener, Looper.getMainLooper()) }
+                runCatching { lm.requestLocationUpdates(p, if (navigating) 1000L else 2000L, if (navigating) 0f else 2f, listener, Looper.getMainLooper()) }
             }
         }
         onDispose { runCatching { lm.removeUpdates(listener) } }
@@ -405,7 +419,7 @@ private fun MapScreen(scene: Scene, snapshot: Snapshot) {
             flyTo(tx, ty, scale = 1.5f * density, rot = face, at = 0.62f, cinematic = true)
         }
 
-        fun routeTo(p: Pick) {
+        fun routeTo(p: Pick, fit: Boolean = true) {
             val g = scene.map.graph ?: return
             val m = me
             val start: Pair<Double, Double>
@@ -439,6 +453,7 @@ private fun MapScreen(scene: Scene, snapshot: Snapshot) {
             scope.launch {
                 val r = withContext(Dispatchers.Default) { g.route(start.first, start.second, scene.lat(p.y), scene.lon(p.x), mode) }
                 route = r
+                if (r != null && !fit) return@launch
                 if (r != null) {
                     haptics.confirm()
                     // Fit the whole route.
@@ -473,6 +488,54 @@ private fun MapScreen(scene: Scene, snapshot: Snapshot) {
         val routePts = remember(route) {
             route?.let { r -> FloatArray(r.lat.size * 2) { i -> if (i % 2 == 0) scene.x(r.lon[i / 2]) else scene.y(r.lat[i / 2]) } }
         }
+
+        // Following the route: where you are on it, the next turn, and what's left.
+        val progress = remember(routePts, meXY?.get(0), meXY?.get(1), navigating) {
+            val m = meXY
+            if (navigating && routePts != null && m != null) Guide.progress(routePts, m[0], m[1]) else null
+        }
+        // The camera rides on you, close and tilted, turned the way you're heading: your own
+        // bearing when you're moving, else the way the route goes from where you are.
+        LaunchedEffect(navigating, follow, meXY?.get(0), meXY?.get(1)) {
+            val m = meXY ?: return@LaunchedEffect
+            if (!navigating || !follow) return@LaunchedEffect
+            val fix = me
+            val heading = if (fix != null && fix.hasBearing() && fix.hasSpeed() && fix.speed > 0.8f) {
+                fix.bearing * PI.toFloat() / 180f
+            } else {
+                progress?.heading ?: camera.rot
+            }
+            flyTo(m[0], m[1], scale = max(camera.scale, 2.6f * density), rot = heading, at = 0.72f)
+        }
+        // Off the route by more than a path's width: a new one from where you are, without zooming out.
+        LaunchedEffect((progress?.off ?: 0f) > 35f) {
+            val p = pick
+            if (navigating && p != null && (progress?.off ?: 0f) > 35f) {
+                haptics.tick()
+                routeTo(p, fit = false)
+            }
+        }
+        // There.
+        LaunchedEffect((progress?.remaining ?: Float.MAX_VALUE) < 12f) {
+            if (navigating && (progress?.remaining ?: Float.MAX_VALUE) < 12f) {
+                haptics.confirm()
+                navigating = false
+                arrived = true
+            }
+        }
+        fun startFollowing() {
+            navigating = true
+            follow = true
+            arrived = false
+            flat = false
+            touched = true
+            haptics.heavy()
+            val m = meXY
+            if (m == null) {
+                if (!located) askLocation.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+                else if (!locationOn) turnOnLocation()
+            }
+        }
         val phase = loop(motion && route != null, 1400, "route")
         val pulse = loop(motion && meXY != null, 1800, "me")
 
@@ -483,6 +546,8 @@ private fun MapScreen(scene: Scene, snapshot: Snapshot) {
                 .pointerInput(scene, w, h) {
                     detectTransformGestures { centroid, pan, zoom, rotation ->
                         touched = true
+                        // Moving the map yourself stops it following you; Re-centre brings it back.
+                        if (navigating) follow = false
                         val c = camera
                         val (gx, gy) = painter.ground(centroid.x, centroid.y, c, w, h)
                         var n = c.copy(scale = (c.scale * zoom).coerceIn(minScale, maxScale), rot = c.rot - rotation * PI.toFloat() / 180f)
@@ -517,13 +582,35 @@ private fun MapScreen(scene: Scene, snapshot: Snapshot) {
                 selectedBuilding = (pick as? Pick.Block)?.b?.index ?: (pick as? Pick.Place)?.let { p -> scene.buildingAt(p.x, p.y)?.index },
                 selectedPrp = (pick as? Pick.Prp)?.block?.id ?: (pick as? Pick.Venue)?.spot?.prp?.id,
                 selectedPoi = (pick as? Pick.Place)?.p?.poi?.id ?: (pick as? Pick.Venue)?.spot?.poi?.id,
-                route = routePts,
+                route = progress?.let { p -> routePts?.let { Guide.ahead(it, p) } } ?: routePts,
                 routePhase = phase.value,
                 me = meXY,
                 mePulse = pulse.value,
                 pinCats = pinCats,
             )
             drawIntoCanvas { painter.draw(it.nativeCanvas, size.width, size.height, camera.copy(tilt = tiltAnim.value), o) }
+        }
+
+        // Following a route: the next turn up top, what's left and End at the bottom, Re-centre after you move the map.
+        if (navigating) {
+            NavBanner(progress, meXY != null, Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp))
+            if (!follow) {
+                Box(Modifier.align(Alignment.CenterEnd).padding(end = 12.dp)) {
+                    RoundButton("Re-centre", { follow = true; haptics.tick() }) {
+                        Canvas(Modifier.size(20.dp)) {
+                            drawCircle(inks.a, size.minDimension * 0.22f)
+                            drawCircle(inks.text, size.minDimension * 0.42f, style = Stroke(2.dp.toPx()))
+                        }
+                    }
+                }
+            }
+            NavCard(
+                progress, route, mode, pick?.title.orEmpty(),
+                onEnd = { navigating = false; follow = true; haptics.tick() },
+                modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+            )
+            BackHandler { navigating = false }
+            return@BoxWithConstraints
         }
 
         // Top: search and the place-type chips.
@@ -608,8 +695,10 @@ private fun MapScreen(scene: Scene, snapshot: Snapshot) {
                             }
                             routeTo(p)
                         },
-                        onClose = { pick = null; route = null },
+                        onClose = { pick = null; route = null; arrived = false },
                         onPick = { q -> select(q) },
+                        onStart = ::startFollowing,
+                        arrived = arrived,
                         // The one thing that would start the route from you, as a button on the card.
                         onLocate = when {
                             !routeWaiting && route != null -> null
@@ -697,6 +786,8 @@ private fun PickCard(
     onClose: () -> Unit,
     onPick: (Pick) -> Unit = {},
     onLocate: Pair<() -> Unit, String>? = null,
+    onStart: () -> Unit = {},
+    arrived: Boolean = false,
 ) {
     val inks = LocalInks.current
     val map = scene.map
@@ -802,12 +893,79 @@ private fun PickCard(
                     Spacer(Modifier.width(6.dp))
                     Box(Modifier.clickable(role = Role.RadioButton) { onMode(Mode.Cycle) }.padding(2.dp)) { InkChip("Cycle", solid = mode == Mode.Cycle) }
                 }
+                Spacer(Modifier.height(10.dp))
+                if (arrived) InkText("You've arrived.", style = RisoType.body.copy(fontWeight = FontWeight.SemiBold))
+                else InkButton("Start", onStart, modifier = Modifier.fillMaxWidth(), fillWidth = true)
             } else {
                 InkButton("Route here", onRoute, modifier = Modifier.fillMaxWidth(), fillWidth = true)
             }
         }
     }
 }
+
+/** While following a route: the next turn, big, with an arrow that points the way. */
+@Composable
+private fun NavBanner(p: Progress?, located: Boolean, modifier: Modifier) {
+    val inks = LocalInks.current
+    InkCard(modifier, plateOffset = 4.dp, contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            val turn = p?.next
+            // The arrow: up for straight on, leaning the way of the turn.
+            Canvas(Modifier.size(40.dp)) {
+                rotate(turn?.degrees?.coerceIn(-135f, 135f) ?: 0f) {
+                    val c = Offset(size.width / 2, size.height / 2)
+                    val stem = androidx.compose.ui.graphics.Path().apply {
+                        moveTo(c.x, size.height * 0.92f); lineTo(c.x, size.height * 0.22f)
+                    }
+                    drawPath(stem, inks.text, style = Stroke(5.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round))
+                    val head = androidx.compose.ui.graphics.Path().apply {
+                        moveTo(c.x, size.height * 0.04f); lineTo(c.x + size.width * 0.3f, size.height * 0.36f); lineTo(c.x - size.width * 0.3f, size.height * 0.36f); close()
+                    }
+                    drawPath(head, inks.a)
+                    drawPath(head, inks.text, style = Stroke(1.5.dp.toPx()))
+                }
+            }
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                when {
+                    !located -> InkText("Finding you…", style = RisoType.title)
+                    p == null -> InkText("Head to the route", style = RisoType.title)
+                    turn == null -> {
+                        InkText("Straight on", style = RisoType.title)
+                        InkText("then you're there", style = RisoType.small)
+                    }
+                    else -> {
+                        InkText("${turn.words} in ${distance(roundTo5(turn.metres))}", style = RisoType.title, maxLines = 2)
+                        if (p.off > 15f) InkText("${p.off.toInt()} m off the path", style = RisoType.small)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** While following a route: what's left and the way out. */
+@Composable
+private fun NavCard(p: Progress?, route: Route?, mode: Mode, to: String, onEnd: () -> Unit, modifier: Modifier) {
+    InkCard(modifier, plateOffset = 5.dp) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                val left = p?.remaining ?: route?.metres?.toFloat()
+                // Time left at the route's own pace.
+                val pace = if (route != null && route.seconds > 0) route.metres.toFloat() / route.seconds else if (mode == Mode.Walk) 1.3f else 4.5f
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Heading(left?.let { minutes((it / pace).toInt()) } ?: "–", 26.sp)
+                    Spacer(Modifier.width(10.dp))
+                    InkText(left?.let { distance(roundTo5(it)) } ?: "", style = RisoType.body.copy(fontWeight = FontWeight.SemiBold))
+                }
+                InkText("to $to", style = RisoType.small, maxLines = 1)
+            }
+            InkButton("End", onEnd)
+        }
+    }
+}
+
+private fun roundTo5(m: Float): Int = ((m / 5f).toInt() * 5).coerceAtLeast(5)
 
 private fun minutes(seconds: Int): String = when {
     seconds < 60 -> "<1 min"
