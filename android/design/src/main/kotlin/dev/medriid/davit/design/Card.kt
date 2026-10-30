@@ -100,8 +100,8 @@ fun InkChip(text: String, modifier: Modifier = Modifier, solid: Boolean = false)
     Box(
         modifier
             .clip(shape)
-            .background(if (solid) inks.b else Color.Transparent)
-            .border(1.5.dp, if (solid) inks.b else inks.text, shape)
+            .background(if (solid) (if (inks.sticker) inks.a else inks.b) else Color.Transparent)
+            .border(1.5.dp, if (solid && !inks.sticker) inks.b else inks.text, shape)
             .padding(horizontal = 10.dp, vertical = 5.dp),
     ) {
         BasicText(
@@ -109,7 +109,7 @@ fun InkChip(text: String, modifier: Modifier = Modifier, solid: Boolean = false)
             maxLines = 1,
             softWrap = false,
             style = RisoType.label.copy(
-                color = if (solid) inks.paper else inks.text,
+                color = if (solid && !inks.sticker) inks.paper else inks.text,
                 letterSpacing = RisoType.label.letterSpacing * 0.5f,
             ),
         )

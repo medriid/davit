@@ -288,6 +288,7 @@ private fun RouteHost(route: Route) = when (route) {
     Route.Allocation -> AllocationScreen(route)
     Route.Colours -> ColoursScreen(route)
     Route.LeavePlanner -> LeavePlannerScreen(route)
+    Route.DisplayCard -> DisplayCardScreen(route)
 }
 
 @Composable

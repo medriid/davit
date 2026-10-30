@@ -56,8 +56,10 @@ fun InkButton(
         if (motion) RisoMotion.quick() else snap(), label = "block",
     )
 
-    val blockColor = if (quiet) inks.paper else inks.b
-    val textColor = if (quiet) inks.text else inks.paper
+    // Riso: an ink-B block on an ink-A plate. Sticker print: an ink-A block with black type on a black shadow.
+    val blockColor = if (quiet) inks.paper else if (inks.sticker) inks.a else inks.b
+    val textColor = if (quiet || inks.sticker) inks.text else inks.paper
+    val plateColor = if (inks.sticker) inks.text else inks.a
     Box(
         modifier
             .clickable(
@@ -73,7 +75,7 @@ fun InkButton(
                 .matchParentSize()
                 .offset { IntOffset(plate.x.roundToPx(), plate.y.roundToPx()) }
                 .clip(CardShape)
-                .background(if (enabled) inks.a else inks.rule),
+                .background(if (enabled) plateColor else inks.rule),
         )
         Box(
             Modifier
@@ -81,7 +83,7 @@ fun InkButton(
                 .then(if (fillWidth) Modifier.fillMaxWidth() else Modifier)
                 .clip(CardShape)
                 .background(if (enabled) blockColor else inks.paper)
-                .then(if (quiet || !enabled) Modifier.border(2.dp, inks.text, CardShape) else Modifier)
+                .then(if (quiet || !enabled || inks.sticker) Modifier.border(2.dp, inks.text, CardShape) else Modifier)
                 .defaultMinSize(minHeight = 54.dp)
                 .padding(horizontal = 22.dp, vertical = 14.dp),
             contentAlignment = Alignment.Center,

@@ -68,6 +68,7 @@ data class Palette(
             kinds = Kind.entries.map { k -> kinds[k.name]?.let(::color) },
             tinted = tinted,
             tone = pair.tone,
+            sticker = pair.sticker && !p.luminanceDark(),
         )
     }
 

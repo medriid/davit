@@ -10,15 +10,15 @@ import androidx.compose.ui.graphics.lerp
  * What a card is about, so each kind prints in its own ink and you can tell them apart at
  * a glance: a class from an assignment from an exam. The colours are yours to change.
  */
-enum class Kind(val title: String, val note: String, val default: Color) {
-    Classes("Classes", "Now and next, the week, your teachers", Color(0xFF0078BF)),
-    Attendance("Attendance", "Percentages, at-risk courses, VTOP remarks", Color(0xFF00A95C)),
-    Assignments("Assignments", "What's due, uploads, course materials", Color(0xFFFFB511)),
-    Exams("Exams and marks", "Exam dates, marks, grades and GPA", Color(0xFFFF48B0)),
-    Reminders("Reminders", "Your own reminders, registration", Color(0xFFFF6C2F)),
-    Events("Events", "Club events and certificates", Color(0xFF765BA7)),
-    People("Messages and people", "Proctor, messages, faculty, Spot-light", Color(0xFF00838A)),
-    Vtop("VTOP pages", "Hostel, requests and records", Color(0xFFF65058)),
+enum class Kind(val title: String, val note: String, val default: Color, val pastel: Color) {
+    Classes("Classes", "Now and next, the week, your teachers", Color(0xFF0078BF), Color(0xFFCDEFC4)),
+    Attendance("Attendance", "Percentages, at-risk courses, VTOP remarks", Color(0xFF00A95C), Color(0xFFC9E4FB)),
+    Assignments("Assignments", "What's due, uploads, course materials", Color(0xFFFFB511), Color(0xFFF9DBA9)),
+    Exams("Exams and marks", "Exam dates, marks, grades and GPA", Color(0xFFFF48B0), Color(0xFFD5CEF7)),
+    Reminders("Reminders", "Your own reminders, registration", Color(0xFFFF6C2F), Color(0xFFFFE590)),
+    Events("Events", "Club events and certificates", Color(0xFF765BA7), Color(0xFFF7C9DF)),
+    People("Messages and people", "Proctor, messages, faculty, Spot-light", Color(0xFF00838A), Color(0xFFBFE8E3)),
+    Vtop("VTOP pages", "Hostel, requests and records", Color(0xFFF65058), Color(0xFFF8C7C2)),
 }
 
 /**
@@ -61,6 +61,11 @@ data class Inks(
     /** The same inks on day paper, for things that print the same at night (the mascot). */
     val dayTwin: Inks? = null,
     val tone: Tone = Tone(),
+    /**
+     * Sticker print, by day: cards in pastel with black outlines and a hard black shadow,
+     * buttons in ink A with black type.
+     */
+    val sticker: Boolean = false,
 ) {
     /** Dashed table rules and quiet borders. */
     val rule: Color get() = text.copy(alpha = ruleAlpha)
@@ -80,13 +85,29 @@ data class Inks(
             }
         }
     }
-    private val washes: List<Color> by lazy { plates.map { lerp(paper, it, tone.wash) } }
+    private val washes: List<Color> by lazy {
+        Kind.entries.map { k ->
+            val yours = kinds?.getOrNull(k.ordinal)
+            when {
+                // Sticker cards: the kind's pastel, or a light pull of your own colour.
+                sticker -> if (yours != null) lerp(paper, yours, 0.42f) else k.pastel
+                else -> lerp(paper, plates[k.ordinal], tone.wash)
+            }
+        }
+    }
 
-    /** The plate behind a card of [kind]; ink A for none. */
-    fun plate(kind: Kind?): Color = if (kind == null) a else plates[kind.ordinal]
+    /** The plate behind a card of [kind]: a black shadow in sticker print, else its ink (ink A for none). */
+    fun plate(kind: Kind?): Color = when {
+        sticker -> text
+        kind == null -> a
+        else -> plates[kind.ordinal]
+    }
 
     /** The paper of a card of [kind]: a wash of its colour when [tinted], else plain paper. */
     fun fill(kind: Kind?): Color = if (kind == null || !tinted) paper else washes[kind.ordinal]
+
+    /** The ink a kind is marked in (icons, a stripe): its plate, which in sticker print is black, so its own colour. */
+    fun mark(kind: Kind): Color = plates[kind.ordinal]
 }
 
 object InkPairs {
@@ -96,13 +117,18 @@ object InkPairs {
     val SunflowerFederal = Inks("Sunflower + Federal Blue", Paper, Color(0xFFFFB511), Color(0xFF3D5588), Color(0xFF2C3F6B))
     val PinkBlue = Inks("Fluorescent Pink + Blue", Paper, Color(0xFFFF48B0), Color(0xFF0078BF), Color(0xFF00598F))
     val RedBlack = Inks("Bright Red + Black", Paper, Color(0xFFF15060), Color(0xFF2A2A2A), Color(0xFF1F1F1F), ruleAlpha = 0.3f)
+    val LimeInk = Inks("Lime + Ink", Paper, Color(0xFFD3F53B), Color(0xFF2A2A2A), Color(0xFF161616), ruleAlpha = 0.3f)
 
-    private val dayPairs = listOf(ScarletTeal, SunflowerFederal, PinkBlue, RedBlack)
+    private val dayPairs = listOf(ScarletTeal, SunflowerFederal, PinkBlue, RedBlack, LimeInk)
 
-    // By day: a warm paper, ink A a touch softer, and card colours toned down with a light wash.
+    // By day: sticker print, pastel cards with black outlines and hard black shadows,
+    // near-black type, and each pair's ink A on the buttons.
+    private val DayText = Color(0xFF161616)
     private val DayTone = Tone(saturation = 0.72f, brightness = 0.92f, wash = 0.08f)
 
-    val all: List<Inks> = dayPairs.map { it.copy(paper = Paper, a = it.a.toned(Tone(0.85f, 1f)), tone = DayTone) }
+    val all: List<Inks> = dayPairs.map {
+        it.copy(paper = Paper, text = DayText, a = it.a.toned(Tone(0.9f, 1f)), tone = DayTone, sticker = true, ruleAlpha = 0.3f)
+    }
 
     // Night print: warm charcoal stock, every ink toned down so nothing glows, ink B lifted so it reads.
     val NightPaper = Color(0xFF1E1C19)
@@ -110,7 +136,7 @@ object InkPairs {
     private val NightTone = Tone(saturation = 0.6f, brightness = 0.82f, wash = 0.08f)
 
     val night: List<Inks> = dayPairs.map { p ->
-        val b = (if (p === RedBlack) Color(0xFFD9D6CF) else p.b.toned(Tone(0.75f, 1f))).liftedFor(NightPaper, 4f)
+        val b = (if (p === RedBlack || p === LimeInk) Color(0xFFD9D6CF) else p.b.toned(Tone(0.75f, 1f))).liftedFor(NightPaper, 4f)
         Inks(p.name, NightPaper, p.a.toned(NightTone), b, NightText, ruleAlpha = 0.3f, dark = true, tone = NightTone)
     }
 

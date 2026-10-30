@@ -1,5 +1,6 @@
 package dev.medriid.davit.design
 
+import androidx.compose.foundation.border
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -230,7 +231,7 @@ fun RisoNavBar(items: List<NavItem>, selected: Int, onSelect: (Int) -> Unit, mod
         ) {
             items.forEachIndexed { i, item ->
                 val on = i == selected
-                val iconColor by animateColorAsState(if (on) inks.paper else inks.text, label = "icon")
+                val iconColor by animateColorAsState(if (on && !inks.sticker) inks.paper else inks.text, label = "icon")
                 Column(
                     Modifier
                         .weight(1f)
@@ -244,9 +245,12 @@ fun RisoNavBar(items: List<NavItem>, selected: Int, onSelect: (Int) -> Unit, mod
                     Box(contentAlignment = Alignment.Center) {
                         if (on) {
                             Box(
-                                Modifier.size(pillWidth, 34.dp).offset(3.dp, 3.dp).clip(pill).background(inks.a),
+                                Modifier.size(pillWidth, 34.dp).offset(3.dp, 3.dp).clip(pill).background(if (inks.sticker) inks.text else inks.a),
                             )
-                            Box(Modifier.size(pillWidth, 34.dp).clip(pill).background(inks.b))
+                            Box(
+                                Modifier.size(pillWidth, 34.dp).clip(pill).background(if (inks.sticker) inks.a else inks.b)
+                                    .then(if (inks.sticker) Modifier.border(1.5.dp, inks.text, pill) else Modifier),
+                            )
                         } else {
                             Spacer(Modifier.size(pillWidth, 34.dp))
                         }

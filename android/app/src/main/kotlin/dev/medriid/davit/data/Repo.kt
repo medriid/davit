@@ -56,6 +56,10 @@ data class UiState(
     val appLock: Boolean = false,
     /** What to notify about, and when (thresholds, muted courses, before-class reminders). */
     val alertPrefs: AlertPrefs = AlertPrefs(),
+    /** The display card at the top of Today. */
+    val banner: Banner = Banner(),
+    /** When your own background photo last changed, so the card reloads it. */
+    val bannerPhotoAt: Long = 0,
 )
 
 /**
@@ -108,6 +112,8 @@ class Repo(private val context: Context) {
             theme = prefs.getInt(K_THEME, 0),
             appLock = prefs.getBoolean(K_LOCK, false),
             alertPrefs = AlertPrefs.fromJson(prefs.getString(K_ALERT_PREFS, null)),
+            banner = Banner.fromJson(prefs.getString(K_BANNER, null)),
+            bannerPhotoAt = bannerPhoto.lastModified(),
         )
         prefs.getString(K_SESSION, null)?.let(Vault::decrypt)?.let(client::restoreSession)
     }
@@ -186,6 +192,43 @@ class Repo(private val context: Context) {
     fun setMascot(code: String) {
         prefs.edit().putString(K_MASCOT, code).apply()
         _state.update { it.copy(mascot = code) }
+    }
+
+    /** Your own display card background, kept on this phone only (like the mascot, it stays when you sign out). */
+    val bannerPhoto: File get() = File(context.filesDir, "look/banner.jpg")
+
+    fun setBanner(b: Banner) {
+        prefs.edit().putString(K_BANNER, b.toJson()).apply()
+        _state.update { it.copy(banner = b) }
+    }
+
+    /** Takes the picked image as the display card's background: scaled to at most 1600 px and saved as a JPEG. */
+    suspend fun setBannerPhoto(uri: android.net.Uri): Boolean = withContext(Dispatchers.IO) {
+        val ok = runCatching {
+            val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            context.contentResolver.openInputStream(uri)?.use { android.graphics.BitmapFactory.decodeStream(it, null, bounds) }
+            var sample = 1
+            while (maxOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= 1600) sample *= 2
+            val raw = context.contentResolver.openInputStream(uri)?.use {
+                android.graphics.BitmapFactory.decodeStream(it, null, android.graphics.BitmapFactory.Options().apply { inSampleSize = sample })
+            } ?: return@runCatching false
+            val scaled = dev.medriid.davit.scan.Render.fit(raw, 1600)
+            bannerPhoto.parentFile?.mkdirs()
+            bannerPhoto.outputStream().use { scaled.compress(android.graphics.Bitmap.CompressFormat.JPEG, 88, it) }
+            scaled.recycle()
+            true
+        }.getOrDefault(false)
+        if (ok) {
+            setBanner(_state.value.banner.copy(photo = true, focus = 0.5f))
+            _state.update { it.copy(bannerPhotoAt = bannerPhoto.lastModified()) }
+        }
+        ok
+    }
+
+    fun removeBannerPhoto() {
+        bannerPhoto.delete()
+        setBanner(_state.value.banner.copy(photo = false))
+        _state.update { it.copy(bannerPhotoAt = 0) }
     }
 
     fun dismissError() = _state.update { it.copy(error = null) }
@@ -340,7 +383,8 @@ class Repo(private val context: Context) {
                 val palette = prefs.getString(K_PALETTE, null)
                 val mascot = prefs.getString(K_MASCOT, "").orEmpty()
                 val theme = prefs.getInt(K_THEME, 0)
-                prefs.edit().clear().putInt(K_INK, ink).putString(K_PALETTE, palette).putString(K_MASCOT, mascot).putInt(K_THEME, theme)
+                val banner = prefs.getString(K_BANNER, null)
+                prefs.edit().clear().putInt(K_INK, ink).putString(K_PALETTE, palette).putString(K_MASCOT, mascot).putInt(K_THEME, theme).putString(K_BANNER, banner)
                     .putBoolean(K_WELCOMED, true).apply()
                 Notifier.forget(context)
                 PhoneCalendar.turnOff(context)
@@ -352,7 +396,7 @@ class Repo(private val context: Context) {
                 scanner.close()
                 Vault.deleteKey()
                 BackgroundSync.apply(context, false)
-                _state.value = UiState(palette = Palette.fromJson(palette) ?: Palette(base = ink), mascot = mascot, theme = theme)
+                _state.value = UiState(palette = Palette.fromJson(palette) ?: Palette(base = ink), mascot = mascot, theme = theme, banner = Banner.fromJson(banner), bannerPhotoAt = bannerPhoto.lastModified())
                 DavitWidget.refresh(context)
             }
         }
@@ -673,6 +717,7 @@ class Repo(private val context: Context) {
         private const val K_PALETTE = "palette"
         private const val K_DUMP = "dump"
         private const val K_MASCOT = "mascot"
+        private const val K_BANNER = "banner"
         private const val K_BACKGROUND = "background"
         private const val K_ALERTS = "alerts"
         private const val K_ASKED = "askedNotifications"

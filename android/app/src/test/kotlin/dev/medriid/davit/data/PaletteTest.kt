@@ -93,8 +93,10 @@ class PaletteTest {
         assertEquals(Color(0xFF67B346), p.kind(Kind.Exams))
         assertEquals(Kind.Classes.default, p.kind(Kind.Classes))
         val day = p.inks(false)
-        assertEquals(Color(0xFF67B346), day.plate(Kind.Exams))
-        assertEquals(day.a, day.plate(null))
+        // By day the shadow is black and the card takes a light pull of your colour; the colour itself stays yours.
+        assertEquals(Color(0xFF67B346), day.mark(Kind.Exams))
+        assertEquals(day.text, day.plate(Kind.Exams))
+        assertEquals(day.text, day.plate(null))
         // A tint is paper with a wash of the kind, and plain paper when tints are off.
         assertTrue(day.fill(Kind.Exams) != day.paper)
         assertEquals(day.paper, p.copy(tinted = false).inks(false).fill(Kind.Exams))

@@ -1,5 +1,6 @@
 package dev.medriid.davit.ui
 
+import androidx.compose.runtime.collectAsState
 import java.time.LocalDate
 import dev.medriid.davit.design.InkField
 import dev.medriid.davit.design.InkButton
@@ -100,6 +101,17 @@ internal fun TodayTab(
     val total = att.sumOf { it.total }
 
     TabColumn {
+        // Your display card first, unless you've turned it off.
+        val repo = LocalRepo.current
+        val look by repo.state.collectAsState()
+        if (!look.banner.hidden) {
+            DisplayCard(
+                look.banner, look.bannerPhotoAt, repo.bannerPhoto, Mascot.parse(look.mascot),
+                snapshot.profile?.name, look.regNo, snapshot, reminders,
+                onEdit = { onOpen(Route.DisplayCard) },
+                modifier = Modifier.padding(top = 4.dp, bottom = 14.dp),
+            )
+        }
         InkText(now.format(DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.ENGLISH)), style = RisoType.title)
         InkText(
             listOfNotNull(
