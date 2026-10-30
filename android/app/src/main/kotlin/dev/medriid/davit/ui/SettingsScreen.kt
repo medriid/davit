@@ -200,9 +200,9 @@ internal fun SettingsScreen(route: Route) {
 
         // The look.
         SettingsCard("Look") {
-            InkText("Paper", style = RisoType.body.copy(fontWeight = FontWeight.SemiBold))
+            InkText("Light or dark", style = RisoType.body.copy(fontWeight = FontWeight.SemiBold))
             Spacer(Modifier.height(8.dp))
-            ChoiceRow(listOf("System", "Paper", "Night print"), state.theme) { repo.setTheme(it) }
+            ChoiceRow(listOf("System", "Light", "Dark"), state.theme) { repo.setTheme(it) }
             Spacer(Modifier.height(14.dp))
             val palette = state.palette
             var replacing by remember { mutableStateOf<Int?>(null) }
@@ -518,7 +518,7 @@ private fun alertSummary(p: AlertPrefs): String = listOfNotNull(
 
 /** A titled card of settings, with an optional glyph by the title. */
 @Composable
-private fun SettingsCard(title: String, icon: RisoIcon? = null, content: @Composable ColumnScope.() -> Unit) {
+internal fun SettingsCard(title: String, icon: RisoIcon? = null, content: @Composable ColumnScope.() -> Unit) {
     Spacer(Modifier.height(18.dp))
     InkCard(Modifier.fillMaxWidth(), plateOffset = 4.dp) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -534,7 +534,7 @@ private fun SettingsCard(title: String, icon: RisoIcon? = null, content: @Compos
 }
 
 @Composable
-private fun ToggleRow(title: String, body: String, on: Boolean, onToggle: () -> Unit) {
+internal fun ToggleRow(title: String, body: String, on: Boolean, onToggle: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -553,7 +553,7 @@ private fun ToggleRow(title: String, body: String, on: Boolean, onToggle: () -> 
 }
 
 @Composable
-private fun SettingRow(title: String, body: String, action: String, onClick: () -> Unit) {
+internal fun SettingRow(title: String, body: String, action: String, onClick: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -601,7 +601,7 @@ private fun VtopPhoto(dataUri: String) {
 
 /** Two overlapping ink discs; the overlap is whatever multiply makes of them. */
 @Composable
-private fun InkSwatch(pair: Inks, selected: Boolean, onClick: () -> Unit) {
+internal fun InkSwatch(pair: Inks, selected: Boolean, onClick: () -> Unit) {
     val current = LocalInks.current
     Box(
         Modifier

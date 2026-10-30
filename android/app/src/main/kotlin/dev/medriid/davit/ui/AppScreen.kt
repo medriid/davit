@@ -1,22 +1,23 @@
 package dev.medriid.davit.ui
 
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.CircleShape
+import dev.medriid.davit.design.IconGlyph
 import dev.medriid.davit.design.LocalInks
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.ExperimentalMaterial3Api
-import android.Manifest
 import android.graphics.Color as AndroidColor
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
-import android.os.Build
 import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.platform.LocalContext
-import dev.medriid.davit.sync.Notifier
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.AnimatedContent
@@ -123,8 +124,17 @@ fun AppScreen(repo: Repo, locked: Boolean = false, onUnlock: () -> Unit = {}) {
                 LockScreen(onUnlock)
                 return@Grain
             }
-            Crossfade(state.signedIn, label = "signedIn") { signedIn ->
-                if (signedIn) Main(state, repo) else SignInScreen(state, repo::signIn)
+            // Signed out: the welcome (look and mascot) the first time, then the sign-in form.
+            var welcome by rememberSaveable { mutableStateOf(!repo.welcomed) }
+            Crossfade(if (state.signedIn) 0 else if (welcome) 1 else 2, label = "signedIn") { screen ->
+                when (screen) {
+                    0 -> Main(state, repo)
+                    1 -> WelcomeScreen(state, repo) {
+                        repo.welcomed = true
+                        welcome = false
+                    }
+                    else -> SignInScreen(state, repo::signIn, onLook = { welcome = true })
+                }
             }
         }
     }
@@ -142,17 +152,8 @@ private fun Main(state: UiState, repo: Repo) {
     // Each tab and the tab host keep their scroll and segment state while a screen is on top.
     val holder = rememberSaveableStateHolder()
 
-    // Ask for notification permission once, after the first data is on screen.
-    val context = LocalContext.current
-    val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
-    LaunchedEffect(state.snapshot != null) {
-        if (state.snapshot != null && state.alerts && Build.VERSION.SDK_INT >= 33 &&
-            !repo.askedForNotifications && !Notifier.permitted(context)
-        ) {
-            repo.askedForNotifications = true
-            ask.launch(Manifest.permission.POST_NOTIFICATIONS)
-        }
-    }
+    // Once, after the first data is on screen: the setup (notifications, background, reminders, semester).
+    var setup by rememberSaveable { mutableStateOf(!repo.setupDone) }
 
     BackHandler(enabled = stack.isNotEmpty() || tab != 0) {
         when {
@@ -164,7 +165,7 @@ private fun Main(state: UiState, repo: Repo) {
     CompositionLocalProvider(LocalNav provides nav, LocalRepo provides repo) {
         Box(Modifier.fillMaxSize()) {
             Column(Modifier.fillMaxSize()) {
-                TopBar(state, mascot, onSync = repo::sync, onProfile = { nav.go(Route.Settings) }, Modifier.windowInsetsPadding(WindowInsets.statusBars))
+                TopBar(state, mascot, onSync = repo::sync, onProfile = { nav.go(Route.Settings) }, onMore = { nav.go(Route.Campus) }, modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars))
                 AnimatedVisibility(state.error != null) {
                     ErrorBanner(state.error.orEmpty(), onRetry = repo::sync, onDismiss = repo::dismissError)
                 }
@@ -201,6 +202,13 @@ private fun Main(state: UiState, repo: Repo) {
             }
             // The scanner covers everything, bars included, while it's open.
             ScannerHost()
+            if (setup && state.snapshot != null) {
+                BackHandler { }
+                SetupScreen(state, repo) {
+                    repo.setupDone = true
+                    setup = false
+                }
+            }
         }
     }
 }
@@ -282,14 +290,14 @@ private fun RouteHost(route: Route) = when (route) {
 }
 
 @Composable
-private fun TopBar(state: UiState, mascot: Mascot, onSync: () -> Unit, onProfile: () -> Unit, modifier: Modifier = Modifier) {
+private fun TopBar(state: UiState, mascot: Mascot, onSync: () -> Unit, onProfile: () -> Unit, onMore: () -> Unit, modifier: Modifier = Modifier) {
     Row(
         modifier.fillMaxWidth().padding(start = Gutter, end = Gutter - 4.dp, top = 8.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Seal(size = 40.dp)
+        Seal(size = 36.dp)
         Spacer(Modifier.width(12.dp))
-        Heading("daVIT", 26.sp, uppercase = false)
+        Heading("daVIT", 24.sp, uppercase = false)
         Spacer(Modifier.width(10.dp))
         // The status takes whatever room is left (and clips), so a long "Fetching
         // attendance" can never squeeze the avatar out of round.
@@ -308,14 +316,38 @@ private fun TopBar(state: UiState, mascot: Mascot, onSync: () -> Unit, onProfile
                 InkText(state.snapshot?.syncedAt?.let { ago(it) } ?: "never", style = RisoType.small)
             }
         }
-        Spacer(Modifier.width(8.dp))
-        MascotAvatar(
-            mascot, 48.dp,
+        // More from VTOP, a tap away from anywhere.
+        TopIcon(RisoIcon.More, "More from VTOP", onMore)
+        Spacer(Modifier.width(6.dp))
+        // You and your settings: the mascot, with a gear on it so it reads as a button.
+        Box(
             Modifier
                 .clickable(role = Role.Button, onClick = onProfile)
                 .semantics { contentDescription = "Profile and settings" },
-        )
+        ) {
+            MascotAvatar(mascot, 46.dp)
+            Box(
+                Modifier
+                    .align(Alignment.BottomEnd)
+                    .size(18.dp)
+                    .background(LocalInks.current.paper, CircleShape)
+                    .border(1.5.dp, LocalInks.current.text, CircleShape)
+                    .padding(2.dp),
+            ) { IconGlyph(RisoIcon.Settings, LocalInks.current.text, Modifier.fillMaxSize()) }
+        }
     }
+}
+
+@Composable
+private fun TopIcon(icon: RisoIcon, label: String, onClick: () -> Unit) {
+    Box(
+        Modifier
+            .size(40.dp)
+            .clip(CircleShape)
+            .clickable(role = Role.Button, onClick = onClick)
+            .semantics { contentDescription = label },
+        contentAlignment = Alignment.Center,
+    ) { IconGlyph(icon, LocalInks.current.text, Modifier.size(24.dp)) }
 }
 
 /** "just now", "12 min ago", "3 h ago", "2 days ago"; ticks over once a minute. */

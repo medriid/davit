@@ -1,5 +1,6 @@
 package dev.medriid.davit.ui
 
+import dev.medriid.davit.design.InkButton
 import androidx.compose.runtime.mutableStateOf
 import dev.medriid.davit.data.isLabType
 import androidx.compose.foundation.background
@@ -180,6 +181,9 @@ internal fun Assignment.dueDay(): LocalDate? = vtopDate(due)
 @Composable
 private fun AssignmentsSegment(snapshot: Snapshot) {
     val courses = snapshot.assignments.filter { it.items.isNotEmpty() }
+    // Photograph pages into one PDF, then pick which assignment it goes to.
+    val repo = LocalRepo.current
+    InkButton("Scan to PDF", { repo.scanner.open(dev.medriid.davit.scan.ScanTarget()) }, quiet = true, fillWidth = true, modifier = Modifier.fillMaxWidth().padding(bottom = 14.dp))
     if (courses.isEmpty()) {
         InkText("No assignments for ${snapshot.semester.name} yet.")
         return

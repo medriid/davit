@@ -295,6 +295,16 @@ class Repo(private val context: Context) {
         get() = prefs.getBoolean(K_ASKED, false)
         set(v) = prefs.edit().putBoolean(K_ASKED, v).apply()
 
+    /** The welcome page (look and mascot) was seen once; after that, signing in goes straight to the form. */
+    var welcomed: Boolean
+        get() = prefs.getBoolean(K_WELCOMED, false)
+        set(v) = prefs.edit().putBoolean(K_WELCOMED, v).apply()
+
+    /** The setup after the first sync is done. Anyone who used daVIT before it existed counts as done. */
+    var setupDone: Boolean
+        get() = prefs.getBoolean(K_SETUP, askedForNotifications)
+        set(v) = prefs.edit().putBoolean(K_SETUP, v).apply()
+
     /**
      * A sync for the background worker: waits for any sync already running, then runs one.
      * Returns the snapshot before it, the one after, and the failure if there was one.
@@ -329,7 +339,8 @@ class Repo(private val context: Context) {
                 val palette = prefs.getString(K_PALETTE, null)
                 val mascot = prefs.getString(K_MASCOT, "").orEmpty()
                 val theme = prefs.getInt(K_THEME, 0)
-                prefs.edit().clear().putInt(K_INK, ink).putString(K_PALETTE, palette).putString(K_MASCOT, mascot).putInt(K_THEME, theme).apply()
+                prefs.edit().clear().putInt(K_INK, ink).putString(K_PALETTE, palette).putString(K_MASCOT, mascot).putInt(K_THEME, theme)
+                    .putBoolean(K_WELCOMED, true).apply()
                 Notifier.forget(context)
                 dev.medriid.davit.sync.Reminders.cancelAll(context)
                 dumpDir().deleteRecursively()
@@ -661,6 +672,8 @@ class Repo(private val context: Context) {
         private const val K_BACKGROUND = "background"
         private const val K_ALERTS = "alerts"
         private const val K_ASKED = "askedNotifications"
+        private const val K_WELCOMED = "welcomed"
+        private const val K_SETUP = "setupDone"
         private const val K_LAST_BG = "lastBackground"
         private const val K_REMINDERS = "reminders"
         private const val K_THEME = "theme"

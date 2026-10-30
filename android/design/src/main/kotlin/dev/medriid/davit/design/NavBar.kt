@@ -179,6 +179,28 @@ enum class RisoIcon(val draw: DrawScope.(Color) -> Unit) {
         drawLine(c, Offset(10 * u, 20.5f * u), Offset(14 * u, 20.5f * u), 2 * u, StrokeCap.Round)
         drawLine(c, Offset(12 * u, 3 * u), Offset(12 * u, 4.6f * u), 2 * u, StrokeCap.Round)
     }),
+
+    /** More from VTOP: four tiles. */
+    More({ c ->
+        val u = size.width / 24f
+        for (x in listOf(3.5f, 13.5f)) for (y in listOf(3.5f, 13.5f)) {
+            drawRoundRect(c, Offset(x * u, y * u), Size(7 * u, 7 * u), CornerRadius(1.6f * u), style = stroke(u))
+        }
+    }),
+
+    /** Settings: a gear, eight teeth round a hub. */
+    Settings({ c ->
+        val u = size.width / 24f
+        val mid = Offset(12 * u, 12 * u)
+        drawCircle(c, 6 * u, mid, style = stroke(u))
+        drawCircle(c, 2.4f * u, mid, style = stroke(u))
+        for (i in 0 until 8) {
+            val a = Math.toRadians(i * 45.0)
+            val dx = kotlin.math.cos(a).toFloat()
+            val dy = kotlin.math.sin(a).toFloat()
+            drawLine(c, Offset(mid.x + dx * 6.6f * u, mid.y + dy * 6.6f * u), Offset(mid.x + dx * 9 * u, mid.y + dy * 9 * u), 2.6f * u, StrokeCap.Round)
+        }
+    }),
 }
 
 private fun stroke(u: Float, w: Float = 2f) = Stroke(w * u, cap = StrokeCap.Round, join = StrokeJoin.Round)
