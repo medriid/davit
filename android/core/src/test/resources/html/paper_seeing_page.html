@@ -1,0 +1,13 @@
+<!-- Hand-written fixture in the shape of examinations/paperSeeing/PaperSeeing (docs/09 §10), semesters shortened. -->
+<div id="main-section"><div class="card-header"><strong>Paper Seeing &amp; Re-Evaluation</strong></div>
+<form id="paperSeeingView"><input type="hidden" name="authorizedID" id="authorizedID" value="REGNO" /><input type="hidden" name="_csrf" value="CSRF" />
+<input type="hidden" name="regNoo" value="${regNo}" />
+<div class="row"><label for="semesterSubId">Select Semester</label><select name="semesterSubId" id="semesterSubId" onchange="PaperSeeingOnChange();">
+<option value="">-- Choose Semester --</option><option value="VL20262701">Fall Semester 2026-27</option><option value="VL20252605">Winter Semester 2025-26</option></select></div>
+<div class="row"><label for="serviceType">Select Service</label><select name="serviceType" id="serviceType" onchange="PaperSeeingOnChange();">
+<option value="">-- Choose Service --</option><option value="2">Paper Seeing</option><option value="1">Re - Evaluation</option></select></div>
+<div class="row"><label>Select Exam Type</label><div>
+<label><input type="radio" name="examType" value="RGR" onclick="PaperSeeingOnChange();"> Regular</label>
+<label><input type="radio" name="examType" value="ME_FAT" onclick="PaperSeeingOnChange();"> Makeup Exam</label></div></div>
+<input type="hidden" id="success" value="" /><input type="hidden" id="jsonBom" value="" />
+</form></div>

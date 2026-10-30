@@ -99,7 +99,7 @@ internal fun AttendanceTab(snapshot: Snapshot) {
 private fun CourseCard(row: AttendanceRow, remaining: Int?, history: List<AttendanceDay>, faculty: String, remark: CourseRemark?, modifier: Modifier = Modifier) {
     val inks = LocalInks.current
     val risk = row.atRisk
-    val ink by animateColorAsState(if (risk) inks.a else inks.b, label = "ink")
+    val ink by animateColorAsState(if (risk) inks.a else inks.plate(dev.medriid.davit.design.Kind.Attendance), label = "ink")
     val pct by animateIntAsState(row.percent, label = "pct")
     var open by rememberSaveable { mutableStateOf(false) }
 
@@ -113,7 +113,7 @@ private fun CourseCard(row: AttendanceRow, remaining: Int?, history: List<Attend
         }
     }
 
-    InkCard(modifier.fillMaxWidth(), onClick = { open = !open }, plate = ink) {
+    InkCard(modifier.fillMaxWidth(), onClick = { open = !open }, kind = dev.medriid.davit.design.Kind.Attendance, plate = ink) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.width(104.dp)) {
                 Overprint("$pct%", 34.sp, plateA = ink, rest = DpOffset(2.dp, 1.5.dp), from = DpOffset(12.dp, (-7).dp), dot = 3.5.dp, registerKey = row.percent)

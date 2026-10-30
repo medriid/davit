@@ -192,6 +192,9 @@ data class FacultyInfo(
     val cabin: String,
 )
 
+/** One row of VTOP's faculty search by name; [empId] opens the full card ([FacultyInfo]). */
+data class FacultyHit(val empId: String, val name: String, val designation: String, val school: String)
+
 /** A class group in VTOP's Academic Calendar ("ALL03" = "General Freshers"). */
 @kotlinx.serialization.Serializable
 data class ClassGroup(val id: String, val name: String)

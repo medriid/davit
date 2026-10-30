@@ -99,7 +99,8 @@ internal fun WeekTab(snapshot: Snapshot) {
                 val done = day == today && minute >= m.end
                 InkCard(
                     Modifier.fillMaxWidth(),
-                    plate = if (live) inks.a else inks.b,
+                    kind = dev.medriid.davit.design.Kind.Classes,
+                    plate = if (live) inks.a else null,
                     plateOffset = if (live) 5.dp else 3.dp,
                     contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
                 ) {
@@ -211,7 +212,7 @@ private fun CalendarView(cal: AcademicCalendar?, today: LocalDate) {
         return
     }
     val left = cal.instructionalDaysLeft(today)
-    InkCard(Modifier.fillMaxWidth()) {
+    InkCard(Modifier.fillMaxWidth(), kind = dev.medriid.davit.design.Kind.Classes) {
         Heading("$left", 40.sp)
         Spacer(Modifier.height(6.dp))
         InkText(
@@ -223,7 +224,7 @@ private fun CalendarView(cal: AcademicCalendar?, today: LocalDate) {
     val exams = cal.examWindows()
     if (exams.isNotEmpty()) {
         SectionTitle("Exam dates")
-        InkCard(Modifier.fillMaxWidth(), plateOffset = 3.dp) {
+        InkCard(Modifier.fillMaxWidth(), kind = dev.medriid.davit.design.Kind.Exams, plateOffset = 3.dp) {
             exams.forEachIndexed { i, (type, from, to) ->
                 if (i > 0) Spacer(Modifier.height(10.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {

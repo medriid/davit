@@ -99,9 +99,10 @@ private val Tabs = listOf(
     NavItem("Attendance", RisoIcon.Attendance),
     NavItem("Academics", RisoIcon.Academics),
     NavItem("Week", RisoIcon.Week),
+    NavItem("Navigation", RisoIcon.Map),
 )
 
-/** Root: the sign-in poster until there are credentials, then the four tabs. */
+/** Root: the sign-in poster until there are credentials, then the five tabs. */
 @Composable
 fun AppScreen(repo: Repo, locked: Boolean = false, onUnlock: () -> Unit = {}) {
     val state by repo.state.collectAsState()
@@ -116,7 +117,7 @@ fun AppScreen(repo: Repo, locked: Boolean = false, onUnlock: () -> Unit = {}) {
         val bars = if (dark) SystemBarStyle.dark(AndroidColor.TRANSPARENT) else SystemBarStyle.light(AndroidColor.TRANSPARENT, AndroidColor.TRANSPARENT)
         activity?.enableEdgeToEdge(statusBarStyle = bars, navigationBarStyle = bars)
     }
-    RisoTheme(InkPairs.of(state.inkIndex, dark)) {
+    RisoTheme(state.palette.inks(dark)) {
         Grain(Modifier.fillMaxSize()) {
             if (locked && state.signedIn) {
                 LockScreen(onUnlock)
@@ -133,7 +134,6 @@ fun AppScreen(repo: Repo, locked: Boolean = false, onUnlock: () -> Unit = {}) {
 @Composable
 private fun Main(state: UiState, repo: Repo) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
-    var sheet by rememberSaveable { mutableStateOf(false) }
     val stack = rememberSaveable(saver = Route.StackSaver) { mutableStateListOf<Route>() }
     val nav = remember(stack) { Nav(stack) { tab = it } }
     val mascot = Mascot.parse(state.mascot)
@@ -154,9 +154,8 @@ private fun Main(state: UiState, repo: Repo) {
         }
     }
 
-    BackHandler(enabled = sheet || stack.isNotEmpty() || tab != 0) {
+    BackHandler(enabled = stack.isNotEmpty() || tab != 0) {
         when {
-            sheet -> sheet = false
             stack.isNotEmpty() -> nav.back()
             else -> tab = 0
         }
@@ -165,7 +164,7 @@ private fun Main(state: UiState, repo: Repo) {
     CompositionLocalProvider(LocalNav provides nav, LocalRepo provides repo) {
         Box(Modifier.fillMaxSize()) {
             Column(Modifier.fillMaxSize()) {
-                TopBar(state, mascot, onSync = repo::sync, onProfile = { sheet = true }, Modifier.windowInsetsPadding(WindowInsets.statusBars))
+                TopBar(state, mascot, onSync = repo::sync, onProfile = { nav.go(Route.Settings) }, Modifier.windowInsetsPadding(WindowInsets.statusBars))
                 AnimatedVisibility(state.error != null) {
                     ErrorBanner(state.error.orEmpty(), onRetry = repo::sync, onDismiss = repo::dismissError)
                 }
@@ -200,33 +199,13 @@ private fun Main(state: UiState, repo: Repo) {
                     nav.tab(it)
                 }, Modifier.windowInsetsPadding(WindowInsets.navigationBars))
             }
-            AccountSheet(
-                visible = sheet,
-                state = state,
-                mascot = mascot,
-                onMascot = { repo.setMascot(it.encode()) },
-                onInk = repo::setInk,
-                onTheme = repo::setTheme,
-                onAppLock = repo::setAppLock,
-                onSemester = repo::chooseSemester,
-                onSync = { repo.sync(); sheet = false },
-                onDumpPages = repo::setDumpPages,
-                onBackground = repo::setBackground,
-                onAlerts = repo::setAlerts,
-                onCalendarGroup = repo::setCalendarGroup,
-                manualGroup = repo.manualCalendarGroup(),
-                onOpen = {
-                    sheet = false
-                    nav.go(it)
-                },
-                onSignOut = { sheet = false; repo.signOut() },
-                onClose = { sheet = false },
-            )
+            // The scanner covers everything, bars included, while it's open.
+            ScannerHost()
         }
     }
 }
 
-/** The four tabs under one pull-to-refresh (the drum), switching with a short slide. */
+/** The five tabs under one pull-to-refresh (the drum; the map keeps its drags to itself), switching with a short slide. */
 @Composable
 private fun TabHost(
     tab: Int,
@@ -268,7 +247,8 @@ private fun TabHost(
                     )
                     1 -> AttendanceTab(snapshot)
                     2 -> AcademicsTab(snapshot)
-                    else -> WeekTab(snapshot)
+                    3 -> WeekTab(snapshot)
+                    else -> dev.medriid.davit.ui.map.MapTab(snapshot)
                 }
             }
         }
@@ -291,6 +271,14 @@ private fun RouteHost(route: Route) = when (route) {
     Route.SemesterGrades -> SemesterGradesScreen(route)
     Route.Hostel -> HostelScreen(route)
     Route.Downloads -> DownloadsScreen(route)
+    Route.Settings -> SettingsScreen(route)
+    Route.Notifications -> NotificationsScreen(route)
+    Route.Bonafide -> BonafideScreen(route)
+    Route.CourseFeedback -> CourseFeedbackScreen(route)
+    Route.PaperSeeing -> PaperSeeingScreen(route)
+    Route.Activities -> ActivitiesScreen(route)
+    Route.Allocation -> AllocationScreen(route)
+    Route.Colours -> ColoursScreen(route)
 }
 
 @Composable

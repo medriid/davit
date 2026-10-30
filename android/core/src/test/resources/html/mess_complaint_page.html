@@ -1,0 +1,9 @@
+<!-- Hand-written fixture in the shape of hostels/messComplaintPage (docs/09 §10). -->
+<div id="main-section"><div class="card"><div class="card-header primaryBorderTop"><strong class="fw-bold h3">Mess Complaint Form</strong></div>
+<span class="ms-5"><u>Note:</u><br/> 1. Please note that the mess complaint will be taken into account for your current dining caterer.<br/>
+ 2. A maximum of two complaints can be submitted per month.<br/> 3. Only PDF or Image files up to 5MB are accepted.<br/></span>
+<form class="form-horizontal needs-validation" id="messComplaintForm" name="messComplaintForm" autocomplete="off">
+<input type="hidden" name="_csrf" value="CSRF"/><input type="hidden" name="authorizedID" id="authorizedID" value="REGNO"/>
+<textarea name="complaintData" id="complaintData" maxlength="200" required></textarea>
+<input type="file" id="complaintFile" name="complaintFile" accept="image/*,application/pdf" required>
+<button type="button" class="btn btn-primary" onclick="compliantSave();"><b>Save</b></button></form></div></div>

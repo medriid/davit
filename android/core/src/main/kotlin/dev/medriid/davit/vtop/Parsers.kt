@@ -433,11 +433,29 @@ object Parsers {
             empId = empId,
             name = name,
             designation = fields["DESIGNATION"].orEmpty(),
-            department = fields["NAME OF DEPARTMENT"].orEmpty(),
+            department = fields["NAME OF DEPARTMENT"].orEmpty().takeUnless { it.equals("None", ignoreCase = true) }.orEmpty(),
             school = fields["SCHOOL / CENTRE NAME"].orEmpty(),
             email = fields["E-MAIL ID"].orEmpty(),
             cabin = fields["CABIN NUMBER"].orEmpty(),
         )
+    }
+
+    /**
+     * `hrms/EmployeeSearchForStudent`: `Name of the Faculty | Designation | School / Centre | Action`,
+     * the action a button calling `getEmployeeIdNo("21930")`. Empty for "No records found".
+     */
+    fun facultySearch(html: String): List<FacultyHit> {
+        val table = Jsoup.parse(html).select("table").firstOrNull { "Name of the Faculty" in it.text() } ?: return emptyList()
+        val t = Html.table(table)
+        val name = t.find("Name")
+        val designation = t.find("Designation")
+        val school = t.find("School", "Centre")
+        return t.elements.mapIndexedNotNull { i, tr ->
+            val button = tr.selectFirst("[onclick*=getEmployeeIdNo]") ?: return@mapIndexedNotNull null
+            val id = Regex("""getEmployeeIdNo\(\s*["']?([^"')]+)""").find(button.attr("onclick"))?.groupValues?.get(1)?.trim()
+                ?: button.id().takeIf { it.isNotBlank() } ?: return@mapIndexedNotNull null
+            FacultyHit(id, t.value(i, name), t.value(i, designation), t.value(i, school))
+        }
     }
 
     /** VIT's grade points. P, W, U and anything unknown don't count towards CGPA. */

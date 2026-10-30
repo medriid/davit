@@ -1,0 +1,21 @@
+<!-- Hand-written fixture: a late-hour (night slip) form in the requestUpdate style of hostels/late/hour/student/request/2.
+     The real form wasn't seen (a request was pending), so this is a guess at its shape, with made-up data. -->
+<div id="DataBlock" class="col-sm-12 light-box">
+<form id="LateHourRequestForm" name="LateHourRequestForm">
+  <input type="hidden" name="studentId" value="10077">
+  <div class="form-group"><label for="venue">Venue *</label><div><select class="form-control" name="venue" id="venue">
+    <option value="">--Select--</option><option value="TT">Technology Tower</option><option value="SJT">Silver Jubilee Tower</option><option value="LIB">Central Library</option></select></div></div>
+  <div class="form-group"><label for="eventType">Event Type *</label><div><select name="eventType" id="eventType">
+    <option value="">--Select--</option><option value="LAB">LAB</option><option value="EVENT">EVENT</option></select></div></div>
+  <div class="form-group"><label for="purpose">Details *</label><div><input type="text" name="purpose" id="purpose" maxlength="100" required></div></div>
+  <div class="form-group"><label for="facultyId">Applied To *</label><div><select name="facultyId" id="facultyId">
+    <option value="">--Select--</option><option value="10021">RAMAN K</option></select></div></div>
+  <div class="form-group"><label for="fromDate">From Date *</label><div><input type="date" name="fromDate" id="fromDate"></div></div>
+  <div class="form-group"><label for="toDate">To Date *</label><div><input type="date" name="toDate" id="toDate"></div></div>
+  <div class="form-group"><label for="fromTime">From Time *</label><div><input type="time" name="fromTime" id="fromTime"></div></div>
+  <div class="form-group"><label for="toTime">To Time *</label><div><input type="time" name="toTime" id="toTime"></div></div>
+  <button type="button" class="btn btn-primary" name="submitRequest" id="submitRequest" data-isprimarycontrol="true" data-formname="LateHourRequestForm"
+    data-controlname="submitRequest" data-urltext="hostels/late/hour/student/request/3" data-effectdivision="DataBlock" onclick="requestUpdate(this);">Submit</button>
+</form>
+<p style="display: none;" id="DataBlockMessage"></p>
+</div>

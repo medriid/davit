@@ -22,8 +22,8 @@ android {
         applicationId = "dev.medriid.davit"
         minSdk = 26
         targetSdk = 35
-        versionCode = 7
-        versionName = "0.5.0"
+        versionCode = 8
+        versionName = "0.6.0"
     }
 
     signingConfigs {
@@ -72,11 +72,17 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.androidx.work)
     implementation(libs.glance.appwidget)
+    implementation(libs.androidx.camera.core)
+    implementation(libs.androidx.camera.camera2)
+    implementation(libs.androidx.camera.lifecycle)
+    implementation(libs.androidx.camera.view)
     val bom = platform(libs.compose.bom)
     implementation(bom)
     implementation(libs.compose.ui.tooling.preview)
     implementation(libs.compose.material3)
     debugImplementation(libs.compose.ui.tooling)
+    // The demo's fake VTOP (src/debug): writes are tried against it, never the real one.
+    debugImplementation(libs.okhttp.mockwebserver)
     testImplementation(libs.junit)
     testImplementation("org.json:json:20240303")
 }

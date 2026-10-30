@@ -19,6 +19,7 @@ import dev.medriid.davit.vtop.CourseRemark
 import dev.medriid.davit.vtop.CurriculumCategory
 import dev.medriid.davit.vtop.CurriculumCourse
 import dev.medriid.davit.vtop.Exam
+import dev.medriid.davit.vtop.FacultyInfo
 import dev.medriid.davit.vtop.FeeLetter
 import dev.medriid.davit.vtop.FeedbackItem
 import dev.medriid.davit.vtop.GradeEntry
@@ -112,8 +113,15 @@ internal object Demo {
             hostel = HostelRequests(activeLeave = listOf(Leave("Chennai", "Family function", "HOME TOWN", "07-Nov-2026", "09-Nov-2026", "Pending"))),
             hostelAt = System.currentTimeMillis(),
             feeds = feeds,
+            faculty = listOf(
+                FacultyInfo("10001", "ASHA RAMAN", "Associate Professor", "Department of Physics", "SAS", "asha.raman@example.edu", "SJT 411 A32"),
+                FacultyInfo("10002", "VIKRAM SETH", "Assistant Professor", "Department of Software Systems", "SCOPE", "vikram.seth@example.edu", "PRP 327"),
+                FacultyInfo("10003", "MEERA NAIR", "Professor", "Department of Mathematics", "SAS", "meera.nair@example.edu", "TT 524"),
+            ),
+            facultyAt = System.currentTimeMillis(),
         )
         repo.showDemo(snapshot)
+        DemoVtop.start(repo)
 
         val courses = listOf(
             CourseOption("VL_BXYZ101_00100", "VL20262701", "ETH", "Fall Semester 2026-27", "BXYZ101", "Applied Science", "Embedded Theory"),

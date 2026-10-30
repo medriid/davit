@@ -55,9 +55,9 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /** One tile on the campus hub. */
-private data class Tile(val route: Route, val title: String, val note: String)
+private data class Tile(val route: Route?, val title: String, val note: String, val kind: dev.medriid.davit.design.Kind, val open: (() -> Unit)? = null)
 
-/** Everything else VTOP shows, one tile each. Read-only, except the hostel leave form. */
+/** Everything else VTOP shows, one tile each, in sections. Read only, except what you review and send yourself. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun CampusHub(route: Route) {
@@ -66,34 +66,53 @@ internal fun CampusHub(route: Route) {
     val state by repo.state.collectAsState()
     val campus by repo.campus.state.collectAsState()
     val snap = state.snapshot
-    val tiles = listOfNotNull(
-        Tile(Route.Messages, "Messages", (campus.classMessages.size + campus.proctorMessages.size).let { if (it > 0) "$it from class and proctor" else "Class and proctor" }),
-        Tile(Route.Spotlight, "Spot-light", if (campus.spotlight.isNotEmpty()) "${campus.spotlight.size} notices" else "VTOP's notices and files"),
-        Tile(Route.Events, "Club events", snap?.feeds?.events?.size?.takeIf { it > 0 }?.let { "$it coming up" } ?: "What's on"),
-        Tile(Route.People, "Proctor, HOD, dean", campus.proctor?.name?.let(::titleCase) ?: "Who to ask"),
-        Tile(Route.Hostel, "Hostel", "Leave, night slips").takeIf { snap?.profile?.hostel != null },
-        Tile(Route.Gate, "Gate log", "Biometric in and out"),
-        Tile(Route.Money, "Receipts and dues", "Fees letters, library"),
-        Tile(Route.Curriculum, "Curriculum", "Credits and syllabus PDFs"),
-        Tile(Route.SemesterGrades, "Semester GPA", "Each term's results"),
-        Tile(Route.Search, "Search materials", "Across every course"),
-        Tile(Route.Downloads, "Downloads", "Saved on this phone"),
+    val sections = listOf(
+        "News and people" to listOf(
+            Tile(Route.Messages, "Messages", (campus.classMessages.size + campus.proctorMessages.size).let { if (it > 0) "$it from class and proctor" else "Class and proctor" }, dev.medriid.davit.design.Kind.People),
+            Tile(Route.Spotlight, "Spot-light", if (campus.spotlight.isNotEmpty()) "${campus.spotlight.size} notices" else "VTOP's notices and files", dev.medriid.davit.design.Kind.People),
+            Tile(Route.Events, "Club events", "Register, certificates", dev.medriid.davit.design.Kind.Events),
+            Tile(Route.People, "Proctor, HOD, dean", campus.proctor?.name?.let(::titleCase) ?: "Who to ask", dev.medriid.davit.design.Kind.People),
+        ),
+        "Requests" to listOfNotNull(
+            Tile(Route.Hostel, "Hostel", "Leave, night slips, mess", dev.medriid.davit.design.Kind.Vtop).takeIf { snap?.profile?.hostel != null },
+            Tile(Route.Bonafide, "Bonafide", "Apply for a certificate", dev.medriid.davit.design.Kind.Vtop),
+            Tile(Route.CourseFeedback, "Course feedback", "To your teachers, any time", dev.medriid.davit.design.Kind.Vtop),
+            Tile(Route.PaperSeeing, "Paper seeing", "Or re-evaluation, after results", dev.medriid.davit.design.Kind.Vtop),
+        ),
+        "Records" to listOf(
+            Tile(Route.SemesterGrades, "Semester GPA", "Each term's results", dev.medriid.davit.design.Kind.Exams),
+            Tile(Route.Curriculum, "Curriculum", "Credits and syllabus PDFs", dev.medriid.davit.design.Kind.Classes),
+            Tile(Route.Allocation, "Course allocation", "Next semester's classes", dev.medriid.davit.design.Kind.Classes),
+            Tile(Route.Activities, "Activities and QCM", "Co-curricular, class meetings", dev.medriid.davit.design.Kind.Events),
+            Tile(Route.Money, "Receipts and dues", "Fees letters, library", dev.medriid.davit.design.Kind.Vtop),
+            Tile(Route.Gate, "Gate log", "Biometric in and out", dev.medriid.davit.design.Kind.Vtop),
+        ),
+        "Files" to listOf(
+            Tile(Route.Search, "Search materials", "Across every course", dev.medriid.davit.design.Kind.Assignments),
+            Tile(null, "Scan to PDF", "Pages from the camera", dev.medriid.davit.design.Kind.Assignments) { repo.scanner.open(dev.medriid.davit.scan.ScanTarget()) },
+            Tile(Route.Downloads, "Downloads", "Saved on this phone", dev.medriid.davit.design.Kind.Assignments),
+        ),
     )
-    RouteScreen(route, "More from VTOP", "Read only. Nothing here pays, registers or changes anything on VTOP, except a leave application you send yourself.") {
-        tiles.chunked(2).forEachIndexed { r, pair ->
-            Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min).padding(bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                pair.forEachIndexed { c, t ->
-                    InkCard(
-                        Modifier.weight(1f).fillMaxHeight().sharedCard(t.route.sharedKey).printIn(r * 2 + c),
-                        onClick = { nav.go(t.route) },
-                        plateOffset = 4.dp,
-                    ) {
-                        InkText(t.title, style = RisoType.title.copy(fontSize = 17.sp), maxLines = 2)
-                        Spacer(Modifier.height(6.dp))
-                        InkText(t.note, style = RisoType.small, maxLines = 2)
+    RouteScreen(route, "More from VTOP", "Read only, except what you review and send yourself. Nothing here ever pays.") {
+        var n = 0
+        sections.forEach { (name, tiles) ->
+            GroupLabel(name, Modifier.padding(bottom = 4.dp))
+            tiles.chunked(2).forEach { pair ->
+                Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min).padding(bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    pair.forEach { t ->
+                        InkCard(
+                            Modifier.weight(1f).fillMaxHeight().then(t.route?.let { Modifier.sharedCard(it.sharedKey) } ?: Modifier).printIn(n++),
+                            onClick = { t.open?.invoke() ?: t.route?.let(nav::go) },
+                            kind = t.kind,
+                            plateOffset = 4.dp,
+                        ) {
+                            InkText(t.title, style = RisoType.title.copy(fontSize = 17.sp), maxLines = 2)
+                            Spacer(Modifier.height(6.dp))
+                            InkText(t.note, style = RisoType.small, maxLines = 2)
+                        }
                     }
+                    if (pair.size == 1) Spacer(Modifier.weight(1f))
                 }
-                if (pair.size == 1) Spacer(Modifier.weight(1f))
             }
         }
     }
@@ -114,7 +133,7 @@ internal fun MessagesScreen(route: Route) {
         errors[Section.Messages]?.let { ErrorNote(it) { repo.campus.refresh(Section.Messages, true) } }
         state.snapshot?.feeds?.proctorNote?.let {
             GroupLabel("On the home page")
-            InkCard(Modifier.fillMaxWidth(), plateOffset = 3.dp) { InkText(it) }
+            InkCard(Modifier.fillMaxWidth(), kind = dev.medriid.davit.design.Kind.People, plateOffset = 3.dp) { InkText(it) }
         }
         if (campus.messagesAt == 0L && Section.Messages in loading) {
             Loading("Reading messages")
@@ -135,7 +154,7 @@ private fun MessageList(list: List<VtopMessage>, empty: String) {
     }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         list.forEachIndexed { i, m ->
-            InkCard(Modifier.fillMaxWidth().printIn(i), plateOffset = 3.dp) {
+            InkCard(Modifier.fillMaxWidth().printIn(i), kind = dev.medriid.davit.design.Kind.People, plateOffset = 3.dp) {
                 val head = listOf(titleCase(m.from), m.course).filter { it.isNotBlank() }.joinToString(" · ")
                 if (head.isNotEmpty()) InkText(head, style = RisoType.small.copy(fontWeight = FontWeight.SemiBold))
                 InkText(m.text)
@@ -164,7 +183,7 @@ internal fun SpotlightScreen(route: Route) {
         }
         campus.spotlight.groupBy { it.section }.forEach { (section, items) ->
             GroupLabel(section.ifBlank { "Notices" })
-            InkCard(Modifier.fillMaxWidth(), plateOffset = 3.dp) {
+            InkCard(Modifier.fillMaxWidth(), kind = dev.medriid.davit.design.Kind.People, plateOffset = 3.dp) {
                 items.forEachIndexed { i, s ->
                     if (i > 0) Rule()
                     val path = s.download
@@ -188,55 +207,6 @@ internal fun SpotlightScreen(route: Route) {
                 }
             }
         }
-    }
-}
-
-// ---- club events -------------------------------------------------------------------------
-
-@Composable
-internal fun EventsScreen(route: Route) {
-    val repo = LocalRepo.current
-    val state by repo.state.collectAsState()
-    val scope = rememberCoroutineScope()
-    var busy by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
-    val feeds = state.snapshot?.feeds
-    RouteScreen(route, "Club events", "From VTOP's home page: today and the days ahead.", busy, {
-        busy = true
-        scope.launch {
-            error = runCatching { repo.refreshFeeds() }.exceptionOrNull()?.let(repo::explain)
-            busy = false
-        }
-    }) {
-        Freshness(feeds?.dailyAt ?: 0)
-        error?.let { ErrorNote(it, null) }
-        val events = feeds?.events.orEmpty()
-        if (events.isEmpty()) {
-            InkText("No events listed. Pull down to check again.")
-            return@RouteScreen
-        }
-        val today = LocalDate.now()
-        val f = DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.ENGLISH)
-        events.groupBy { it.date }.toSortedMap(compareBy(nullsLast()) { it }).forEach { (day, list) ->
-            GroupLabel(
-                when {
-                    day == null -> "Coming up"
-                    day == today -> "Today"
-                    day == today.plusDays(1) -> "Tomorrow"
-                    else -> day.format(f)
-                },
-            )
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                list.forEachIndexed { i, e ->
-                    InkCard(Modifier.fillMaxWidth().printIn(i), plateOffset = 3.dp) {
-                        InkText(e.title, style = RisoType.title.copy(fontSize = 17.sp), maxLines = 3)
-                        InkText(listOf(e.category, e.club).filter { it.isNotBlank() }.joinToString(" · "), style = RisoType.small)
-                    }
-                }
-            }
-        }
-        Spacer(Modifier.height(12.dp))
-        InkText("Registering for an event happens on VTOP.", style = RisoType.small.copy(color = LocalInks.current.rule))
     }
 }
 
@@ -267,7 +237,7 @@ internal fun PeopleScreen(route: Route) {
 @Composable
 internal fun PersonCard(p: Person, index: Int) {
     val context = LocalContext.current
-    InkCard(Modifier.fillMaxWidth().printIn(index), plateOffset = 4.dp) {
+    InkCard(Modifier.fillMaxWidth().printIn(index), kind = dev.medriid.davit.design.Kind.People, plateOffset = 4.dp) {
         InkText(p.role, label = true)
         Spacer(Modifier.height(6.dp))
         InkText(titleCase(p.name.removePrefix("Dr. ").removePrefix("DR. ")).let { if (p.name.startsWith("Dr", true)) "Dr. $it" else it }, style = RisoType.title)
@@ -311,7 +281,7 @@ internal fun MoneyScreen(route: Route) {
         }
         if (campus.library.isNotEmpty()) {
             GroupLabel("Library dues")
-            InkCard(Modifier.fillMaxWidth(), plateOffset = 3.dp) {
+            InkCard(Modifier.fillMaxWidth(), kind = dev.medriid.davit.design.Kind.Vtop, plateOffset = 3.dp) {
                 campus.library.forEach { l ->
                     Row(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
                         InkText(l.label, modifier = Modifier.weight(1f), style = if (l.label.contains("total", true)) RisoType.body.copy(fontWeight = FontWeight.SemiBold) else RisoType.body)
@@ -322,7 +292,7 @@ internal fun MoneyScreen(route: Route) {
         }
         if (campus.feeLetters.isNotEmpty()) {
             GroupLabel("Fees letters")
-            InkCard(Modifier.fillMaxWidth(), plateOffset = 3.dp) {
+            InkCard(Modifier.fillMaxWidth(), kind = dev.medriid.davit.design.Kind.Vtop, plateOffset = 3.dp) {
                 campus.feeLetters.forEachIndexed { i, f ->
                     if (i > 0) Rule()
                     FileRow(
@@ -337,7 +307,7 @@ internal fun MoneyScreen(route: Route) {
         if (campus.receipts.isEmpty()) InkText("No receipts on VTOP.", style = RisoType.small)
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             campus.receipts.forEachIndexed { i, r ->
-                InkCard(Modifier.fillMaxWidth().printIn(i), plateOffset = 3.dp) {
+                InkCard(Modifier.fillMaxWidth().printIn(i), kind = dev.medriid.davit.design.Kind.Vtop, plateOffset = 3.dp) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             InkText(r.date, style = RisoType.body.copy(fontWeight = FontWeight.SemiBold))
@@ -379,7 +349,7 @@ internal fun GateScreen(route: Route) {
         val keep = t.headers.indices.filterNot { t.headers[it].contains("sl", ignoreCase = true) || t.headers[it] == "#" }
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             t.rows.forEachIndexed { i, row ->
-                InkCard(Modifier.fillMaxWidth().printIn(i), plateOffset = 3.dp) {
+                InkCard(Modifier.fillMaxWidth().printIn(i), kind = dev.medriid.davit.design.Kind.Vtop, plateOffset = 3.dp) {
                     keep.forEach { c ->
                         Row(Modifier.padding(vertical = 1.dp)) {
                             InkText(t.headers.getOrElse(c) { "" }, style = RisoType.small, modifier = Modifier.width(110.dp))
@@ -405,7 +375,7 @@ internal fun CurriculumScreen(route: Route) {
     RouteScreen(route, "Curriculum", "Credits by category, and each course's syllabus.", Section.Curriculum in loading && campus.curriculumAt > 0, { repo.campus.refresh(Section.Curriculum, true) }) {
         Freshness(campus.curriculumAt)
         errors[Section.Curriculum]?.let { ErrorNote(it) { repo.campus.refresh(Section.Curriculum, true) } }
-        InkCard(Modifier.fillMaxWidth(), plateOffset = 3.dp) {
+        InkCard(Modifier.fillMaxWidth(), kind = dev.medriid.davit.design.Kind.Classes, plateOffset = 3.dp) {
             FileRow("cur", "Your curriculum (PDF)", "As VTOP prints it", fetch = { c, out, p -> c.downloadCurriculum(out, p) })
         }
         if (campus.categories.isEmpty()) {
@@ -414,7 +384,7 @@ internal fun CurriculumScreen(route: Route) {
         }
         val total = campus.categories.sumOf { it.max ?: 0.0 }
         GroupLabel("Credits" + if (total > 0) " · ${fmtNum(total)} in all" else "")
-        InkCard(Modifier.fillMaxWidth(), plateOffset = 3.dp) {
+        InkCard(Modifier.fillMaxWidth(), kind = dev.medriid.davit.design.Kind.Classes, plateOffset = 3.dp) {
             campus.categories.forEachIndexed { i, c ->
                 if (i > 0) Spacer(Modifier.height(12.dp))
                 Row {
@@ -436,7 +406,7 @@ internal fun CurriculumScreen(route: Route) {
                 InkChip(if (open == group) "Hide" else "${list.size} courses", solid = open != group)
             }
             if (open == group) {
-                InkCard(Modifier.fillMaxWidth(), plateOffset = 3.dp) {
+                InkCard(Modifier.fillMaxWidth(), kind = dev.medriid.davit.design.Kind.Classes, plateOffset = 3.dp) {
                     list.forEachIndexed { i, c ->
                         if (i > 0) Rule()
                         FileRow(
@@ -471,7 +441,7 @@ internal fun SemesterGradesScreen(route: Route) {
             val hero = with(androidx.compose.ui.platform.LocalDensity.current) { 40.dp.toSp() }
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 sessions.reversed().forEachIndexed { i, s ->
-                    InkCard(Modifier.fillMaxWidth().printIn(i), plateOffset = 4.dp) {
+                    InkCard(Modifier.fillMaxWidth().printIn(i), kind = dev.medriid.davit.design.Kind.Exams, plateOffset = 4.dp) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
                                 InkText(s.session, style = RisoType.title)
@@ -504,7 +474,7 @@ internal fun SemesterGradesScreen(route: Route) {
                 g == null && Section.Grades in loading -> Loading("Reading that semester's results")
                 g == null -> {}
                 g.courses.isEmpty() && g.gpa == null -> InkText("VTOP has no results for that semester.", style = RisoType.small)
-                else -> InkCard(Modifier.fillMaxWidth(), plateOffset = 3.dp) {
+                else -> InkCard(Modifier.fillMaxWidth(), kind = dev.medriid.davit.design.Kind.Exams, plateOffset = 3.dp) {
                     g.gpa?.let {
                         InkText("GPA ${"%.2f".format(Locale.ENGLISH, Math.floor(it * 100) / 100)}", style = RisoType.title)
                         Spacer(Modifier.height(8.dp))
@@ -539,10 +509,10 @@ internal fun DownloadsScreen(route: Route) {
             InkText("Nothing saved yet. Materials, question papers, letters and syllabi you open are kept here.")
             return@RouteScreen
         }
-        val kinds = mapOf("mat" to "Course materials", "qp" to "Question papers", "da" to "Your submissions", "spot" to "Spot-light", "syl" to "Syllabi", "cur" to "Curriculum", "fee" to "Fees letters")
+        val kinds = mapOf("mat" to "Course materials", "qp" to "Question papers", "da" to "Your submissions", "spot" to "Spot-light", "syl" to "Syllabi", "cur" to "Curriculum", "fee" to "Fees letters", "scan" to "Your scans")
         saved.entries.groupBy { it.key.substringBefore(':') }.toSortedMap().forEach { (kind, list) ->
             GroupLabel(kinds[kind] ?: "Other")
-            InkCard(Modifier.fillMaxWidth(), plateOffset = 3.dp) {
+            InkCard(Modifier.fillMaxWidth(), kind = dev.medriid.davit.design.Kind.Assignments, plateOffset = 3.dp) {
                 list.sortedBy { it.value.name }.forEachIndexed { i, (key, file) ->
                     if (i > 0) Rule()
                     Row(Modifier.fillMaxWidth().clickable(role = Role.Button) { repo.files.open(file) }.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {

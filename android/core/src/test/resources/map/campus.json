@@ -1,0 +1,35 @@
+{
+  "meta": {"name": "Test Campus", "built": "2026-10-01", "center": [79.1600, 12.9700],
+           "bounds": [[79.1500, 12.9600], [79.1700, 12.9800]], "attribution": "© OpenStreetMap contributors (ODbL)"},
+  "categories": {
+    "academic": {"label": "Academic & admin", "color": "#8ab4f8", "pin": true},
+    "prp": {"label": "PRP classrooms", "color": "#ff8a3d", "pin": true},
+    "mess": {"label": "Messes", "color": "#7ee787", "pin": true},
+    "gate": {"label": "Gates", "color": "#ff6b8a", "pin": true}
+  },
+  "pois": [
+    {"id": "sjt", "name": "SJT", "cat": "academic", "lat": 12.9710, "lon": 79.1640, "aliases": ["Silver Jubilee Tower"], "src": "osm"},
+    {"id": "tt", "name": "TT", "cat": "academic", "lat": 12.9705, "lon": 79.1595, "aliases": ["Technology Tower"]},
+    {"id": "shop-tt", "name": "TT Stationery", "cat": "shop", "lat": 12.9704, "lon": 79.1596},
+    {"id": "prp-e", "name": "PRP Block E", "cat": "prp", "letter": "E", "lat": 12.9718, "lon": 79.1658,
+     "aliases": ["PRP", "Block E"],
+     "floors": [{"level": "G", "label": "Ground", "rooms": "G29–41"}, {"level": "3", "label": "3rd floor", "rooms": "327–341"}]},
+    {"id": "mh-veg", "name": "MH Veg Mess", "cat": "mess", "lat": 12.9735, "lon": 79.1642, "hours": "Mo-Su 07:00-21:30"}
+  ],
+  "places": {"_readme": "test", "items": [
+    {"id": "gate-1", "name": "Gate 1", "cat": "gate", "lat": 12.9684, "lon": 79.1559, "aliases": ["Main Gate"]}
+  ]},
+  "prp": {"blocks": [
+    {"id": "prp-e", "name": "PRP Block E", "letter": "E", "color": "#7DBE69",
+     "floors": [{"level": "G", "label": "Ground", "rooms": "G29–41"}, {"level": "3", "label": "3rd floor", "rooms": "327–341"}],
+     "ring": [[79.1656, 12.9721], [79.1657, 12.9715], [79.1660, 12.9715], [79.1660, 12.9721], [79.1656, 12.9721]]},
+    {"id": "prp-a", "name": "PRP Block A", "letter": "A", "color": "#4A7FC1",
+     "floors": [{"level": "3", "label": "3rd floor", "rooms": "342–357"}],
+     "ring": [[79.1650, 12.9721], [79.1651, 12.9715], [79.1654, 12.9715], [79.1654, 12.9721], [79.1650, 12.9721]]}
+  ]},
+  "mess": {"halls": [{"name": "MH Veg Mess", "type": "veg"}], "items": [
+    {"hall": "MH Veg Mess", "day": "Thursday", "date": "2026-10-22", "meal": "Lunch", "menu": "Rice, Dal"},
+    {"hall": "MH Veg Mess", "day": "Thursday", "date": "2026-10-29", "meal": "Dinner", "menu": "Chapathi, Paneer"},
+    {"hall": "MH Veg Mess", "day": "Thursday", "date": "2026-10-29", "meal": "Breakfast", "menu": "Idli, Sambar"}
+  ]}
+}

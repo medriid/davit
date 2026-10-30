@@ -11,7 +11,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -36,18 +36,24 @@ val CardShape = RoundedCornerShape(10.dp)
  *
  * With [onClick], the whole card is the tap target; pressing pushes the card down onto
  * its plate, so it feels like a button.
+ *
+ * A [kind] prints the plate in that kind's ink and washes the paper with it, so a class
+ * card and an exam card look different at a glance. [fill] and [plate] still win.
  */
 @Composable
 fun InkCard(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
-    fill: Color = LocalInks.current.paper,
-    plate: Color = LocalInks.current.a,
+    kind: Kind? = null,
+    fill: Color? = null,
+    plate: Color? = null,
     plateOffset: Dp = 5.dp,
     contentPadding: PaddingValues = PaddingValues(16.dp),
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val inks = LocalInks.current
+    val plateColor = plate ?: inks.plate(kind)
+    val fillColor = fill ?: inks.fill(kind)
     val motion = rememberMotionEnabled()
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
@@ -57,21 +63,21 @@ fun InkCard(
         label = "push",
     )
 
-    Box(modifier.padding(end = plateOffset, bottom = plateOffset)) {
+    // Min sizes pass through, so a caller's fillMaxHeight (equal-height rows) still fills; otherwise it wraps.
+    Box(modifier.padding(end = plateOffset, bottom = plateOffset), propagateMinConstraints = true) {
         Box(
             Modifier
                 .matchParentSize()
                 .offset(plateOffset, plateOffset)
                 .clip(CardShape)
-                .background(plate),
+                .background(plateColor),
         )
         Column(
             Modifier
-                // fill whatever the caller gives (equal-height rows); wraps when unbounded
-                .fillMaxSize()
+                .fillMaxWidth()
                 .offset { IntOffset(push.roundToPx(), push.roundToPx()) }
                 .clip(CardShape)
-                .background(fill)
+                .background(fillColor)
                 .border(2.dp, inks.text, CardShape)
                 .then(
                     if (onClick != null) {

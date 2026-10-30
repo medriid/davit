@@ -1,0 +1,13 @@
+<!-- Hand-written fixture: PaperSeeingOnChange with courses offered. Not seen live (no records on the account);
+     the frontValue checkboxes and Proceed button follow the page's script, the columns are a guess. Made-up data. -->
+<div id="main-section"><form id="paperSeeingView"><input type="hidden" name="_csrf" value="CSRF" /><input type="hidden" name="regNoo" value="${regNo}" />
+<select name="semesterSubId" id="semesterSubId"><option value="VL20252605" selected>Winter Semester 2025-26</option></select>
+<select name="serviceType" id="serviceType"><option value="2" selected>Paper Seeing</option></select>
+<input type="radio" name="examType" value="RGR" checked> Regular
+<table class="table"><thead><tr><th>Select</th><th>Sl.No.</th><th>Course Code</th><th>Course Title</th><th>Course Type</th><th>Grade</th><th>Fee (Rs.)</th></tr></thead>
+<tbody>
+<tr><td><input type="checkbox" name="frontValue" value="VL2025260500311"></td><td>1</td><td>BXYZ201</td><td>Data Structures</td><td>ETH</td><td>C</td><td>500</td></tr>
+<tr><td><input type="checkbox" name="frontValue" value="VL2025260500312"></td><td>2</td><td>BXYZ202</td><td>Discrete Mathematics</td><td>TH</td><td>D</td><td>500</td></tr>
+</tbody></table>
+<button type="button" name="action" class="btn btn-primary">Proceed</button>
+<input type="hidden" id="success" value="" /><input type="hidden" id="jsonBom" value="" /></form></div>

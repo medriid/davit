@@ -1,0 +1,9 @@
+<!-- Hand-written fixture in the shape of others/bonafide/StudentBonafidePageControl (docs/09 §10), options shortened. -->
+<div id="main-section"><h3 class="box-title">Bonafide Application - Student</h3>
+<section class="content-header"><span></span><input type="hidden" id="info" value="" /></section>
+<form role="form" id="studentBonafide" name="studentBonafide" method="post" autocomplete="off">
+<input type="hidden" name="_csrf" value="CSRF" /><input type="hidden" name="authorizedID" id="authorizedID" value="REGNO" />
+<div><label for="acadYear" class="col-sm-5 control-label">Select Service<span> *</span></label>
+<select class="form-control" name="certificateCode" id="certificateCode" required="required" onchange="bonafideStudentOnChange(this.value);">
+<option value="">-- Choose Service --</option><option value="1">PASSPORT</option><option value="3">VISA (FOR VACATION)</option><option value="7">BUS PASS</option><option value="9">EDUCATION LOAN</option>
+</select></div></form></div>

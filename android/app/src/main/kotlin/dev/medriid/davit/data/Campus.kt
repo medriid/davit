@@ -49,6 +49,11 @@ data class Campus(
     /** The course-page dropdown: this semester's courses and next semester's. */
     val courses: List<CourseOption> = emptyList(),
     val coursesAt: Long = 0,
+    val mess: dev.medriid.davit.vtop.MessStatus? = null,
+    val messAt: Long = 0,
+    val clubs: dev.medriid.davit.vtop.ClubEvents? = null,
+    val generalCertificates: List<dev.medriid.davit.vtop.GeneralCertificate> = emptyList(),
+    val clubsAt: Long = 0,
 )
 
 @Serializable
@@ -62,7 +67,9 @@ enum class Section(val title: String, private val freshFor: Long) {
     Money("Receipts and dues", DAY),
     Curriculum("Curriculum", 14 * DAY),
     Grades("Semester grades", DAY),
-    Courses("Course pages", DAY);
+    Courses("Course pages", DAY),
+    Mess("Mess", DAY),
+    Clubs("Club events", 20 * MIN);
 
     fun fresh(at: Long) = System.currentTimeMillis() - at < freshFor
 }
@@ -103,6 +110,8 @@ class CampusStore(private val context: Context, private val repo: Repo) {
         Section.Curriculum -> c.curriculumAt
         Section.Grades -> c.gradesAt
         Section.Courses -> c.coursesAt
+        Section.Mess -> c.messAt
+        Section.Clubs -> c.clubsAt
     }
 
     /** Fetches [section] unless it's fresh (or [force]). Errors land in [errors], the old data stays. */
@@ -158,6 +167,12 @@ class CampusStore(private val context: Context, private val repo: Repo) {
         // One semester at a time, on a tap: see [loadSemester].
         Section.Grades -> { it -> it }
         Section.Courses -> c.courseOptions().let { o -> { it.copy(courses = o, coursesAt = now) } }
+        Section.Mess -> c.messChange().let { m -> { it.copy(mess = m, messAt = now) } }
+        Section.Clubs -> {
+            val e = c.clubEvents()
+            val g = runCatching { c.generalCertificates() }.getOrDefault(emptyList())
+            ({ it.copy(clubs = e, generalCertificates = g, clubsAt = now) })
+        }
     }
 
     /** VTOP's own results page for one semester (two requests), kept for offline. */

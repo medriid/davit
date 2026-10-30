@@ -1,0 +1,43 @@
+<!-- Hand-written fixture in the shape of event/swf/loadEventRegistration (docs/09 §10). Made-up clubs and events.
+     The registered and board rows weren't seen live (none on the account); their buttons follow the page's script. -->
+<div class="container-fluid" id="main-section"><div class="card"><div class="card-header"><strong>Clubs &amp; Chapter - Event Registration</strong></div>
+<div class="card-body"><form class="form-horizontal" id="swfRegistrationForm" autocomplete="off"><input type="hidden" name="_csrf" value="CSRF" />
+<span>UPCOMING EVENTS</span>
+<table id="dataTable1"><thead><tr><th>#</th><th>Association</th><th>Event Title</th><th>Description</th><th>Event Date</th><th>Event Time</th><th>Days</th><th>Registration Date</th><th>Venue</th><th>Register</th></tr></thead>
+<tbody>
+<tr><td><span>1</span></td><td>ROBOTICS CLUB (RC) (CLUB)</td><td><span>Line Follower Sprint</span></td>
+ <td><button type="button" class="btn btn-link btn-sm" data-target="#SWF202600001" onclick="doShowEventdescription(&#39;SWF202600001&#39; );"><i class="fa fa-list"></i></button>
+  <div class="modal" id="SWF202600001"><div class="modal-content"><div class="modal-header"><h4 class="modal-title">Line Follower Sprint</h4><button type="button" class="close">&times;</button></div>
+  <div class="modal-body"><span>Build a small robot that follows a line, then race it.</span></div><div class="modal-footer"><button type="button" id="close">OK</button></div></div></div></td>
+ <td><span>11-Dec-2026</span> - <span>12-Dec-2026</span></td><td><span>09:00 AM</span> - <span>08:00 PM</span></td><td><span>2.0</span></td>
+ <td><span>2026-10-27</span> - <span>2026-12-11</span></td><td><span><span>Example Hall (OFFLINE)</span></span></td>
+ <td><button type="button" class="btn btn-primary btn-sm" onclick="javascript:doEventRegistraiton(&#39;SWF202600001&#39;);"> Register</button></td></tr>
+<tr><td><span>2</span></td><td>LITERARY SOCIETY (CLUB)</td><td><span>Poetry Evening</span></td>
+ <td><button type="button" onclick="doShowEventdescription(&#39;SWF202600002&#39; );"></button><div class="modal" id="SWF202600002"><div class="modal-body"><span>Read a poem.</span></div></div></td>
+ <td><span>29-Oct-2026</span> - <span>29-Oct-2026</span></td><td><span>06:00 PM</span> - <span>07:00 PM</span></td><td><span>1.0</span></td>
+ <td><span>2026-10-24</span> - <span>2026-10-29</span></td><td><span><span>Online Meet (ONLINE)</span></span></td>
+ <td><span style="color:red; font-weight:bold;">Closed</span></td></tr>
+<tr><td><span>3</span></td><td>E-CELL (CHAPTER)</td><td><span>Pitch Night</span></td>
+ <td><button type="button" onclick="doShowEventdescription(&#39;SWF202600003&#39; );"></button><div class="modal" id="SWF202600003"><div class="modal-body"><span>Pitch an idea.</span></div></div></td>
+ <td><span>02-Nov-2026</span> - <span>02-Nov-2026</span></td><td><span>05:00 PM</span> - <span>08:00 PM</span></td><td><span>1.0</span></td>
+ <td><span>2026-10-21</span> - <span>2026-11-01</span></td><td><span><span>Example Gallery (OFFLINE)</span></span></td>
+ <td><span style="color:red; font-weight:bold;">Limit Exceeded</span></td></tr>
+</tbody></table>
+<span>REGISTERED EVENTS</span>
+<table id="dataTable2"><thead><tr><th>#</th><th>Association</th><th>Event Title</th><th>Description</th><th>Event Date</th><th>Event Time</th><th>Days</th><th>Registration Date</th><th>Venue</th><th>Status</th><th>Certificate</th><th>Achiever</th></tr></thead>
+<tbody>
+<tr><td><span>1</span></td><td>QUIZ CLUB (CLUB)</td><td><span>General Quiz</span></td>
+ <td><button type="button" onclick="doShowEventdescription(&#39;SWF202500077&#39; );"></button></td>
+ <td><span>12-Sep-2026</span> - <span>12-Sep-2026</span></td><td><span>04:00 PM</span> - <span>06:00 PM</span></td><td><span>1.0</span></td>
+ <td><span>2026-09-01</span> - <span>2026-09-11</span></td><td><span>Example Hall (OFFLINE)</span></td><td><span>ATTENDED</span></td>
+ <td><button type="button" name="downloadBtn1" data-eventid="SWF202500077" class="btn btn-success btn-sm">Download</button></td>
+ <td><button type="button" name="downloadBtn2" data-eventid="SWF202500077" class="btn btn-success btn-sm">Download</button></td></tr>
+</tbody></table>
+<table id="dataTable3"><thead><tr><th>#</th><th>Year</th><th>Club Name</th><th>Position</th><th>Download Certificate</th></tr></thead>
+<tbody><tr><td>1</td><td>2025-26</td><td>QUIZ CLUB</td><td>Treasurer</td>
+ <td><button type="button" name="downloadBtn" data-associationid="CLB042" data-generatedyear="2026" data-roleid="7">Download</button></td></tr></tbody></table>
+</form>
+<form id="downloadForm" method="post" action="events/swf/boardMembersCertificate/doDownloadCertificate"><input type="hidden" name="associationId" id="associationId"/></form>
+<form id="downloadForm1" method="post" action="events/swf/doDownloadCertificate"><input type="hidden" name="eventId" id="eventId"/></form>
+<form id="downloadForm2" method="post" action="events/swf/doDownloadWinnerCertificate"><input type="hidden" name="eventId" id="eventId"/></form>
+</div></div></div>

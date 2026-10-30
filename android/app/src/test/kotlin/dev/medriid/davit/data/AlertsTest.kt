@@ -97,3 +97,79 @@ class ReminderAlertsTest {
         assertEquals(listOf("Today: Fee payment", "Tomorrow: Lab record"), alertsFor(s, s, today, reminders).map { it.title })
     }
 }
+
+class AlertPrefsTest {
+    private val today = LocalDate.of(2026, 10, 28)
+    private val sem = Semester("VL1", "Fall")
+    private fun att(a: Int, t: Int) = AttendanceRow("BACHY105", "Applied Chemistry", "Theory", a, t, null, "VL1")
+    private fun snap(vararg rows: AttendanceRow, marks: List<CourseMarks> = emptyList()) =
+        Snapshot(sem, listOf(sem), rows.toList(), emptyList(), 0, emptyList(), marks)
+
+    @Test
+    fun yourOwnLineWarnsAboveSeventyFive() {
+        val p = AlertPrefs(warnBelow = 80)
+        // 40/50 is 80%; 40/51 is 78.4%: below 80, still above 75 with two skips.
+        val alerts = alertsFor(snap(att(40, 50)), snap(att(40, 51)), today, prefs = p)
+        assertEquals(listOf("Applied Chemistry is below 80%"), alerts.map { it.title })
+        assertEquals("78% (40/51). Still above 75%: 2 skips left.", alerts.single().text)
+        // At the default line, nothing.
+        assertTrue(alertsFor(snap(att(40, 50)), snap(att(40, 51)), today).isEmpty())
+    }
+
+    @Test
+    fun skipsLeftWarnsAtYourMargin() {
+        // 33/41 can skip 3; 33/42 can skip 2.
+        val alerts = alertsFor(snap(att(33, 41)), snap(att(33, 42)), today, prefs = AlertPrefs(skipsLeft = 2))
+        assertEquals(listOf("2 skips left in Applied Chemistry"), alerts.map { it.title })
+        assertEquals("33/42. Miss 3 more and you're below 75%.", alerts.single().text)
+        assertTrue(alertsFor(snap(att(33, 41)), snap(att(33, 42)), today).isEmpty())
+        assertTrue(alertsFor(snap(att(30, 39)), snap(att(30, 40)), today, prefs = AlertPrefs(skipsLeft = -1)).isEmpty())
+    }
+
+    @Test
+    fun mutedCoursesAndOffSwitchesStayQuiet() {
+        val muted = AlertPrefs(muted = setOf(courseKey("BACHY105", "Theory")))
+        assertTrue(alertsFor(snap(att(30, 40)), snap(att(30, 41)), today, prefs = muted).isEmpty())
+        assertTrue(alertsFor(snap(att(30, 40)), snap(att(30, 41)), today, prefs = AlertPrefs(attendance = false)).isEmpty())
+        val c = CourseMarks("VL1", "BACHY105", "Applied Chemistry", "ETH", listOf(MarkItem("Quiz 1", 10.0, 10.0, "Present", null, null, "")))
+        val scored = CourseMarks("VL1", "BACHY105", "Applied Chemistry", "ETH", listOf(MarkItem("Quiz 1", 10.0, 10.0, "Present", 9.0, 9.0, "")))
+        assertTrue(alertsFor(snap(marks = listOf(c)), snap(marks = listOf(scored)), today, prefs = AlertPrefs(marks = false)).isEmpty())
+    }
+
+    @Test
+    fun settingsSurviveARoundTrip() {
+        val p = AlertPrefs(warnBelow = 85, skipsLeft = 3, muted = setOf("A|lab", "B|theory"), beforeClass = 10, beforeClassNearLine = false, exams = false)
+        assertEquals(p, AlertPrefs.fromJson(p.toJson()))
+        assertEquals(AlertPrefs(), AlertPrefs.fromJson("not json"))
+        assertEquals(75, AlertPrefs.fromJson("""{"warnBelow": 77}""").warnBelow)
+    }
+}
+
+class ClassRemindersTest {
+    private val sem = Semester("VL1", "Fall")
+    private val course = dev.medriid.davit.vtop.TimetableCourse("VL1", "BACHY105", "Applied Chemistry", "ETH", 4.0, "A1", "SJT-401", "F")
+    private fun row(a: Int, t: Int) = AttendanceRow("BACHY105", "Applied Chemistry", "Theory", a, t, null, "VL1")
+    private fun week(r: AttendanceRow?) = mapOf(1 to listOf(ClassSlot(course, dev.medriid.davit.vtop.Meeting(1, 540, 590, "A1"), r)))
+    private val snap = Snapshot(sem, listOf(sem), emptyList(), emptyList(), 0, emptyList())
+    // Monday 26 October 2026, 8 am.
+    private val monday = java.time.LocalDateTime.of(2026, 10, 26, 8, 0)
+
+    @Test
+    fun remindsBeforeAClassNearTheLine() {
+        val r = classReminders(snap, AlertPrefs(beforeClass = 10), monday, week = week(row(30, 40))).single()
+        assertEquals(java.time.LocalDateTime.of(2026, 10, 26, 8, 50), r.at)
+        assertEquals("Applied Chemistry at 09:00 · SJT-401", r.alert.title)
+        assertEquals("75% now. Miss this one and you drop to 73%, below 75.", r.alert.text)
+    }
+
+    @Test
+    fun nearTheLineSkipsSafeCoursesUnlessAskedForEveryClass() {
+        val safe = week(row(40, 45))
+        assertTrue(classReminders(snap, AlertPrefs(beforeClass = 10), monday, week = safe).isEmpty())
+        val every = classReminders(snap, AlertPrefs(beforeClass = 10, beforeClassNearLine = false), monday, week = safe)
+        assertEquals("88% · 8 skips left.", every.single().alert.text)
+        // Off, or the class already started: nothing.
+        assertTrue(classReminders(snap, AlertPrefs(beforeClass = 0), monday, week = safe).isEmpty())
+        assertTrue(classReminders(snap, AlertPrefs(beforeClass = 10, beforeClassNearLine = false), monday.withHour(9).withMinute(30), hours = 12, week = safe).isEmpty())
+    }
+}

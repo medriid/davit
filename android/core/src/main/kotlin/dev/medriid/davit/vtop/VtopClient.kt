@@ -282,6 +282,17 @@ class VtopClient(
         Parsers.faculty(authed("/hrms/EmployeeSearch1ForStudent", mapOf("empId" to empId)), empId)
     }
 
+    /**
+     * Any teacher by name, as VTOP's Faculty Info search does: at least three letters (VTOP
+     * takes letters and spaces only). Open one with [faculty].
+     */
+    fun searchFaculty(name: String): List<FacultyHit> = timed("faculty search") {
+        val q = name.filter { it.isLetter() || it == ' ' }.trim().replace(Regex(" +"), " ")
+        if (q.count { it.isLetter() } < 3) throw Refused("Type at least three letters of the name.")
+        authed("/hrms/employeeSearchForStudent", mapOf("verifyMenu" to "true"))
+        Parsers.facultySearch(authed("/hrms/EmployeeSearchForStudent", mapOf("empId" to q.lowercase())))
+    }
+
     /** Across all semesters, so no semester id. */
     fun gradeHistory(): GradeHistory = timed("grades") {
         Parsers.gradeHistory(authed("/examinations/examGradeView/StudentGradeHistory", mapOf("verifyMenu" to "true")))
@@ -357,6 +368,43 @@ class VtopClient(
     fun semesterGrades(semesterId: String): SemesterGrades = timed("semester grades") {
         authed("/examinations/examGradeView/StudentGradeView", mapOf("verifyMenu" to "true"))
         Feeds.semesterGrades(authed("/examinations/examGradeView/doStudentGradeView", mapOf("semesterSubId" to semesterId)), semesterId)
+    }
+
+    /** Whether mess change is open, and your mess. Only read: daVIT never books or changes a mess. */
+    fun messChange(): MessStatus? = timed("mess") { Feeds.messChange(authed("/hostels/onlineMessChange", mapOf("verifyMenu" to "true"))) }
+
+    /** Semesters the co/extra-curricular page lists, newest first as VTOP orders them. */
+    fun activitySemesters(): List<Semester> = timed("activities") {
+        Records.semesters(authed("/academics/common/ExtraCurricular", mapOf("verifyMenu" to "true")))
+    }
+
+    /** Your co/extra-curricular record for one semester; empty for "No Records Found". Its invoice buttons are never touched. */
+    fun activities(semesterId: String): SimpleTable = timed("activities list") {
+        Feeds.table(authed("/processViewEca", mapOf("semesterSubId" to semesterId, "regNo" to "undefined")))
+    }
+
+    fun qcmSemesters(): List<Semester> = timed("qcm") {
+        Records.semesters(authed("/academics/common/QCMStudentLogin", mapOf("verifyMenu" to "true")))
+    }
+
+    /** Quality circle meetings for one semester: course, faculty, the class's suggestions and the replies. */
+    fun qcm(semesterId: String): SimpleTable = timed("qcm list") {
+        Feeds.table(authed("/getStudentLoginForQcm", mapOf("paramReturnId" to "getStudentLoginForQcm", "semSubId" to semesterId)))
+    }
+
+    /** Course allocation: the semester it's for and the curriculum categories (value → "UCC - University Core Courses"). */
+    fun allocation(): Allocation = timed("allocation") {
+        Records.allocation(authed("/academics/common/StudentRegistrationScheduleAllocation", mapOf("verifyMenu" to "true")))
+    }
+
+    /** The courses in one curriculum category (code → "CODE - Title"). */
+    fun allocationCourses(category: String): List<Pair<String, String>> = timed("allocation courses") {
+        Records.options(authed("/academics/common/getCoursesListForCurriculmCategory", mapOf("cccategory" to category)), "courseId")
+    }
+
+    /** The classes allotted for one course: `Slot Detail | Venue | Faculty | Course Type`. */
+    fun allocationClasses(courseCode: String): SimpleTable = timed("allocation classes") {
+        Feeds.table(authed("/academics/common/getCoursesDetailForRegistration", mapOf("courseCode" to courseCode)))
     }
 
     // ---- course materials (read only) -----------------------------------------------
@@ -527,6 +575,229 @@ class VtopClient(
         Feeds.leaveOutcome(authed(path, fields, WritePermit(path, consent)))
     }
 
+    /**
+     * The night slip (late hour) form, opened the way its tab does, read as rendered; or,
+     * when there's none, VTOP's reason ("Already a request is pending for Approval").
+     */
+    fun nightSlipForm(): FormPage = timed("night slip form") {
+        authed("/hostels/late/hour/student/request/1", mapOf("verifyMenu" to "true"))
+        Forms.read(authed("/hostels/late/hour/student/request/2", mapOf("apply" to "", "form" to "undefined", "control" to "apply")))
+    }
+
+    /**
+     * Applies for a night slip with [values] (field name → value as VTOP's inputs send them),
+     * on a fresh read of the form. Only if the form's button still sends to `request/3`; a
+     * changed form is refused rather than guessed at.
+     */
+    fun applyNightSlip(consent: UserConsent, values: Map<String, String>): Reply = timed("night slip apply") {
+        val path = "/hostels/late/hour/student/request/3"
+        val page = nightSlipForm()
+        val form = page.form ?: throw Refused(page.message.ifEmpty { "VTOP isn't taking night slips right now." })
+        if (form.control.isEmpty() || !("/" + form.submitTo.trimStart('/')).endsWith(path)) {
+            throw Refused("VTOP's night slip form has changed, so daVIT won't send it. Apply on VTOP this time.")
+        }
+        val fields = form.hidden.filter { it.first != "_csrf" && it.first != "authorizedID" }.toMap() +
+            form.fields.associate { it.name to (values[it.name] ?: it.value) } +
+            mapOf("form" to form.id, "control" to form.control)
+        Forms.reply(authed(path, fields, WritePermit(path, consent)))
+    }
+
+    /** VTOP's club and chapter events: what's open for registration, what you registered for, board certificates. */
+    fun clubEvents(): ClubEvents = timed("club events") {
+        Clubs.page(authed("/event/swf/loadEventRegistration", mapOf("verifyMenu" to "true")))
+    }
+
+    /** Certificates from VTOP's General Events page. */
+    fun generalCertificates(): List<GeneralCertificate> = timed("event certificates") {
+        Clubs.generalCertificates(authed("/events/swf/certificateDownload", mapOf("verifyMenu" to "true")))
+    }
+
+    /**
+     * Registers you for club event [eventId], the way its Register button does, after a
+     * fresh look that it still offers registration (not "Closed" or "Limit Exceeded").
+     */
+    fun registerEvent(consent: UserConsent, eventId: String): Reply = timed("event register") {
+        val listing = clubEvents().upcoming.firstOrNull { it.id == eventId } ?: throw Refused("VTOP no longer lists this event.")
+        if (!listing.canRegister) throw Refused(listing.state.ifEmpty { "VTOP isn't taking registrations for this event." })
+        val path = "/event/swf/registered/doEventRegistraiton"
+        Forms.reply(authed(path, mapOf("eventId" to eventId), WritePermit(path, consent)))
+    }
+
+    /** A club event's participation certificate, or its winner's one. */
+    fun downloadEventCertificate(eventId: String, winner: Boolean, sink: OutputStream, onProgress: (Long, Long?) -> Unit = { _, _ -> }): Download {
+        authed("/event/swf/loadEventRegistration", mapOf("verifyMenu" to "true"))
+        val path = if (winner) "/events/swf/doDownloadWinnerCertificate" else "/events/swf/doDownloadCertificate"
+        return download(path, mapOf("eventId" to eventId), sink, onProgress = onProgress)
+    }
+
+    fun downloadBoardCertificate(c: BoardCertificate, sink: OutputStream, onProgress: (Long, Long?) -> Unit = { _, _ -> }): Download {
+        authed("/event/swf/loadEventRegistration", mapOf("verifyMenu" to "true"))
+        return download(
+            "/events/swf/boardMembersCertificate/doDownloadCertificate",
+            mapOf("associationId" to c.associationId, "generatedYear" to c.generatedYear, "roleId" to c.roleId), sink, onProgress = onProgress,
+        )
+    }
+
+    fun downloadGeneralCertificate(c: GeneralCertificate, sink: OutputStream, onProgress: (Long, Long?) -> Unit = { _, _ -> }): Download {
+        authed("/events/swf/certificateDownload", mapOf("verifyMenu" to "true"))
+        return download(
+            "/events/downloadCertificate",
+            mapOf("eventId" to c.eventId, "certificateId" to c.certificateId, "participantId" to c.participantId), sink, onProgress = onProgress,
+        )
+    }
+
+    /** The semesters Course Feedback 24x7 takes feedback for (VTOP lists only the current one). */
+    fun feedbackSemesters(): List<Semester> = timed("course feedback") {
+        val form = Forms.read(authed("/academics/common/StudentClassGrievance", mapOf("verifyMenu" to "true")), "courseFeedbackStudentView").form
+        form?.fields?.firstOrNull { it.name == "semesterSubId" }?.options?.map { Semester(it.first, it.second) }.orEmpty()
+    }
+
+    fun classFeedback(semesterId: String): List<ClassFeedback> = timed("course feedback list") {
+        Clubs.classFeedback(authed("/academics/common/processViewFeedbackList", mapOf("semesterSubId" to semesterId)))
+    }
+
+    /**
+     * Sends [text] as feedback on one class, as its Submit does, after a fresh look that the
+     * class still takes it. VTOP doesn't let feedback be changed once sent.
+     */
+    fun submitClassFeedback(consent: UserConsent, semesterId: String, classId: String, text: String): Reply = timed("course feedback send") {
+        val words = text.trim()
+        if (words.isEmpty()) throw Refused("Write something first.")
+        val c = classFeedback(semesterId).firstOrNull { it.classId == classId } ?: throw Refused("VTOP no longer lists this class.")
+        if (!c.open) throw Refused("VTOP already has your feedback for this class.")
+        if (words.length > c.maxLength) throw Refused("VTOP takes up to ${c.maxLength} characters.")
+        val path = "/academics/common/saveAcademicsCourseFeedback"
+        Forms.reply(authed(path, mapOf("semesterSubId" to semesterId, "classId" to classId, "courseFeedbackVal" to words), WritePermit(path, consent)))
+    }
+
+    /** Paper seeing / re-evaluation: its choices (semester, service, exam type) as VTOP's form has them. */
+    fun paperSeeingForm(): FormPage = timed("paper seeing") {
+        Forms.read(authed("/examinations/paperSeeing/PaperSeeing", mapOf("verifyMenu" to "true")), "paperSeeingView")
+    }
+
+    /** The courses VTOP offers for [service] ("2" paper seeing, "1" re-evaluation) in a semester, as its form's change does. */
+    fun paperSeeingCourses(semesterId: String, service: String, examType: String): PaperSeeingPage = timed("paper seeing courses") {
+        val base = paperSeeingForm().form?.hidden.orEmpty().filter { it.first != "_csrf" && it.first != "authorizedID" }.toMap()
+        PaperSeeing.page(
+            authed("/examinations/paperSeeing/PaperSeeingOnChange", base + mapOf("semesterSubId" to semesterId, "serviceType" to service, "examType" to examType)),
+        )
+    }
+
+    /**
+     * Asks for [chosen] courses (their checkbox values), on a fresh read that still offers
+     * them, sending the whole form as VTOP's Proceed does. VTOP raises a fee invoice for it;
+     * paying is left to VTOP.
+     */
+    fun submitPaperSeeing(consent: UserConsent, semesterId: String, service: String, examType: String, chosen: Set<String>): Reply = timed("paper seeing send") {
+        if (chosen.isEmpty()) throw Refused("Pick at least one course.")
+        val page = paperSeeingCourses(semesterId, service, examType)
+        val offered = page.courses.map { it.value }.toSet()
+        if (!offered.containsAll(chosen)) throw Refused(page.message.ifEmpty { "VTOP no longer offers one of those courses." })
+        val body = FormBody.Builder().apply {
+            val s = session ?: throw SessionExpired()
+            add("_csrf", s.csrf)
+            add("authorizedID", s.authorizedId)
+            add("x", utcNow())
+            val fields = page.fields.filter { it.first !in setOf("_csrf", "authorizedID", "semesterSubId", "serviceType", "examType") } +
+                listOf("semesterSubId" to semesterId, "serviceType" to service, "examType" to examType)
+            fields.forEach { (k, v) -> add(k, v) }
+            chosen.forEach { add("frontValue", it) }
+        }.build()
+        val path = "/examinations/paperSeeing/PaperSeeingSubmit"
+        val (html, _) = multipart(path, body, WritePermit(path, consent))
+        Forms.reply(html)
+    }
+
+    /** The kinds of bonafide certificate VTOP offers (value → "PASSPORT"…), read from its form. */
+    fun bonafideServices(): List<Pair<String, String>> = timed("bonafide") {
+        val page = Forms.read(authed("/others/bonafide/StudentBonafidePageControl", mapOf("verifyMenu" to "true")), "studentBonafide")
+        page.form?.fields?.firstOrNull { it.name == "certificateCode" }?.options ?: throw Refused(page.message.ifEmpty { "VTOP didn't show the bonafide form." })
+    }
+
+    /**
+     * The bonafide form for one kind ([code]), as VTOP renders it when you pick it: the
+     * fields that kind needs. Dates VTOP fixes for a kind (vacation visas) come filled in
+     * and locked, as its page does.
+     */
+    fun bonafideForm(code: String): FormPage = timed("bonafide form") {
+        val (html, _) = multipart("/others/bonafide/StudentBonafideOnChange", formData(mapOf("certificateCode" to code)), null)
+        val page = Forms.read(html, "studentBonafide")
+        val form = page.form ?: return@timed page
+        // `if (parseInt(code) == 3 || …) { getElementById("fromDate").value = "20-Dec-2026"; … readOnly = true }`
+        val fixedFor = Regex("""parseInt\(code\)\s*==\s*(\d+)""").findAll(html).map { it.groupValues[1] }.toSet()
+        val fixed = if (code in fixedFor) {
+            Regex("""getElementById\("(\w+)"\)\.value\s*=\s*"([^"]*)"""").findAll(html).associate { it.groupValues[1] to it.groupValues[2] }
+        } else emptyMap()
+        page.copy(
+            form = form.copy(
+                fields = form.fields.map { f ->
+                    when {
+                        f.name in fixed -> f.copy(value = fixed.getValue(f.name), readOnly = true)
+                        // VTOP's own page stops the description at 100 characters.
+                        f.name == "description" && f.maxLength == null -> f.copy(maxLength = 100)
+                        else -> f
+                    }
+                },
+            ),
+        )
+    }
+
+    /** Applies for a bonafide of kind [code] with [values], on a fresh read of that kind's form, as VTOP's Apply sends it. */
+    fun applyBonafide(consent: UserConsent, code: String, values: Map<String, String>): Reply = timed("bonafide apply") {
+        val form = bonafideForm(code).form ?: throw Refused("VTOP didn't open the bonafide form.")
+        if (form.fields.none { it.name == "description" }) throw Refused("VTOP's bonafide form has changed, so daVIT won't send it. Apply on VTOP this time.")
+        val fields = form.hidden.filter { it.first != "_csrf" && it.first != "authorizedID" } +
+            form.fields.map { f -> f.name to if (f.name == "certificateCode") code else if (f.readOnly) f.value else values[f.name] ?: f.value }
+        val path = "/others/bonafide/StudentBonafideSave"
+        val (html, _) = multipart(path, formData(fields.toMap()), WritePermit(path, consent))
+        Forms.reply(html)
+    }
+
+    /** [fields] as a browser's FormData, with the session's tokens first. */
+    private fun formData(fields: Map<String, String>): RequestBody {
+        val s = session ?: throw SessionExpired()
+        return MultipartBody.Builder().setType(MultipartBody.FORM).apply {
+            addFormDataPart("_csrf", s.csrf)
+            addFormDataPart("authorizedID", s.authorizedId)
+            fields.forEach { (k, v) -> addFormDataPart(k, v) }
+        }.build()
+    }
+
+    /**
+     * VTOP's mess complaint page: its notes (two a month, PDF or image up to 5 MB), or a
+     * [Refused] when the form isn't there. Only read.
+     */
+    fun messComplaintNotes(): List<String> = timed("mess complaint") {
+        val doc = org.jsoup.Jsoup.parse(authed("/hostels/messComplaintPage", mapOf("verifyMenu" to "true")))
+        if (doc.getElementById("messComplaintForm") == null) throw Refused(Forms.message(doc).ifEmpty { "VTOP isn't taking mess complaints right now." })
+        doc.select("span:contains(Note)").firstOrNull()?.wholeText().orEmpty()
+            .split('\n').map { Html.clean(it).replace(Regex("""^\d+\.\s*"""), "") }
+            .filter { it.isNotEmpty() && !it.startsWith("Note", true) }
+    }
+
+    /**
+     * Sends a mess complaint: [text] (up to 200 characters) and one photo or PDF up to 5 MB,
+     * as VTOP's Save does, after opening the page again for a current token.
+     */
+    fun sendMessComplaint(consent: UserConsent, text: String, fileName: String, mimeType: String, bytes: ByteArray): Reply = timed("mess complaint send") {
+        val words = text.trim()
+        if (words.isEmpty()) throw Refused("Say what the complaint is.")
+        if (words.length > MESS_TEXT) throw Refused("VTOP takes up to $MESS_TEXT characters.")
+        if (bytes.isEmpty() || bytes.size > MESS_FILE) throw Refused("The photo or PDF has to be under 5 MB.")
+        if (fileName.substringAfterLast('.', "").lowercase() !in setOf("jpg", "jpeg", "png", "pdf")) throw Refused("VTOP takes JPG, PNG or PDF only.")
+        messComplaintNotes()
+        val s = session ?: throw SessionExpired()
+        val body = MultipartBody.Builder().setType(MultipartBody.FORM)
+            .addFormDataPart("authorizedID", s.authorizedId)
+            .addFormDataPart("complaintData", words)
+            .addFormDataPart("complaintFile", fileName, bytes.toRequestBody(mimeType.toMediaTypeOrNull()))
+            .addFormDataPart("_csrf", s.csrf)
+            .build()
+        val path = "/hostels/messComplaint/save"
+        val (html, _) = multipart(path, body, WritePermit(path, consent))
+        Forms.reply(html)
+    }
+
     /** Raw HTML of the last authenticated page, for the opt-in debug dump. */
     var lastPage: Pair<String, String>? = null
         private set
@@ -544,14 +815,17 @@ class VtopClient(
         return html
     }
 
-    /** A multipart POST (uploads); returns the page and VTOP's `error`/`message` headers. */
-    private fun multipart(path: String, body: RequestBody, permit: WritePermit): Pair<String, Map<String, String>> {
+    /**
+     * A multipart POST (uploads, and the few pages VTOP reads as FormData); returns the page
+     * and VTOP's `error`/`message` headers. Writes need their [permit].
+     */
+    private fun multipart(path: String, body: RequestBody, permit: WritePermit?): Pair<String, Map<String, String>> {
         val req = Request.Builder()
             .url(url(path))
             .post(body)
             .header("Referer", url("/content").toString())
             .header("X-Requested-With", "XMLHttpRequest")
-            .tag(WritePermit::class.java, permit)
+            .apply { if (permit != null) tag(WritePermit::class.java, permit) }
             .build()
         return call(req).use { resp ->
             val html = resp.body?.string().orEmpty()
@@ -598,6 +872,10 @@ class VtopClient(
 
     companion object {
         const val DEFAULT_BASE = "https://vtop.vit.ac.in/vtop"
+
+        /** VTOP's mess complaint limits: 200 characters, a 5 MB photo or PDF. */
+        const val MESS_TEXT = 200
+        const val MESS_FILE = 5 * 1024 * 1024
         private const val USER_AGENT =
             "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36"
 
@@ -618,7 +896,7 @@ internal class WritePermit(private val path: String, val consent: UserConsent) {
 
 /**
  * Read-only stance (docs/04): only VTOP's host; the writes daVIT makes (assignment upload,
- * hostel leave) only with a [WritePermit] from a confirmed tap; the ones it never makes
+ * hostel leave, night slips…) only with a [WritePermit] from a confirmed tap; the ones it never makes
  * (payments, passwords, registration) never. Anything else fails before it leaves the phone.
  */
 private class ReadOnlyGuard(private val host: String) : Interceptor {
@@ -641,13 +919,21 @@ private class ReadOnlyGuard(private val host: String) : Interceptor {
             "/examinations/doDAssignmentUploadMethod",
             "/examinations/doDAssignmentOtpUpload",
             "/hostels/student/leave/3",
+            "/hostels/late/hour/student/request/3",
+            "/event/swf/registered/doEventRegistraiton",
+            "/others/bonafide/StudentBonafideSave",
+            "/academics/common/saveAcademicsCourseFeedback",
+            "/examinations/paperSeeing/PaperSeeingSubmit",
+            "/hostels/messComplaint/save",
         )
 
         /** Never, permit or not: money, passwords, registration and VTOP's other forms. */
         val NEVER = listOf(
             "otpVerfication", "otpVerification", "paymentGateway", "doPayment", "makePayment", "onlinePayment", "payFee",
-            "wallet", "password", "passwd", "BonafideSave", "saveAcademicsCourseFeedback", "PaperSeeingSubmit",
-            "messComplaint", "late/hour/student/request/3", "courseRegistration",
+            "wallet", "password", "passwd",
+            "courseRegistration",
+            // Cancelling a night slip; invoices on the co/extra-curricular page.
+            "late/hour/student/request/10", "processViewEcaInvoice", "cancleInvoiceGenerateEca",
         )
     }
 }

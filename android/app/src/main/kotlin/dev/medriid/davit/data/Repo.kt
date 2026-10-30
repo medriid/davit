@@ -37,7 +37,8 @@ data class UiState(
     val error: String? = null,
     /** Stage → ms of the last sync, for the timing readout. */
     val timings: List<Pair<String, Long>> = emptyList(),
-    val inkIndex: Int = 0,
+    /** Your colours: an ink pair and whatever you changed on top of it. */
+    val palette: Palette = Palette(),
     val dumpPages: Boolean = false,
     /** The profile mascot, as [dev.medriid.davit.ui.Mascot.encode] writes it. */
     val mascot: String = "",
@@ -52,6 +53,8 @@ data class UiState(
     val theme: Int = 0,
     /** Ask for fingerprint, face or screen lock when opening the app. */
     val appLock: Boolean = false,
+    /** What to notify about, and when (thresholds, muted courses, before-class reminders). */
+    val alertPrefs: AlertPrefs = AlertPrefs(),
 )
 
 /**
@@ -79,13 +82,22 @@ class Repo(private val context: Context) {
     /** Assignment uploads in progress, and their OTP step. */
     val uploads by lazy { Uploads(this) }
 
+    /** The document scanner's session (photos to PDF). */
+    val scanner by lazy { dev.medriid.davit.scan.Scanner(context, scope) }
+
+    /** The campus map: buildings, paths, places and PRP rooms, cached on the phone. */
+    val maps by lazy { MapStore(context, scope) }
+
+    /** A venue another screen asked the map to show ("SJT-401", a cabin); the map clears it. */
+    val mapFocus = MutableStateFlow<String?>(null)
+
     init {
         val creds = credentials()
         _state.value = UiState(
             signedIn = creds != null,
             regNo = creds?.first,
             snapshot = prefs.getString(K_CACHE, null)?.let(Vault::decrypt)?.let(Snapshot::fromJson),
-            inkIndex = prefs.getInt(K_INK, 0),
+            palette = Palette.fromJson(prefs.getString(K_PALETTE, null)) ?: Palette(base = prefs.getInt(K_INK, 0)),
             dumpPages = prefs.getBoolean(K_DUMP, false),
             mascot = prefs.getString(K_MASCOT, "").orEmpty(),
             background = prefs.getBoolean(K_BACKGROUND, true),
@@ -94,6 +106,7 @@ class Repo(private val context: Context) {
             reminders = prefs.getString(K_REMINDERS, null)?.let(Vault::decrypt)?.let(::remindersFromJson).orEmpty(),
             theme = prefs.getInt(K_THEME, 0),
             appLock = prefs.getBoolean(K_LOCK, false),
+            alertPrefs = AlertPrefs.fromJson(prefs.getString(K_ALERT_PREFS, null)),
         )
         prefs.getString(K_SESSION, null)?.let(Vault::decrypt)?.let(client::restoreSession)
     }
@@ -137,9 +150,15 @@ class Repo(private val context: Context) {
         sync()
     }
 
-    fun setInk(index: Int) {
-        prefs.edit().putInt(K_INK, index).apply()
-        _state.update { it.copy(inkIndex = index) }
+    /** Starts over from ink pair [index], dropping any colours you changed. */
+    fun setInk(index: Int) = setPalette(Palette(base = index, tinted = _state.value.palette.tinted))
+
+    /** Shows [p] everywhere while you drag the colour wheel, without saving it; [setPalette] keeps it. */
+    fun previewPalette(p: Palette) = _state.update { it.copy(palette = p) }
+
+    fun setPalette(p: Palette) {
+        prefs.edit().putString(K_PALETTE, p.toJson()).putInt(K_INK, p.base).apply()
+        _state.update { it.copy(palette = p) }
         DavitWidget.refresh(context)
     }
 
@@ -159,6 +178,10 @@ class Repo(private val context: Context) {
         _state.update { it.copy(signedIn = true, regNo = "DEMO", snapshot = snapshot) }
     }
 
+    /** Debug builds' demo only: a fake VTOP on the phone itself that [onVtop] uses instead (src/debug). */
+    @Volatile
+    internal var demoClient: VtopClient? = null
+
     fun setMascot(code: String) {
         prefs.edit().putString(K_MASCOT, code).apply()
         _state.update { it.copy(mascot = code) }
@@ -172,6 +195,7 @@ class Repo(private val context: Context) {
      * it expired (unless [retry] is false, for steps that can't be repeated on a new session).
      */
     suspend fun <T> onVtop(retry: Boolean = true, block: (VtopClient) -> T): T = withContext(Dispatchers.IO) {
+        demoClient?.let { c -> return@withContext lock.withLock { block(c) } }
         lock.withLock {
             val creds = credentials() ?: throw SessionExpired()
             val wasBusy = _state.value.busy
@@ -256,6 +280,11 @@ class Repo(private val context: Context) {
         BackgroundSync.apply(context, on && _state.value.signedIn)
     }
 
+    fun setAlertPrefs(p: AlertPrefs) {
+        prefs.edit().putString(K_ALERT_PREFS, p.toJson()).apply()
+        _state.update { it.copy(alertPrefs = p) }
+    }
+
     fun setAlerts(on: Boolean) {
         prefs.edit().putBoolean(K_ALERTS, on).apply()
         _state.update { it.copy(alerts = on) }
@@ -297,18 +326,20 @@ class Repo(private val context: Context) {
                 runCatching { client.logout() }
                 client.clearSession()
                 val ink = prefs.getInt(K_INK, 0)
+                val palette = prefs.getString(K_PALETTE, null)
                 val mascot = prefs.getString(K_MASCOT, "").orEmpty()
                 val theme = prefs.getInt(K_THEME, 0)
-                prefs.edit().clear().putInt(K_INK, ink).putString(K_MASCOT, mascot).putInt(K_THEME, theme).apply()
+                prefs.edit().clear().putInt(K_INK, ink).putString(K_PALETTE, palette).putString(K_MASCOT, mascot).putInt(K_THEME, theme).apply()
                 Notifier.forget(context)
                 dev.medriid.davit.sync.Reminders.cancelAll(context)
                 dumpDir().deleteRecursively()
                 files.wipe()
                 campus.wipe()
                 materials.wipe()
+                scanner.close()
                 Vault.deleteKey()
                 BackgroundSync.apply(context, false)
-                _state.value = UiState(inkIndex = ink, mascot = mascot, theme = theme)
+                _state.value = UiState(palette = Palette.fromJson(palette) ?: Palette(base = ink), mascot = mascot, theme = theme)
                 DavitWidget.refresh(context)
             }
         }
@@ -612,6 +643,7 @@ class Repo(private val context: Context) {
         private const val K_CACHE = "cache"
         private const val K_SEMESTER = "semester"
         private const val K_INK = "ink"
+        private const val K_PALETTE = "palette"
         private const val K_DUMP = "dump"
         private const val K_MASCOT = "mascot"
         private const val K_BACKGROUND = "background"
@@ -621,6 +653,7 @@ class Repo(private val context: Context) {
         private const val K_REMINDERS = "reminders"
         private const val K_THEME = "theme"
         private const val K_LOCK = "appLock"
+        private const val K_ALERT_PREFS = "alertPrefs"
         private const val K_CAL_GROUP = "calendarGroup:"
         private const val K_CAL_MANUAL = "calendarGroupManual:"
         private const val K_CUR_SEM = "currentSemester"

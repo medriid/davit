@@ -154,6 +154,16 @@ data class CurriculumCourse(val group: String, val code: String, val title: Stri
 @Serializable
 data class SemesterGrades(val semesterId: String, val gpa: Double?, val courses: List<GradeEntry>)
 
+// ---- hostel --------------------------------------------------------------------------
+
+/**
+ * VTOP's mess change page, read only: its heading ("Mess Booking (2024 - 25)") and what it
+ * says, e.g. your mess and "YOUR BOOKING IS CONFIRMED", or "Mess Change Closed". [open]
+ * is true only while the page offers a mess to pick.
+ */
+@Serializable
+data class MessStatus(val title: String, val lines: List<String>, val open: Boolean)
+
 // ---- hostel leave --------------------------------------------------------------------
 
 /** The leave application form as VTOP renders it: leave types (value → label) and the proctor it goes to. */

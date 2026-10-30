@@ -1,0 +1,32 @@
+{
+  "boundary": {"type": "FeatureCollection", "features": [
+    {"type": "Feature", "properties": {"name": "Test Campus"}, "geometry": {"type": "Polygon", "coordinates": [[[79.150, 12.960], [79.170, 12.960], [79.170, 12.980], [79.150, 12.980], [79.150, 12.960]]]}}
+  ]},
+  "buildings": {"type": "FeatureCollection", "features": [
+    {"type": "Feature", "properties": {"name": "Silver Jubilee Tower", "cat": "academic", "levels": 9, "construction": false},
+     "geometry": {"type": "Polygon", "coordinates": [[[79.1638, 12.9708], [79.1642, 12.9708], [79.1642, 12.9712], [79.1638, 12.9712], [79.1638, 12.9708]]]}},
+    {"type": "Feature", "properties": {"name": "Courtyard Hall", "cat": "hostel", "construction": false},
+     "geometry": {"type": "Polygon", "coordinates": [
+       [[79.1600, 12.9720], [79.1610, 12.9720], [79.1610, 12.9730], [79.1600, 12.9730], [79.1600, 12.9720]],
+       [[79.1603, 12.9723], [79.1607, 12.9723], [79.1607, 12.9727], [79.1603, 12.9727], [79.1603, 12.9723]]]}}
+  ]},
+  "green": {"type": "FeatureCollection", "features": [
+    {"type": "Feature", "properties": {"kind": "grass"}, "geometry": {"type": "Polygon", "coordinates": [[[79.152, 12.962], [79.154, 12.962], [79.154, 12.964], [79.152, 12.962]]]}}
+  ]},
+  "water": {"type": "FeatureCollection", "features": [
+    {"type": "Feature", "properties": {"kind": "water"}, "geometry": {"type": "Polygon", "coordinates": [[[79.155, 12.965], [79.156, 12.965], [79.156, 12.966], [79.155, 12.965]]]}}
+  ]},
+  "roads": {"type": "FeatureCollection", "features": [
+    {"type": "Feature", "properties": {"name": "Ring Road", "hw": "residential", "lit": "yes", "surface": "asphalt", "tunnel": ""},
+     "geometry": {"type": "LineString", "coordinates": [[79.1559, 12.9684], [79.1640, 12.9700]]}}
+  ]},
+  "paths": {"type": "FeatureCollection", "features": [
+    {"type": "Feature", "properties": {"name": "", "hw": "footway", "lit": "", "surface": "", "tunnel": ""}, "geometry": {"type": "LineString", "coordinates": [[79.1600, 12.9700], [79.1610, 12.9705]]}},
+    {"type": "Feature", "properties": {"name": "", "hw": "steps", "lit": "", "surface": "", "tunnel": ""}, "geometry": {"type": "LineString", "coordinates": [[79.1610, 12.9705], [79.1612, 12.9706]]}}
+  ]},
+  "wall": {"type": "FeatureCollection", "features": [
+    {"type": "Feature", "properties": {"kind": "wall"}, "geometry": {"type": "LineString", "coordinates": [[79.150, 12.960], [79.170, 12.960]]}}
+  ]},
+  "rail": {"type": "FeatureCollection", "features": []},
+  "prp": {"type": "FeatureCollection", "features": []}
+}

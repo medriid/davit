@@ -75,7 +75,7 @@ class DavitWidgetReceiver : GlanceAppWidgetReceiver() {
 private fun Content(s: UiState, now: LocalDateTime) {
     val context = LocalContext.current
     val systemNight = (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
-    val inks = InkPairs.of(s.inkIndex, s.theme == 2 || (s.theme == 0 && systemNight))
+    val inks = s.palette.inks(s.theme == 2 || (s.theme == 0 && systemNight))
     Column(
         GlanceModifier
             .fillMaxSize()

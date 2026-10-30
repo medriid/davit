@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Only the downloads folder is ever handed to another app (to open or share a file). -->
+<!-- Only the downloads folder (to open or share a file) and a downloaded update (to Android's installer) are ever handed to another app. -->
 <paths>
     <files-path name="vtop" path="vtop-files/" />
+    <files-path name="updates" path="updates/" />
 </paths>

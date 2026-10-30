@@ -1,5 +1,17 @@
 package dev.medriid.davit.ui
 
+import androidx.compose.runtime.mutableStateOf
+import dev.medriid.davit.data.isLabType
+import androidx.compose.foundation.background
+import dev.medriid.davit.design.RisoIcon
+import dev.medriid.davit.design.IconGlyph
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.border
 import dev.medriid.davit.data.facultyKey
 import android.net.Uri
 import java.time.ZoneId
@@ -61,7 +73,7 @@ import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.util.Locale
 
-/** Marks, exams and grades for the selected semester, as three segments. */
+/** Marks, assignments, exams, grades, materials and faculty for the selected semester, one segment at a time. */
 @Composable
 internal fun AcademicsTab(snapshot: Snapshot) {
     var segment by rememberSaveable { mutableIntStateOf(0) }
@@ -69,7 +81,7 @@ internal fun AcademicsTab(snapshot: Snapshot) {
     TabColumn {
         Heading("Academics", 28.sp, Modifier.padding(top = 8.dp, bottom = 14.dp))
         val haptics = dev.medriid.davit.design.rememberHaptics()
-        ChoiceRow(listOf("Marks", "Assignments", "Exams", "Grades", "Materials", "Faculty"), segment) {
+        SegmentBar(AcademicsSegments, segment) {
             if (it != segment) haptics.tick()
             segment = it
         }
@@ -117,7 +129,7 @@ private fun CourseMarksCard(course: CourseMarks) {
     val counted = course.items.filter { it.weighted != null && it.weightage != null }
     val got = counted.sumOf { it.weighted!! }
     val outOf = counted.sumOf { it.weightage!! }
-    InkCard(Modifier.fillMaxWidth(), plate = inks.b, plateOffset = 4.dp) {
+    InkCard(Modifier.fillMaxWidth(), kind = dev.medriid.davit.design.Kind.Exams, plateOffset = 4.dp) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 InkText(course.courseName, style = RisoType.title, maxLines = 2)
@@ -182,7 +194,7 @@ private fun AssignmentsSegment(snapshot: Snapshot) {
     val nav = LocalNav.current
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         ordered.forEachIndexed { ci, c ->
-            InkCard(Modifier.fillMaxWidth().printIn(ci), plateOffset = 4.dp) {
+            InkCard(Modifier.fillMaxWidth().printIn(ci), kind = dev.medriid.davit.design.Kind.Assignments, plateOffset = 4.dp) {
                 InkText(c.courseName, style = RisoType.title, maxLines = 2)
                 InkText("${c.courseCode} · ${c.courseType}", style = RisoType.small, maxLines = 1)
                 Spacer(Modifier.height(10.dp))
@@ -259,7 +271,7 @@ private fun ExamsSegment(exams: List<Exam>) {
 internal fun ExamCard(exam: Exam, today: LocalDate, modifier: Modifier = Modifier) {
     val day = exam.day()
     val days = day?.let { ChronoUnit.DAYS.between(today, it).toInt() }
-    InkCard(modifier.fillMaxWidth(), plateOffset = 4.dp) {
+    InkCard(modifier.fillMaxWidth(), kind = dev.medriid.davit.design.Kind.Exams, plateOffset = 4.dp) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.width(70.dp)) {
                 Heading(day?.dayOfMonth?.toString() ?: "?", 30.sp)
@@ -315,57 +327,124 @@ private fun addToCalendar(context: Context, exam: Exam) {
 
 // ---- faculty -----------------------------------------------------------------------
 
+/**
+ * Who teaches what, course first: each course with its theory and lab teachers, their
+ * cabin (a tap from the map) and email. Search by course, code, slot or name. Your
+ * proctor, HOD and dean follow.
+ */
 @Composable
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 private fun FacultySegment(snapshot: Snapshot) {
     val context = LocalContext.current
     val repo = LocalRepo.current
     val nav = LocalNav.current
+    val inks = LocalInks.current
     val campus by repo.campus.state.collectAsState()
     LaunchedEffect(Unit) { repo.campus.refresh(dev.medriid.davit.data.Section.People) }
-    // Your proctor first: the person to go to about attendance, leave and debarment.
-    campus.proctor?.let {
-        PersonCard(it, 0)
-        Spacer(Modifier.height(10.dp))
+    var query by rememberSaveable { mutableStateOf("") }
+
+    val details = remember(snapshot.faculty) { snapshot.faculty.associateBy { facultyKey(it.name) } }
+    // One entry per course, in timetable order, holding each component (theory, lab).
+    val courses = remember(snapshot.timetable) {
+        snapshot.timetable.filter { it.courseCode.isNotBlank() }.groupBy { it.courseCode }.values.toList()
     }
-    if (campus.hodDean.isNotEmpty()) {
-        Box(Modifier.sharedCard(Route.People.sharedKey).clickable(role = Role.Button) { nav.go(Route.People) }.padding(bottom = 14.dp)) {
-            InkChip("HOD and dean: " + campus.hodDean.joinToString(", ") { titleCase(it.name.removePrefix("Dr. ")) }, solid = true)
+    val index = remember(courses, details) {
+        dev.medriid.davit.search.Fuzzy.Index(
+            courses,
+            listOf(
+                dev.medriid.davit.search.Fuzzy.Field("course", 3f),
+                dev.medriid.davit.search.Fuzzy.Field("faculty", 2.5f),
+                dev.medriid.davit.search.Fuzzy.Field("code", 2f),
+                dev.medriid.davit.search.Fuzzy.Field("more", 1f),
+            ),
+        ) { parts ->
+            listOf(
+                parts.first().courseName,
+                parts.joinToString(" ") { titleCase(it.faculty) },
+                parts.first().courseCode,
+                parts.joinToString(" ") { listOf(it.slot, it.venue, it.courseType, details[facultyKey(it.faculty)]?.department.orEmpty()).joinToString(" ") },
+            )
         }
     }
-    if (snapshot.faculty.isEmpty()) {
-        val names = snapshot.timetable.map { it.faculty }.filter { it.isNotBlank() }.distinct()
-        InkText(if (names.isEmpty()) "No faculty in your timetable yet." else "Faculty details arrive with the next sync.")
-        names.forEach { InkText(it, style = RisoType.small) }
-        return
-    }
-    // Which of your courses each person teaches, from the timetable.
-    val courses = snapshot.timetable.groupBy { facultyKey(it.faculty) }
-    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        snapshot.faculty.forEach { f ->
-            InkCard(Modifier.fillMaxWidth(), plateOffset = 4.dp) {
-                InkText(f.name.split(' ').joinToString(" ") { w -> w.lowercase().replaceFirstChar { it.uppercase() } }, style = RisoType.title)
-                if (f.designation.isNotBlank()) InkText(f.designation, style = RisoType.small)
-                InkText(listOf(f.department, f.school).filter { it.isNotBlank() }.joinToString(" · "), style = RisoType.small)
-                courses[facultyKey(f.name)]?.map { it.courseName }?.distinct()?.let {
-                    Spacer(Modifier.height(6.dp))
-                    InkText(it.joinToString(", "), style = RisoType.small.copy(fontWeight = FontWeight.SemiBold))
-                }
-                Spacer(Modifier.height(10.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (f.cabin.isNotBlank()) InkChip("Cabin ${f.cabin}")
-                    if (f.email.isNotBlank()) {
-                        Box(Modifier.clickable(role = Role.Button) {
-                            runCatching {
-                                context.startActivity(Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:" + f.email)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    val hits = remember(query, index) { if (query.isBlank()) null else index.search(query) }
+    val shown = hits?.map { it.item } ?: courses
+
+    dev.medriid.davit.design.InkField(query, { query = it }, "Course, code or any teacher", Modifier.fillMaxWidth())
+    Spacer(Modifier.height(14.dp))
+    if (courses.isEmpty()) {
+        InkText("No timetable for ${snapshot.semester.name} yet. Type three letters of any teacher's name to look them up on VTOP.", style = RisoType.small)
+    } else {
+        if (shown.isEmpty()) InkText("None of your courses match \"$query\".", style = RisoType.small)
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            shown.forEach { parts ->
+                val hit = hits?.firstOrNull { it.item === parts }
+                InkCard(Modifier.fillMaxWidth(), kind = dev.medriid.davit.design.Kind.Classes, plateOffset = 4.dp) {
+                    val name = parts.first().courseName
+                    androidx.compose.foundation.text.BasicText(
+                        highlight(name, hit?.ranges?.get("course").orEmpty(), inks.a),
+                        style = RisoType.title.copy(color = inks.text),
+                        maxLines = 2,
+                    )
+                    InkText(parts.first().courseCode, style = RisoType.small)
+                    // Theory and lab can have different teachers; the same one is shown once.
+                    parts.groupBy { facultyKey(it.faculty) }.values.forEach { same ->
+                        val who = same.first().faculty
+                        val f = details[facultyKey(who)]
+                        Spacer(Modifier.height(10.dp))
+                        Hairline()
+                        Spacer(Modifier.height(8.dp))
+                        InkText(
+                            same.joinToString(" + ") { if (isLabType(it.courseType)) "Lab" else if ("theory" in it.courseType.lowercase() || it.courseType.isBlank()) "Theory" else it.courseType } +
+                                " · " + same.joinToString(", ") { it.slot },
+                            label = true,
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        androidx.compose.foundation.text.BasicText(
+                            highlight(titleCase(who.ifBlank { "Not assigned yet" }), hit?.ranges?.get("faculty").orEmpty().takeIf { parts.size == 1 }.orEmpty(), inks.a),
+                            style = RisoType.body.copy(fontWeight = FontWeight.SemiBold, color = inks.text),
+                        )
+                        if (f != null) {
+                            listOfNotNull(f.designation.ifBlank { null }, listOf(f.department, f.school).filter { it.isNotBlank() }.joinToString(" · ").ifBlank { null })
+                                .forEach { InkText(it, style = RisoType.small, maxLines = 2) }
+                        }
+                        if (f?.cabin?.isNotBlank() == true || f?.email?.isNotBlank() == true) {
+                            Spacer(Modifier.height(8.dp))
+                            androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                if (f.cabin.isNotBlank()) dev.medriid.davit.ui.map.MapChip(f.cabin, label = "Cabin ${f.cabin}")
+                                if (f.email.isNotBlank()) {
+                                    Box(Modifier.clickable(role = Role.Button) {
+                                        runCatching {
+                                            context.startActivity(Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:" + f.email)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                                        }
+                                    }) { InkChip(f.email, solid = true) }
+                                }
                             }
-                        }) { InkChip(f.email, solid = true) }
+                        }
                     }
                 }
             }
         }
     }
-    Spacer(Modifier.height(10.dp))
-    InkText("Matched via github.com/IshanJ25/vtop-fac-data; details from VTOP.", style = RisoType.small)
+
+    VtopFacultySearch(query)
+
+    // The people to go to about attendance, leave and debarment.
+    if (query.isBlank() && (campus.proctor != null || campus.hodDean.isNotEmpty())) {
+        SectionTitle("Your proctor")
+        campus.proctor?.let {
+            PersonCard(it, 0)
+            Spacer(Modifier.height(10.dp))
+        }
+        if (campus.hodDean.isNotEmpty()) {
+            Box(Modifier.sharedCard(Route.People.sharedKey).clickable(role = Role.Button) { nav.go(Route.People) }.padding(bottom = 14.dp)) {
+                InkChip("HOD and dean: " + campus.hodDean.joinToString(", ") { titleCase(it.name.removePrefix("Dr. ")) }, solid = true)
+            }
+        }
+    }
+    if (snapshot.faculty.isEmpty() && courses.isNotEmpty()) {
+        Spacer(Modifier.height(10.dp))
+        InkText("Designations, cabins and emails arrive with the next sync.", style = RisoType.small)
+    }
 }
 
 // ---- grades ------------------------------------------------------------------------
@@ -374,7 +453,7 @@ private fun FacultySegment(snapshot: Snapshot) {
 private fun GradesSegment(snapshot: Snapshot) {
     val g = snapshot.grades
     val heroSize = with(LocalDensity.current) { 56.dp.toSp() }
-    InkCard(Modifier.fillMaxWidth()) {
+    InkCard(Modifier.fillMaxWidth(), kind = dev.medriid.davit.design.Kind.Exams) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 InkText("CGPA", label = true)
@@ -390,18 +469,18 @@ private fun GradesSegment(snapshot: Snapshot) {
     val nav = LocalNav.current
     Spacer(Modifier.height(12.dp))
     Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        InkCard(Modifier.weight(1f).fillMaxHeight().sharedCard(Route.SemesterGrades.sharedKey), onClick = { nav.go(Route.SemesterGrades) }, plateOffset = 4.dp) {
+        InkCard(Modifier.weight(1f).fillMaxHeight().sharedCard(Route.SemesterGrades.sharedKey), onClick = { nav.go(Route.SemesterGrades) }, kind = dev.medriid.davit.design.Kind.Exams, plateOffset = 4.dp) {
             InkText("Semester GPA", style = RisoType.title.copy(fontSize = 17.sp))
             InkText("Each term", style = RisoType.small)
         }
-        InkCard(Modifier.weight(1f).fillMaxHeight().sharedCard(Route.Curriculum.sharedKey), onClick = { nav.go(Route.Curriculum) }, plateOffset = 4.dp) {
+        InkCard(Modifier.weight(1f).fillMaxHeight().sharedCard(Route.Curriculum.sharedKey), onClick = { nav.go(Route.Curriculum) }, kind = dev.medriid.davit.design.Kind.Classes, plateOffset = 4.dp) {
             InkText("Curriculum", style = RisoType.title.copy(fontSize = 17.sp))
             InkText("Syllabus PDFs", style = RisoType.small)
         }
     }
     if (g?.curriculum?.isNotEmpty() == true) {
         SectionTitle("Credits")
-        InkCard(Modifier.fillMaxWidth(), plateOffset = 3.dp) {
+        InkCard(Modifier.fillMaxWidth(), kind = dev.medriid.davit.design.Kind.Exams, plateOffset = 3.dp) {
             g.curriculum.forEachIndexed { i, d ->
                 if (i > 0) Spacer(Modifier.height(12.dp))
                 Row {
@@ -417,7 +496,7 @@ private fun GradesSegment(snapshot: Snapshot) {
     val byGrade = g?.entries.orEmpty().filter { it.grade != null && it.credits > 0 }.groupBy { it.grade!!.uppercase() }
     if (byGrade.isNotEmpty()) {
         SectionTitle("Credits by grade")
-        InkCard(Modifier.fillMaxWidth(), plateOffset = 3.dp) {
+        InkCard(Modifier.fillMaxWidth(), kind = dev.medriid.davit.design.Kind.Exams, plateOffset = 3.dp) {
             val most = byGrade.values.maxOf { l -> l.sumOf { it.credits } }
             (GradePoints.map { it.first } + byGrade.keys.filter { k -> GradePoints.none { it.first == k } }).forEach { grade ->
                 val credits = byGrade[grade]?.sumOf { it.credits } ?: return@forEach
@@ -440,7 +519,7 @@ private fun GradesSegment(snapshot: Snapshot) {
     }
     graded.groupBy { it.examMonth }.entries.reversed().forEach { (month, list) ->
         SectionTitle(month.ifBlank { "Courses" })
-        InkCard(Modifier.fillMaxWidth(), plateOffset = 3.dp) {
+        InkCard(Modifier.fillMaxWidth(), kind = dev.medriid.davit.design.Kind.Exams, plateOffset = 3.dp) {
             list.forEachIndexed { i, e ->
                 if (i > 0) Spacer(Modifier.height(10.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -472,7 +551,7 @@ private fun PlannerCard(snapshot: Snapshot) {
     val heroSize = with(LocalDensity.current) { 44.dp.toSp() }
 
     SectionTitle("Plan this semester")
-    InkCard(Modifier.fillMaxWidth()) {
+    InkCard(Modifier.fillMaxWidth(), kind = dev.medriid.davit.design.Kind.Exams) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 InkText("CGPA if these hold", label = true)
@@ -503,3 +582,72 @@ private fun PlannerCard(snapshot: Snapshot) {
 /** "12.3", "15", never "15.0". */
 private fun fmt(v: Double): String =
     if (v == Math.floor(v)) v.toLong().toString() else "%.2f".format(Locale.ENGLISH, v).trimEnd('0').trimEnd('.')
+
+// ---- the segment bar ---------------------------------------------------------------
+
+private val AcademicsSegments = listOf(
+    "Marks" to RisoIcon.Marks,
+    "Assignments" to RisoIcon.Assignments,
+    "Exams" to RisoIcon.Exams,
+    "Grades" to RisoIcon.Grades,
+    "Materials" to RisoIcon.Materials,
+    "Faculty" to RisoIcon.Faculty,
+)
+
+/**
+ * Six segments in one row: each an icon, the chosen one widening into an ink pill with its
+ * name, printed over the ink-A plate like the bottom tabs.
+ */
+@Composable
+private fun SegmentBar(items: List<Pair<String, RisoIcon>>, selected: Int, onSelect: (Int) -> Unit) {
+    val inks = LocalInks.current
+    val motion = dev.medriid.davit.design.rememberMotionEnabled()
+    val pill = androidx.compose.foundation.shape.RoundedCornerShape(50)
+    Row(
+        Modifier.fillMaxWidth().height(50.dp).padding(end = 3.dp, bottom = 3.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        items.forEachIndexed { i, (label, icon) ->
+            val on = i == selected
+            val grow by androidx.compose.animation.core.animateFloatAsState(
+                if (on) 3.1f else 1f,
+                if (motion) androidx.compose.animation.core.spring(dampingRatio = 0.8f, stiffness = 500f) else androidx.compose.animation.core.snap(),
+                label = "segment",
+            )
+            Box(
+                Modifier
+                    .weight(grow)
+                    .fillMaxHeight()
+                    .clickable(role = Role.Tab) { onSelect(i) }
+                    .semantics {
+                        contentDescription = label
+                        this.selected = on
+                    },
+            ) {
+                if (on) Box(Modifier.matchParentSize().offset(3.dp, 3.dp).clip(pill).background(inks.a))
+                Row(
+                    Modifier
+                        .matchParentSize()
+                        .clip(pill)
+                        .background(if (on) inks.b else inks.paper)
+                        .border(1.5.dp, if (on) inks.b else inks.text, pill)
+                        .padding(horizontal = 10.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    IconGlyph(icon, if (on) inks.paper else inks.text, Modifier.size(21.dp))
+                    if (on) {
+                        Spacer(Modifier.width(6.dp))
+                        androidx.compose.foundation.text.BasicText(
+                            label,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Clip,
+                            style = RisoType.body.copy(fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = inks.paper, letterSpacing = (-0.2).sp),
+                        )
+                    }
+                }
+            }
+        }
+    }
+}

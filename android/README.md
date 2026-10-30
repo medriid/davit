@@ -6,7 +6,7 @@ Kotlin + Jetpack Compose, min SDK 26.
 
 | Module | What's in it |
 |---|---|
-| `core/` | Plain JVM, no Android: `VtopClient` (login, session reuse, downloads, the guard, per-stage timings), `CaptchaSolver`, Jsoup `Parsers`, `Feeds` (home page feeds and records) and `CoursePages` (materials, upload pages), `search/Fuzzy`, `SlotTimes`. `./gradlew :core:test` runs on a laptop. |
+| `core/` | Plain JVM, no Android: `VtopClient` (login, session reuse, downloads, the guard, per-stage timings), `CaptchaSolver`, Jsoup `Parsers`, `Feeds` (home page feeds and records) and `CoursePages` (materials, upload pages), `search/Fuzzy`, `scan/` (page finding, filters, a JPEG-only PDF writer), `SlotTimes`. `./gradlew :core:test` runs on a laptop. |
 | `design/` | Riso components: ink pairs, `Overprint`, `Halftone`, `InkButton`, `InkCard`, `Seal` (the app mark), `Grain`, motion, and `Printing` (list entrances, the first-sync sheet, the pull drum, loading plates, haptics). Fonts and licences in [`design/FONTS.md`](design/FONTS.md). |
 | `app/` | `data/`: `Repo` (sign-in, sync, sign-out), `Vault` (Keystore AES-256-GCM), `Snapshot` and `HomeFeeds` (encrypted cache), `CampusStore`, `MaterialsStore`, `FileStore` (downloads), `Uploads`, `Schedule` (week, now/next, the 75% maths). `ui/`: sign-in, the four tabs, screens above them (`Nav`, shared-element transitions), the account sheet and the mascot. |
 

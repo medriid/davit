@@ -91,7 +91,7 @@ internal fun AssignmentScreen(route: Route.Assignment) {
         }
         if (item.hasQuestion || item.hasSubmission) {
             GroupLabel("Files")
-            InkCard(Modifier.fillMaxWidth(), plateOffset = 3.dp) {
+            InkCard(Modifier.fillMaxWidth(), kind = dev.medriid.davit.design.Kind.Assignments, plateOffset = 3.dp) {
                 if (item.hasQuestion) {
                     FileRow("qp:${course.classId}:${item.code}", "Question paper", "From your faculty", fetch = { c, out, p -> c.downloadQuestion(course.classId, item.code, out, p) })
                 }
@@ -109,7 +109,7 @@ internal fun AssignmentScreen(route: Route.Assignment) {
 @Composable
 private fun AssignmentHeader(course: CourseAssignments, a: Assignment, today: LocalDate) {
     val day = a.dueDay()
-    InkCard(Modifier.fillMaxWidth()) {
+    InkCard(Modifier.fillMaxWidth(), kind = dev.medriid.davit.design.Kind.Assignments) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 InkText(a.title, style = RisoType.title, maxLines = 3)
@@ -148,6 +148,10 @@ private fun UploadPanel(course: CourseAssignments, a: Assignment, semesterId: St
             val p = withContext(Dispatchers.IO) { readPicked(context, uri) }
             repo.uploads.pick(key, p.name, p.mime, p.size, p.bytes)
         }
+    }
+    val scan = {
+        haptics.tick()
+        repo.scanner.open(dev.medriid.davit.scan.ScanTarget(key, a.title, course.courseCode))
     }
     val pick = {
         haptics.tick()
@@ -192,7 +196,12 @@ private fun UploadPanel(course: CourseAssignments, a: Assignment, semesterId: St
                         style = RisoType.small,
                     )
                     Spacer(Modifier.height(12.dp))
-                    InkButton(if (replacing) "Choose a new file" else "Choose a file", pick, fillWidth = true, modifier = Modifier.fillMaxWidth())
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        InkButton(if (replacing) "New file" else "Choose file", pick, modifier = Modifier.weight(1f), fillWidth = true)
+                        InkButton("Scan", scan, quiet = true, modifier = Modifier.weight(1f), fillWidth = true)
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    InkText("Scan photographs your pages into one PDF, cleaned up and under 4 MB.", style = RisoType.small)
                 }
                 is UploadState.Ready -> InkCard(Modifier.fillMaxWidth(), plateOffset = 4.dp) {
                     InkText("Upload this?", label = true)
@@ -240,6 +249,7 @@ private fun UploadPanel(course: CourseAssignments, a: Assignment, semesterId: St
                     Spacer(Modifier.height(12.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         InkButton("Choose", pick, modifier = Modifier.weight(1f), fillWidth = true)
+                        InkButton("Scan", scan, quiet = true, modifier = Modifier.weight(1f), fillWidth = true)
                         InkButton("Close", { repo.uploads.clear(key) }, quiet = true, modifier = Modifier.weight(1f), fillWidth = true)
                     }
                 }
@@ -251,7 +261,7 @@ private fun UploadPanel(course: CourseAssignments, a: Assignment, semesterId: St
 @Composable
 private fun OtpCard(st: UploadState.Otp, onSubmit: (String) -> Unit, onCancel: () -> Unit) {
     var code by rememberSaveable { mutableStateOf("") }
-    InkCard(Modifier.fillMaxWidth(), plateOffset = 4.dp) {
+    InkCard(Modifier.fillMaxWidth(), kind = dev.medriid.davit.design.Kind.Assignments, plateOffset = 4.dp) {
         InkText("Check your email", label = true)
         Spacer(Modifier.height(8.dp))
         InkText(
@@ -305,14 +315,14 @@ private fun DoneCard(st: UploadState.Done, onClose: () -> Unit) {
     }
 }
 
-private class Picked(val name: String, val mime: String, val size: Long?, val bytes: ByteArray?)
+internal class Picked(val name: String, val mime: String, val size: Long?, val bytes: ByteArray?)
 
 /**
  * Name, type, size and bytes of a picked document. A file the system says is over VTOP's
  * limit isn't read at all; otherwise reading stops one chunk past it, so a big file is
  * caught without being loaded.
  */
-private fun readPicked(context: android.content.Context, uri: Uri): Picked {
+internal fun readPicked(context: android.content.Context, uri: Uri, max: Int = Uploads.MAX): Picked {
     val cr = context.contentResolver
     var name = uri.lastPathSegment?.substringAfterLast('/') ?: "file"
     var size: Long? = null
@@ -325,12 +335,12 @@ private fun readPicked(context: android.content.Context, uri: Uri): Picked {
         }
     }
     val mime = cr.getType(uri).orEmpty()
-    if ((size ?: 0) > Uploads.MAX) return Picked(name, mime, size, null)
+    if ((size ?: 0) > max) return Picked(name, mime, size, null)
     val bytes = runCatching {
         cr.openInputStream(uri)?.use { input ->
             val out = java.io.ByteArrayOutputStream()
             val buf = ByteArray(64 * 1024)
-            while (out.size() <= Uploads.MAX) {
+            while (out.size() <= max) {
                 val n = input.read(buf)
                 if (n < 0) break
                 out.write(buf, 0, n)

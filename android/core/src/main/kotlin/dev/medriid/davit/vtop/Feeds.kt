@@ -290,6 +290,27 @@ object Feeds {
         return SemesterGrades(semesterId, gpa, courses)
     }
 
+    // ---- hostel ------------------------------------------------------------------------
+
+    /**
+     * `hostels/onlineMessChange`: the card's heading and its `h4` lines ("EXAMPLE CATERERS
+     * [Q BLOCK]", "YOUR BOOKING IS CONFIRMED"; or "Mess Change Closed"). Only read.
+     */
+    fun messChange(html: String): MessStatus? {
+        val doc = Jsoup.parse(html)
+        doc.select("script, style").remove()
+        val title = doc.selectFirst(".card-header")?.text()?.let(::clean).orEmpty()
+        val lines = doc.select(".card-body h4, .card-body h3, .card-body h5, .card-body .alert").flatMap { h ->
+            h.html().split(Regex("(?i)<br\\s*/?>")).map { clean(Jsoup.parse(it).text()) }
+        }.filter { it.isNotEmpty() }.distinct()
+        val body = lines.ifEmpty { listOfNotNull(doc.selectFirst(".card-body")?.text()?.let(::clean)?.takeIf { it.isNotEmpty() }) }
+        if (title.isEmpty() && body.isEmpty()) return null
+        val text = (body.joinToString(" ") + " " + title).lowercase()
+        // Open means there is something to pick; "closed", or just your booking, means not.
+        val open = "closed" !in text && doc.select(".card-body select, .card-body input[type=radio], .card-body button").isNotEmpty()
+        return MessStatus(title, body, open)
+    }
+
     // ---- hostel leave ------------------------------------------------------------------
 
     /** `hostels/student/leave/2`: `#LeaveRequestForm` with its `leaveCode` choices; "PROCTOR NAME: X (id)" above it. */

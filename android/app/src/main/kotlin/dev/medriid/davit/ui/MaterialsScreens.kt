@@ -109,7 +109,7 @@ internal fun MaterialsSegment(snapshot: Snapshot) {
 
 @Composable
 private fun CourseCard(c: CourseOption, cached: CachedCourse?, mine: Int, saved: Int, modifier: Modifier, onOpen: () -> Unit) {
-    InkCard(modifier.fillMaxWidth().sharedCard(Route.Course(c.key).sharedKey), onClick = onOpen, plateOffset = 4.dp) {
+    InkCard(modifier.fillMaxWidth().sharedCard(Route.Course(c.key).sharedKey), onClick = onOpen, kind = dev.medriid.davit.design.Kind.Assignments, plateOffset = 4.dp) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 InkText(c.name.ifBlank { c.code }, style = RisoType.title, maxLines = 2)

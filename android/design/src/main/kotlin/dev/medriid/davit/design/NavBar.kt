@@ -86,6 +86,99 @@ enum class RisoIcon(val draw: DrawScope.(Color) -> Unit) {
         }
         drawPath(body, c, style = stroke(u))
     }),
+
+    /** A folded campus map. */
+    Map({ c ->
+        val u = size.width / 24f
+        val sheet = Path().apply {
+            moveTo(3 * u, 6 * u); lineTo(9 * u, 4 * u); lineTo(15 * u, 6 * u); lineTo(21 * u, 4 * u)
+            lineTo(21 * u, 18 * u); lineTo(15 * u, 20 * u); lineTo(9 * u, 18 * u); lineTo(3 * u, 20 * u); close()
+        }
+        drawPath(sheet, c, style = stroke(u))
+        drawLine(c, Offset(9 * u, 4 * u), Offset(9 * u, 18 * u), 1.8f * u)
+        drawLine(c, Offset(15 * u, 6 * u), Offset(15 * u, 20 * u), 1.8f * u)
+    }),
+
+    /** Marks: rising bars. */
+    Marks({ c ->
+        val u = size.width / 24f
+        val s = stroke(u, 1.9f)
+        drawRoundRect(c, Offset(4 * u, 13 * u), Size(4 * u, 7 * u), CornerRadius(1 * u), style = s)
+        drawRoundRect(c, Offset(10 * u, 9 * u), Size(4 * u, 11 * u), CornerRadius(1 * u), style = s)
+        drawRoundRect(c, Offset(16 * u, 4 * u), Size(4 * u, 16 * u), CornerRadius(1 * u), style = s)
+    }),
+
+    /** Assignments: a page with a folded corner. */
+    Assignments({ c ->
+        val u = size.width / 24f
+        val page = Path().apply {
+            moveTo(6 * u, 3 * u); lineTo(14 * u, 3 * u); lineTo(19 * u, 8 * u); lineTo(19 * u, 21 * u); lineTo(6 * u, 21 * u); close()
+        }
+        drawPath(page, c, style = stroke(u))
+        val fold = Path().apply { moveTo(14 * u, 3 * u); lineTo(14 * u, 8 * u); lineTo(19 * u, 8 * u) }
+        drawPath(fold, c, style = stroke(u, 1.8f))
+        drawLine(c, Offset(9 * u, 13 * u), Offset(16 * u, 13 * u), 1.8f * u, StrokeCap.Round)
+        drawLine(c, Offset(9 * u, 17 * u), Offset(14 * u, 17 * u), 1.8f * u, StrokeCap.Round)
+    }),
+
+    /** Exams: a stopwatch. */
+    Exams({ c ->
+        val u = size.width / 24f
+        drawCircle(c, 7.5f * u, Offset(12 * u, 13.5f * u), style = stroke(u))
+        drawLine(c, Offset(12 * u, 13.5f * u), Offset(12 * u, 9.5f * u), 2 * u, StrokeCap.Round)
+        drawLine(c, Offset(12 * u, 13.5f * u), Offset(14.8f * u, 15.2f * u), 2 * u, StrokeCap.Round)
+        drawLine(c, Offset(9.5f * u, 2.8f * u), Offset(14.5f * u, 2.8f * u), 2 * u, StrokeCap.Round)
+        drawLine(c, Offset(12 * u, 2.8f * u), Offset(12 * u, 6 * u), 2 * u)
+    }),
+
+    /** Grades: a star. */
+    Grades({ c ->
+        val u = size.width / 24f
+        val star = Path()
+        for (i in 0 until 10) {
+            val r = (if (i % 2 == 0) 9.2f else 4f) * u
+            val a = -Math.PI / 2 + i * Math.PI / 5
+            val x = 12 * u + r * kotlin.math.cos(a).toFloat()
+            val y = 12.8f * u + r * kotlin.math.sin(a).toFloat()
+            if (i == 0) star.moveTo(x, y) else star.lineTo(x, y)
+        }
+        star.close()
+        drawPath(star, c, style = stroke(u))
+    }),
+
+    /** Materials: a folder. */
+    Materials({ c ->
+        val u = size.width / 24f
+        val folder = Path().apply {
+            moveTo(3 * u, 18.5f * u); lineTo(3 * u, 5.5f * u); lineTo(9.5f * u, 5.5f * u); lineTo(11.5f * u, 8 * u)
+            lineTo(21 * u, 8 * u); lineTo(21 * u, 18.5f * u); close()
+        }
+        drawPath(folder, c, style = stroke(u))
+        drawLine(c, Offset(3 * u, 11.5f * u), Offset(21 * u, 11.5f * u), 1.8f * u)
+    }),
+
+    /** Faculty: someone at a board. */
+    Faculty({ c ->
+        val u = size.width / 24f
+        drawRoundRect(c, Offset(10 * u, 3 * u), Size(11 * u, 9 * u), CornerRadius(1.2f * u), style = stroke(u, 1.8f))
+        drawCircle(c, 2.6f * u, Offset(6.5f * u, 10.5f * u), style = stroke(u))
+        val body = Path().apply { moveTo(2 * u, 21 * u); quadraticTo(6.5f * u, 13.5f * u, 11 * u, 21 * u) }
+        drawPath(body, c, style = stroke(u))
+        drawLine(c, Offset(9.5f * u, 15 * u), Offset(13 * u, 12 * u), 1.8f * u, StrokeCap.Round)
+    }),
+
+    /** Notifications: a bell. */
+    Bell({ c ->
+        val u = size.width / 24f
+        val bell = Path().apply {
+            moveTo(5 * u, 17 * u); lineTo(6.5f * u, 15 * u); lineTo(6.5f * u, 10.5f * u)
+            cubicTo(6.5f * u, 4.5f * u, 17.5f * u, 4.5f * u, 17.5f * u, 10.5f * u)
+            lineTo(17.5f * u, 15 * u); lineTo(19 * u, 17 * u); close()
+        }
+        drawPath(bell, c, style = stroke(u))
+        drawLine(c, Offset(10 * u, 20.5f * u), Offset(14 * u, 20.5f * u), 2 * u, StrokeCap.Round)
+        drawLine(c, Offset(12 * u, 3 * u), Offset(12 * u, 4.6f * u), 2 * u, StrokeCap.Round)
+    }),
 }
 
 private fun stroke(u: Float, w: Float = 2f) = Stroke(w * u, cap = StrokeCap.Round, join = StrokeJoin.Round)
@@ -100,15 +193,17 @@ data class NavItem(val label: String, val icon: RisoIcon)
 /**
  * Bottom tabs. Each tab is a full-height 72 dp target; the selected one sits in a solid
  * ink-B pill with the ink-A plate behind it, the same build as [InkButton].
- * Labels never truncate: they're short, and sized to fit four across at 360 dp.
+ * Labels never truncate: they're short, and sized to fit five across at 360 dp.
  */
 @Composable
 fun RisoNavBar(items: List<NavItem>, selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
     val inks = LocalInks.current
+    val crowded = items.size > 4
+    val pillWidth = if (crowded) 54.dp else 64.dp
     Column(modifier.fillMaxWidth().background(inks.paper)) {
         Rule()
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 6.dp),
+            Modifier.fillMaxWidth().padding(horizontal = if (crowded) 2.dp else 4.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
         ) {
             items.forEachIndexed { i, item ->
@@ -127,11 +222,11 @@ fun RisoNavBar(items: List<NavItem>, selected: Int, onSelect: (Int) -> Unit, mod
                     Box(contentAlignment = Alignment.Center) {
                         if (on) {
                             Box(
-                                Modifier.size(64.dp, 34.dp).offset(3.dp, 3.dp).clip(pill).background(inks.a),
+                                Modifier.size(pillWidth, 34.dp).offset(3.dp, 3.dp).clip(pill).background(inks.a),
                             )
-                            Box(Modifier.size(64.dp, 34.dp).clip(pill).background(inks.b))
+                            Box(Modifier.size(pillWidth, 34.dp).clip(pill).background(inks.b))
                         } else {
-                            Spacer(Modifier.size(64.dp, 34.dp))
+                            Spacer(Modifier.size(pillWidth, 34.dp))
                         }
                         IconGlyph(item.icon, iconColor)
                     }
@@ -140,11 +235,11 @@ fun RisoNavBar(items: List<NavItem>, selected: Int, onSelect: (Int) -> Unit, mod
                         item.label,
                         maxLines = 1,
                         style = RisoType.body.copy(
-                            fontSize = 12.5.sp,
+                            fontSize = if (crowded) 11.sp else 12.5.sp,
                             fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal,
                             color = inks.text,
                             textAlign = TextAlign.Center,
-                            letterSpacing = (-0.2).sp,
+                            letterSpacing = if (crowded) (-0.3).sp else (-0.2).sp,
                         ),
                     )
                 }

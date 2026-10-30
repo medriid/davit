@@ -35,12 +35,20 @@ sealed class Route(val id: String) {
     data object SemesterGrades : Route("grades")
     data object Hostel : Route("hostel")
     data object Downloads : Route("downloads")
+    data object Settings : Route("settings")
+    data object Notifications : Route("notifications")
+    data object Bonafide : Route("bonafide")
+    data object CourseFeedback : Route("feedback")
+    data object PaperSeeing : Route("paperseeing")
+    data object Activities : Route("activities")
+    data object Allocation : Route("allocation")
+    data object Colours : Route("colours")
 
     /** The shared-element key this route's screen grows out of. */
     val sharedKey: String get() = "route:$id"
 
     companion object {
-        private val plain = listOf(Search, Campus, Messages, Spotlight, Events, People, Money, Gate, Curriculum, SemesterGrades, Hostel, Downloads)
+        private val plain = listOf(Search, Campus, Messages, Spotlight, Events, People, Money, Gate, Curriculum, SemesterGrades, Hostel, Downloads, Settings, Notifications, Bonafide, CourseFeedback, PaperSeeing, Activities, Allocation, Colours)
 
         fun parse(id: String): Route? {
             plain.firstOrNull { it.id == id }?.let { return it }
