@@ -1,5 +1,11 @@
 package dev.medriid.davit.ui
 
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.compose.ui.graphics.toArgb
+import dev.medriid.davit.data.icsOf
+import dev.medriid.davit.data.classEvents
+import dev.medriid.davit.data.PhoneCalendar
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Intent
@@ -253,7 +259,11 @@ internal fun SettingsScreen(route: Route) {
                 SettingRow("Home screen widget", "Your class now or next, its attendance, and what's due.", "Add") {
                     widgets.requestPinAppWidget(ComponentName(context, DavitWidgetReceiver::class.java), null, null)
                 }
+                SettingRow("Attendance widget", "Courses near or under the line, worst first, with what it takes.", "Add") {
+                    widgets.requestPinAppWidget(ComponentName(context, dev.medriid.davit.widget.AttendanceWidgetReceiver::class.java), null, null)
+                }
             }
+            ClassesInCalendar(state)
             val saved by repo.files.saved.collectAsState()
             SettingRow(
                 "Downloads",
@@ -597,6 +607,55 @@ private fun VtopPhoto(dataUri: String) {
         contentScale = ContentScale.Crop,
         modifier = Modifier.padding(end = 14.dp).size(60.dp).clip(CardShape).border(2.dp, inks.text, CardShape),
     )
+}
+
+/**
+ * Your classes in the phone's calendar app (asks for the calendar permission when you
+ * turn it on), kept up to date after each sync; or the semester as a file for other apps.
+ */
+@Composable
+private fun ClassesInCalendar(state: dev.medriid.davit.data.UiState) {
+    val repo = LocalRepo.current
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val snapshot = state.snapshot
+    var on by remember { mutableStateOf(PhoneCalendar.enabled(context)) }
+    var note by remember { mutableStateOf<String?>(null) }
+    val color = LocalInks.current.a.toArgb()
+    fun add() = scope.launch {
+        note = "Adding your classes…"
+        note = runCatching { PhoneCalendar.turnOn(context, snapshot!!.classEvents(java.time.LocalDate.now()), color) }
+            .fold({ n -> on = true; "$n classes added to \"daVIT classes\" in your calendar." }, { "Couldn't write to the phone's calendar." })
+    }
+    val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
+        if (granted.values.all { it }) add() else note = "daVIT needs the calendar permission for this."
+    }
+    when {
+        snapshot?.calendar == null -> SettingRow("Classes in your calendar", "Needs the academic calendar, which comes with the next sync.", "Later") {}
+        on -> SettingRow("Classes in your calendar", note ?: "On: \"daVIT classes\", updated after each sync. Holidays and swapped days included.", "Remove") {
+            scope.launch {
+                PhoneCalendar.turnOff(context)
+                on = false
+                note = "Removed from your calendar."
+            }
+        }
+        else -> SettingRow("Classes in your calendar", note ?: "Every class until the semester ends, holidays and swapped days included, in your phone's calendar app.", "Add") {
+            if (PhoneCalendar.permitted(context)) add()
+            else ask.launch(arrayOf(android.Manifest.permission.READ_CALENDAR, android.Manifest.permission.WRITE_CALENDAR))
+        }
+    }
+    if (snapshot?.calendar != null) {
+        SettingRow("Classes as a file", "An .ics file of the semester, for calendar apps that import one.", "Share") {
+            scope.launch {
+                val file = withContext(Dispatchers.IO) {
+                    java.io.File(context.cacheDir, "exports").apply { mkdirs() }.resolve("daVIT classes.ics").apply {
+                        writeText(icsOf(snapshot.classEvents(java.time.LocalDate.now()), java.time.Instant.now()))
+                    }
+                }
+                repo.files.share(file)
+            }
+        }
+    }
 }
 
 /** Two overlapping ink discs; the overlap is whatever multiply makes of them. */

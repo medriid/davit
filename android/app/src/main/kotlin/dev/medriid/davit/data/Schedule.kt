@@ -178,19 +178,34 @@ fun Snapshot.effectiveCalendar(): AcademicCalendar? {
  */
 fun Snapshot.remainingFor(row: AttendanceRow, at: LocalDateTime): Int? {
     val cal = effectiveCalendar() ?: return null
-    val meetings = weekOf(this).values.flatten().filter { it.attendance?.key == row.key }.map { it.meeting }
+    val meetings = meetingsFor(row)
     if (meetings.isEmpty()) return null
-    val end = (if (isLabType(row.classType)) cal.lastLab else cal.lastTheory) ?: return null
-    val today = at.toLocalDate()
-    val minute = at.hour * 60 + at.minute
+    val end = cal.endFor(isLabType(row.classType)) ?: return null
     var count = 0
-    var d = today
+    var d = at.toLocalDate()
     while (!d.isAfter(end)) {
-        val wd = cal.timetableDay(d)
-        if (wd != null) count += meetings.count { it.day == wd && (d != today || it.start > minute) }
+        count += countOn(meetings, cal, d, at)
         d = d.plusDays(1)
     }
     return count
+}
+
+/** The weekly meetings of [row]'s course (a lab session is one meeting, as VTOP counts it). */
+fun Snapshot.meetingsFor(row: AttendanceRow, week: Map<Int, List<ClassSlot>> = weekOf(this)): List<Meeting> =
+    week.values.flatten().filter { it.attendance?.key == row.key }.map { it.meeting }
+
+/** The last teaching day for labs, or for theory. */
+fun AcademicCalendar.endFor(lab: Boolean): LocalDate? = if (lab) lastLab else lastTheory
+
+/**
+ * How many of [meetings] are held on [d]: by the calendar's day order (none on a holiday
+ * or exam day), or the date's own weekday without a calendar. On [at]'s day, only the
+ * ones that haven't started yet.
+ */
+fun countOn(meetings: List<Meeting>, cal: AcademicCalendar?, d: LocalDate, at: LocalDateTime): Int {
+    val wd = (if (cal != null) cal.timetableDay(d) else d.dayOfWeek.value) ?: return 0
+    val minute = at.hour * 60 + at.minute
+    return meetings.count { it.day == wd && (d != at.toLocalDate() || it.start > minute) }
 }
 
 /** How many of the [remaining] classes you can miss and still finish at or above 75%. Negative: out of reach. */

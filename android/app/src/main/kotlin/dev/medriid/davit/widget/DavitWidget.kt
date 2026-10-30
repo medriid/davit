@@ -60,9 +60,12 @@ class DavitWidget : GlanceAppWidget() {
     }
 
     companion object {
-        /** Redraws every placed widget; safe to call from anywhere. */
+        /** Redraws every placed widget, both kinds; safe to call from anywhere. */
         fun refresh(context: Context) {
-            CoroutineScope(Dispatchers.Default).launch { runCatching { DavitWidget().updateAll(context.applicationContext) } }
+            CoroutineScope(Dispatchers.Default).launch {
+                runCatching { DavitWidget().updateAll(context.applicationContext) }
+                runCatching { AttendanceWidget().updateAll(context.applicationContext) }
+            }
         }
     }
 }
@@ -152,7 +155,7 @@ private fun footer(s: UiState, now: LocalDateTime): String {
     return (if (total == 0) "" else "${att.sumOf { it.attended } * 100 / total}% overall · ") + "$risky at risk"
 }
 
-private fun ago(at: Long): String {
+internal fun ago(at: Long): String {
     val min = (System.currentTimeMillis() - at) / 60_000
     return when {
         min < 1 -> "just now"
@@ -162,5 +165,5 @@ private fun ago(at: Long): String {
     }
 }
 
-private fun style(color: Color, size: TextUnit, bold: Boolean = false) =
+internal fun style(color: Color, size: TextUnit, bold: Boolean = false) =
     TextStyle(color = ColorProvider(color), fontSize = size, fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal)

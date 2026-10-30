@@ -287,6 +287,7 @@ private fun RouteHost(route: Route) = when (route) {
     Route.Activities -> ActivitiesScreen(route)
     Route.Allocation -> AllocationScreen(route)
     Route.Colours -> ColoursScreen(route)
+    Route.LeavePlanner -> LeavePlannerScreen(route)
 }
 
 @Composable

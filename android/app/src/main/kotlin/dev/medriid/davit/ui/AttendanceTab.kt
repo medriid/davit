@@ -1,5 +1,6 @@
 package dev.medriid.davit.ui
 
+import dev.medriid.davit.design.InkButton
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateIntAsState
@@ -79,6 +80,11 @@ internal fun AttendanceTab(snapshot: Snapshot) {
         if (snapshot.attendanceExempt) {
             Spacer(Modifier.height(10.dp))
             InkText("Your CGPA is 9 or above, so the 75% rule doesn't apply to you.", style = RisoType.small)
+        }
+        if (rows.isNotEmpty()) {
+            Spacer(Modifier.height(14.dp))
+            val nav = LocalNav.current
+            InkButton("Plan a leave", { nav.go(Route.LeavePlanner) }, quiet = true, fillWidth = true, modifier = Modifier.fillMaxWidth().sharedCard(Route.LeavePlanner.sharedKey))
         }
         Spacer(Modifier.height(18.dp))
         if (rows.isEmpty()) {

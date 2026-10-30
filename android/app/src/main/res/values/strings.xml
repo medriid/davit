@@ -1,4 +1,6 @@
 <resources>
     <string name="widget_name">daVIT · Now and next</string>
     <string name="widget_description">Your current or next class, its attendance, and what is due.</string>
+    <string name="attendance_widget_name">daVIT · Attendance</string>
+    <string name="attendance_widget_description">Courses near or under 75%, worst first, with what it takes.</string>
 </resources>

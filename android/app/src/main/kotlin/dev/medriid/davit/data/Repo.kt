@@ -1,5 +1,6 @@
 package dev.medriid.davit.data
 
+import androidx.compose.ui.graphics.toArgb
 import android.content.Context
 import android.graphics.BitmapFactory
 import android.util.Log
@@ -342,6 +343,7 @@ class Repo(private val context: Context) {
                 prefs.edit().clear().putInt(K_INK, ink).putString(K_PALETTE, palette).putString(K_MASCOT, mascot).putInt(K_THEME, theme)
                     .putBoolean(K_WELCOMED, true).apply()
                 Notifier.forget(context)
+                PhoneCalendar.turnOff(context)
                 dev.medriid.davit.sync.Reminders.cancelAll(context)
                 dumpDir().deleteRecursively()
                 files.wipe()
@@ -518,6 +520,8 @@ class Repo(private val context: Context) {
             Log.i(TAG, "sync ok: " + client.timings.joinToString { "${it.first}=${it.second}ms" })
             _state.update { it.copy(snapshot = full, busy = null, timings = client.timings.toList()) }
             DavitWidget.refresh(context)
+            // Your classes in the phone's calendar, when that's on: rewritten from now with the latest timetable and calendar.
+            PhoneCalendar.refresh(context, full.classEvents(java.time.LocalDate.now()), _state.value.palette.inks(false).a.toArgb())
             return null
         } catch (e: Exception) {
             Log.w(TAG, "sync failed: ${e.javaClass.simpleName}")

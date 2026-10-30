@@ -17,6 +17,9 @@
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />
     <!-- Updates: hands a downloaded release to Android's installer, which asks you first. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- Your classes in the phone's calendar, only when you turn it on in Settings. -->
+    <uses-permission android:name="android.permission.READ_CALENDAR" />
+    <uses-permission android:name="android.permission.WRITE_CALENDAR" />
 
     <application
         android:name=".DavitApp"
@@ -67,6 +70,18 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/davit_widget" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.AttendanceWidgetReceiver"
+            android:exported="true"
+            android:label="@string/attendance_widget_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/attendance_widget" />
         </receiver>
     </application>
 
