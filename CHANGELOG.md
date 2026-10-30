@@ -2,6 +2,10 @@
 
 Downloads are on the [releases page](https://github.com/medriid/davit/releases). daVIT updates itself after the first install.
 
+## 0.8.1 — 2026-10-30
+
+- **The top bar is the display card**: your background, stats and mascot in one slim card, instead of a second big card on Today. Your name can replace "daVIT" in it.
+
 ## 0.8.0 — 2026-10-30
 
 - **Light mode in pastel**: soft card colours with black outlines and hard shadows, buttons in your accent colour, and a new Lime + Ink pair.
