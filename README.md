@@ -1,81 +1,99 @@
 <div align="center">
 
-<img src="docs/assets/logo.png" width="96" alt="daVIT logo">
+<img src="docs/assets/logo.png" width="96" alt="daVIT">
 
 # daVIT
 
-**A fast, private VTOP companion for VIT students.**
+### VTOP, without the waiting
+Attendance, classes, marks and the campus map for VIT students, printed in two inks.
 
-Attendance, today's classes and your week, printed in two inks.
-
-[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-F65058?style=flat-square)](LICENSE)
-![Platform](https://img.shields.io/badge/platform-Android%208%2B-00838A?style=flat-square)
-![Kotlin](https://img.shields.io/badge/Kotlin-Compose-00585D?style=flat-square)
-
-</div>
-
----
-
-## Features
-
-- **Attendance.** Every course sorted by risk, with how many classes you can skip or must attend, and its day-by-day history.
-- **Today at a glance.** The class that's on now and what's next (its room a tap from the map), then what's due, an exam or registration that's close, and what changed since you last looked.
-- **Academics.** Marks, assignments, exams, grades with your CGPA and each semester's GPA, credit progress, a semester planner, and your teachers by course (search by course, code or name; cabins open on the map), proctor, HOD and dean.
-- **Assignments, end to end.** Download the question paper and your own submission, and upload from the phone: type and size checked first, a confirm tap, progress, and VTOP's emailed code when you replace a file.
-- **Scan to PDF.** Photograph pages (or pick them from your gallery) into one PDF: the page's edges are found for you, shadows lifted, with Enhanced, Grey or black-and-white filters. Crop with a magnifier, turn, reorder, insert pages, put two photos on one page, name it, then upload it straight to the assignment (fitted under VTOP's 4 MB), save it or share it. Photos never leave the phone unless you do.
-- **Course materials.** Every course page with your own faculty's uploads first, by module. Files download with progress and open offline; a forgiving search (typos are fine) runs across all your courses.
-- **VTOP's verdicts.** Debarment remarks on your attendance and on Today, with an alert when one appears; the registration window with a reminder; pending feedback.
-- **The rest of VTOP.** Class and proctor messages, Spot-light, club events, hostel leave (apply, status, history), gate log, receipts, fees letters, library dues, and your curriculum with syllabus PDFs.
-- **Campus map.** The campus in 2.5D, printed in the same two inks. Search a block, a mess, an ATM or a room (PRP 327 finds Block E, 3rd floor), tap a building to see what's inside, and get walking or cycling routes from where you are. Mess menus, opening hours and the PRP floor plan are on each place's card.
-- **Your week.** Each day's classes, the whole week as a grid, and the academic calendar with holidays, exam dates and swapped days.
-- **Alerts you set up.** Warn below 75, 80 or 85%, when skips run low, course by course; a reminder before class with the room and what missing it would cost; new marks, deadlines, exams and registration, each on its own switch. A home-screen widget shows your next class.
-- **Signs in by itself.** VTOP's captcha is solved on the phone by a tiny model; sessions are reused, so most refreshes skip login entirely.
-- **Riso look.** Four two-ink palettes on paper or night print, halftone bars, and a mascot you can dress up.
-
-<div align="center">
-<img src="docs/assets/mascots.png" width="560" alt="Mascot styles">
-</div>
+[![Latest release](https://img.shields.io/github/v/release/medriid/davit?label=release&labelColor=00585D&color=F65058)](https://github.com/medriid/davit/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/medriid/davit/total?label=downloads&labelColor=00585D&color=00838A)](https://github.com/medriid/davit/releases)
+[![Build](https://img.shields.io/github/actions/workflow/status/medriid/davit/release.yml?label=build&labelColor=00585D)](https://github.com/medriid/davit/actions/workflows/release.yml)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-00838A?labelColor=00585D)](LICENSE)
 
 ## Download
 
-Get the latest APK from [Releases](https://github.com/medriid/davit/releases). Android 8 or newer. After that, daVIT downloads new releases by itself and asks you to install them.
+[![Get the APK](https://img.shields.io/github/v/release/medriid/davit?label=get%20the%20APK&labelColor=00585D&color=F65058&style=for-the-badge)](https://github.com/medriid/davit/releases/latest)
 
-## Privacy
+**Android** 8+ · updates itself
 
-- **Stays on your phone.** Password, session and data are sealed with AES-256-GCM under an Android Keystore key.
-- **Talks only to VTOP.** No server of ours, no accounts, no analytics. It also downloads public files (the academic calendar, the faculty directory and the campus map, refreshed weekly) and asks GitHub for the latest release once a day (or when you tap *Check*; turn it off in Settings). None of these send anything about you.
-- **Writes only when you ask.** Background sync only reads. An assignment upload or a hostel leave application goes to VTOP only after you've confirmed it on screen; every other write (payments, registration, password changes) is blocked in code.
-- **Files stay local.** Course materials and documents you open are kept in the app's private storage for offline use; delete them any time from Downloads.
-- **Location stays put.** The map reads your location only while it's open, to show where you are and route from you. It's never stored or sent.
-- **Optional app lock** with fingerprint, face or screen lock.
-- **Sign out erases everything** it stored, key included.
+*Only download daVIT from this repository's [releases](https://github.com/medriid/davit/releases).*
 
-## Build
+<br>
+
+<img src="docs/screenshots/today.jpg" alt="Today" width="160">
+<img src="docs/screenshots/attendance.jpg" alt="Attendance" width="160">
+<img src="docs/screenshots/grades.jpg" alt="Grades and CGPA" width="160">
+<img src="docs/screenshots/grid.jpg" alt="The week as a grid" width="160">
+<img src="docs/screenshots/map.jpg" alt="Campus map" width="160">
+
+## Features
+
+<div align="left">
+
+* **Today**: the class on now and next with its room, what's due, and what changed since you last looked.
+* **Attendance** sorted by risk: how many you can skip or must attend to stay at 75%, and VTOP's debarment remarks.
+* **Academics**: marks, assignments, exams, grades and CGPA, with a planner for this semester.
+* **Assignments end to end**: download the question paper, scan pages into a PDF, and upload it from your phone.
+* **Course materials** by module, kept offline, with a search that forgives typos.
+* **Your week** as a list, a grid or the academic calendar, with holidays and exam dates.
+* **Campus map**: find a block, a mess or a room (PRP 327), and walk there from where you are.
+* **The rest of VTOP**: hostel leave, club events, messages, receipts, curriculum, feedback and more.
+* **Alerts you set up**: low attendance, a reminder before class, new marks and deadlines; plus a home-screen widget.
+* **Signs in by itself.** The captcha is solved on your phone, so a refresh takes seconds.
+
+</div>
+
+## Private by design
+
+<div align="left">
+
+* Your password and data stay on your phone, encrypted with a key Android keeps. No server of ours, no accounts, no analytics.
+* It writes to VTOP only after you've confirmed on screen. Payments, registration and password changes are blocked in code.
+* It also fetches public files (the academic calendar, faculty directory and campus map) and checks GitHub once a day for a new release. None of these send anything about you.
+* Signing out erases everything it stored, key included. More in [the security model](docs/06-security-and-encryption.md).
+
+</div>
+
+<details>
+<summary>Installing</summary>
+<div align="left">
+
+* Open the APK and allow installs from your browser when Android asks.
+* After that, daVIT downloads new releases by itself and asks before installing (Settings → About).
+* On OnePlus, Oppo, Realme and Xiaomi phones, let daVIT run in the background (Settings → Sync) so syncs and alerts arrive.
+
+</div>
+</details>
+
+<details>
+<summary>Building from source</summary>
+<div align="left">
 
 Needs JDK 17 and the Android SDK (API 35).
 
 ```bash
-cd android
-./gradlew assembleDebug
+cd android && ./gradlew assembleDebug
 ```
 
-The captcha model weights and the slot timetable aren't part of this repository. Without them the app builds and runs but can't sign in. See [docs/05-captcha-solver.md](docs/05-captcha-solver.md) for how to supply them.
+The captcha model and slot timetable aren't in this repository, so a build from source runs but can't sign in; see [the captcha solver](docs/05-captcha-solver.md). Releases are built and signed by [GitHub Actions](.github/workflows/release.yml) from the tagged commit.
 
-## Layout
+`android/` is the app (Kotlin, Compose; `core` is plain JVM and tests on a laptop) · `web/` a small Flask build of the same engine · `docs/` the [VTOP endpoints](docs/04-vtop-api-reference.md), captcha solver and security model
 
-| Path | |
-|---|---|
-| [`android/`](android) | The app: Kotlin, Jetpack Compose. `core` is plain JVM (VTOP client, captcha solver, parsers) and runs its tests on a laptop. |
-| [`web/`](web) | A small Flask build of the same engine, for the desktop. |
-| [`docs/`](docs) | VTOP endpoint reference, the captcha solver, the security model. |
-| [`tools/`](tools) | Helper scripts. |
+</div>
+</details>
 
-## Credits
+## Questions and help
 
-The campus map (buildings, rooms, PRP floors, mess menus and the walking network) is the work of [Jeman](https://www.linkedin.com/in/jemankalita/), shared under the MIT licence. Map data © OpenStreetMap contributors (ODbL).
+[Issues](https://github.com/medriid/davit/issues) for bugs and ideas · [Releases](https://github.com/medriid/davit/releases) for what's new
 
-Academic calendar and faculty directory from [IshanJ25/vtop-cal-data](https://github.com/IshanJ25/vtop-cal-data) and [vtop-fac-data](https://github.com/IshanJ25/vtop-fac-data). Fonts: Bagel Fat One and IBM Plex Mono (SIL OFL 1.1).
+### Credits
 
-## License
+Campus map by [Jeman](https://www.linkedin.com/in/jemankalita/) (MIT) · map data © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors · calendar and faculty data from [IshanJ25](https://github.com/IshanJ25) · fonts Bagel Fat One and IBM Plex Mono (OFL)
 
-[Apache-2.0](LICENSE). Not affiliated with VIT.
+### License
+
+[Apache-2.0](LICENSE). daVIT is not affiliated with VIT.
+
+</div>
