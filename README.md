@@ -33,14 +33,14 @@ Attendance, classes, marks and the campus map for VIT students, printed in two i
 <div align="left">
 
 * **Today**: the class on now and next with its room, what's due, and what changed since you last looked.
-* **Attendance** sorted by risk: how many you can skip or must attend to stay at 75%, and VTOP's debarment remarks.
+* **Attendance** sorted by risk: how many you can skip or must attend to stay at 75%, and **Plan a leave** to see what days away will cost.
 * **Academics**: marks, assignments, exams, grades and CGPA, with a planner for this semester.
-* **Assignments end to end**: download the question paper, scan pages into a PDF, and upload it from your phone.
+* **Assignments end to end**: download the question paper, scan pages into a PDF compressed under 4 MB, and upload it from the scanner.
 * **Course materials** by module, kept offline, with a search that forgives typos.
-* **Your week** as a list, a grid or the academic calendar, with holidays and exam dates.
+* **Your week** as a list, a grid or the academic calendar, swapped days and holidays included, and in your phone's calendar if you like.
 * **Campus map**: find a block, a mess or a room (PRP 327), and walk there from where you are.
 * **The rest of VTOP**: hostel leave, club events, messages, receipts, curriculum, feedback and more.
-* **Alerts you set up**: low attendance, a reminder before class, new marks and deadlines; plus a home-screen widget.
+* **Alerts you set up**: low attendance, a reminder before class, new marks and deadlines; plus two home-screen widgets.
 * **Signs in by itself.** The captcha is solved on your phone, so a refresh takes seconds.
 
 </div>
