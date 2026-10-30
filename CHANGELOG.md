@@ -2,6 +2,11 @@
 
 Downloads are on the [releases page](https://github.com/medriid/davit/releases). daVIT updates itself after the first install.
 
+## 0.8.0 — 2026-10-30
+
+- **Light mode in pastel**: soft card colours with black outlines and hard shadows, buttons in your accent colour, and a new Lime + Ink pair.
+- **A display card on Today**: a built-in print or your own photo, two stats of your choice in its corners, your mascot and your name. Tap it to change it.
+
 ## 0.7.0 — 2026-10-30
 
 - **Calmer colours**: night print on warm charcoal with toned-down inks (no more glow), softer cards by day.
