@@ -35,6 +35,24 @@ class PaletteTest {
     }
 
     @Test
+    fun nightPrintIsTonedDownAndStillReads() {
+        for (i in InkPairs.all.indices) {
+            val day = InkPairs.of(i, false)
+            val night = InkPairs.of(i, true)
+            // Calmer than the day's spot ink, so nothing glows on the charcoal stock.
+            assertTrue(night.a.toHsv()[1] < day.a.toHsv()[1])
+            assertTrue(night.b.contrast(night.paper) >= 3f)
+            assertTrue(night.text.contrast(night.paper) >= 7f)
+            assertTrue(day.text.contrast(day.paper) >= 4.5f)
+            assertEquals(androidx.compose.ui.graphics.BlendMode.SrcOver, night.blend)
+            for (k in Kind.entries) {
+                assertTrue("${k.name} plate", night.plate(k).toHsv()[1] < k.default.toHsv()[1] || k.default.toHsv()[1] == 0f)
+                assertTrue("${k.name} shows", night.plate(k).contrast(night.paper) >= 2.2f)
+            }
+        }
+    }
+
+    @Test
     fun textIsWorkedOutToReadOnAnyPaperYouPick() {
         val papers = listOf(0xFFFFFFFF, 0xFFFFF3B0, 0xFF9ED8FF, 0xFF7A7A7A, 0xFF3A0F2E, 0xFF000000)
         for (paper in papers) {

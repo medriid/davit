@@ -213,7 +213,7 @@ internal fun SettingsScreen(route: Route) {
             )
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                InkPairs.all.forEachIndexed { i, pair -> InkSwatch(pair, selected = !palette.custom && i == palette.base) { if (palette.custom) replacing = i else repo.setInk(i) } }
+                InkPairs.all.indices.forEach { i -> InkSwatch(InkPairs.of(i, LocalInks.current.dark), selected = !palette.custom && i == palette.base) { if (palette.custom) replacing = i else repo.setInk(i) } }
             }
             replacing?.let { i ->
                 Spacer(Modifier.height(8.dp))

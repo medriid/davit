@@ -22,15 +22,30 @@ enum class Kind(val title: String, val note: String, val default: Color) {
 }
 
 /**
+ * How hard the inks print: [saturation] and [brightness] scale a spot ink down (1 = as it
+ * comes), and [wash] is how much of a card's colour tints its paper. Night print tones the
+ * bright spot inks down, so they glow less on dark stock.
+ */
+@Immutable
+data class Tone(val saturation: Float = 1f, val brightness: Float = 1f, val wash: Float = 0.12f)
+
+/** [this] ink printed at [tone]: less saturated and no brighter than it allows. */
+fun Color.toned(tone: Tone): Color {
+    if (tone.saturation >= 1f && tone.brightness >= 1f) return this
+    val (h, s, v) = toHsv().let { Triple(it[0], it[1], it[2]) }
+    return hsvColor(h, s * tone.saturation, minOf(v, tone.brightness))
+}
+
+/**
  * Two inks on paper, mirroring `design/tokens.css`.
  * Ink A is the bright fill (display type, big shapes, button plate, seal);
  * ink B is the dark ink (headings, lines, halftone dots, buttons);
  * [text] is a deeper pull of ink B for small text, since ink B itself is too light.
- * Overlaps are never hand-picked: draw with [blend], multiply on paper and screen on the
- * dark "night print" paper, where multiply would swallow the ink.
+ * Overlaps are never hand-picked: draw with [blend], multiply on paper; on the dark
+ * "night print" paper inks simply sit on top, as screening them made overlaps glow.
  *
  * Cards are printed per [Kind]: [kinds] holds your colour for each (null for the
- * defaults), and with [tinted] their paper takes a wash of it too.
+ * defaults), toned by [tone], and with [tinted] their paper takes a wash of it too.
  */
 @Immutable
 data class Inks(
@@ -41,22 +56,31 @@ data class Inks(
     val text: Color,
     val ruleAlpha: Float = 0.35f,
     val dark: Boolean = false,
-    val kinds: List<Color>? = null,
+    val kinds: List<Color?>? = null,
     val tinted: Boolean = true,
     /** The same inks on day paper, for things that print the same at night (the mascot). */
     val dayTwin: Inks? = null,
+    val tone: Tone = Tone(),
 ) {
     /** Dashed table rules and quiet borders. */
     val rule: Color get() = text.copy(alpha = ruleAlpha)
 
     /** How overlapping ink combines on this paper. */
-    val blend: BlendMode get() = if (dark) BlendMode.Screen else BlendMode.Multiply
+    val blend: BlendMode get() = if (dark) BlendMode.SrcOver else BlendMode.Multiply
 
-    // Worked out once: each kind's plate (lifted at night so it shows on dark stock) and its wash.
+    // Worked out once: each kind's plate and its wash. The defaults print toned; a colour you
+    // picked prints as picked by day and toned like the rest at night, lifted so it shows.
     private val plates: List<Color> by lazy {
-        Kind.entries.map { k -> (kinds?.getOrNull(k.ordinal) ?: k.default).let { if (dark) it.liftedFor(paper, 2.2f) else it } }
+        Kind.entries.map { k ->
+            val yours = kinds?.getOrNull(k.ordinal)
+            when {
+                dark -> (yours ?: k.default).toned(tone).liftedFor(paper, 2.2f)
+                yours != null -> yours
+                else -> k.default.toned(tone)
+            }
+        }
     }
-    private val washes: List<Color> by lazy { plates.map { lerp(paper, it, if (dark) 0.16f else 0.12f) } }
+    private val washes: List<Color> by lazy { plates.map { lerp(paper, it, tone.wash) } }
 
     /** The plate behind a card of [kind]; ink A for none. */
     fun plate(kind: Kind?): Color = if (kind == null) a else plates[kind.ordinal]
@@ -66,25 +90,29 @@ data class Inks(
 }
 
 object InkPairs {
-    val Paper = Color(0xFFF1F0EB)
+    val Paper = Color(0xFFF4F2EC)
 
     val ScarletTeal = Inks("Scarlet + Teal", Paper, Color(0xFFF65058), Color(0xFF00838A), Color(0xFF00585D))
     val SunflowerFederal = Inks("Sunflower + Federal Blue", Paper, Color(0xFFFFB511), Color(0xFF3D5588), Color(0xFF2C3F6B))
     val PinkBlue = Inks("Fluorescent Pink + Blue", Paper, Color(0xFFFF48B0), Color(0xFF0078BF), Color(0xFF00598F))
     val RedBlack = Inks("Bright Red + Black", Paper, Color(0xFFF15060), Color(0xFF2A2A2A), Color(0xFF1F1F1F), ruleAlpha = 0.3f)
 
-    val all = listOf(ScarletTeal, SunflowerFederal, PinkBlue, RedBlack)
+    private val dayPairs = listOf(ScarletTeal, SunflowerFederal, PinkBlue, RedBlack)
 
-    // Night print: the same pairs pulled on dark stock, with ink B lifted so it reads.
-    val NightPaper = Color(0xFF17191C)
-    private val NightText = Color(0xFFE9E6DD)
+    // By day: a warm paper, ink A a touch softer, and card colours toned down with a light wash.
+    private val DayTone = Tone(saturation = 0.72f, brightness = 0.92f, wash = 0.08f)
 
-    val night = listOf(
-        Inks("Scarlet + Teal", NightPaper, Color(0xFFF65058), Color(0xFF2BB5BC), NightText, ruleAlpha = 0.3f, dark = true),
-        Inks("Sunflower + Federal Blue", NightPaper, Color(0xFFFFB511), Color(0xFF8198D2), NightText, ruleAlpha = 0.3f, dark = true),
-        Inks("Fluorescent Pink + Blue", NightPaper, Color(0xFFFF48B0), Color(0xFF4AA8F0), NightText, ruleAlpha = 0.3f, dark = true),
-        Inks("Bright Red + Black", NightPaper, Color(0xFFF15060), Color(0xFFD9D6CF), Color(0xFFEDEAE3), ruleAlpha = 0.3f, dark = true),
-    )
+    val all: List<Inks> = dayPairs.map { it.copy(paper = Paper, a = it.a.toned(Tone(0.85f, 1f)), tone = DayTone) }
+
+    // Night print: warm charcoal stock, every ink toned down so nothing glows, ink B lifted so it reads.
+    val NightPaper = Color(0xFF1E1C19)
+    private val NightText = Color(0xFFE8E2D6)
+    private val NightTone = Tone(saturation = 0.6f, brightness = 0.82f, wash = 0.08f)
+
+    val night: List<Inks> = dayPairs.map { p ->
+        val b = (if (p === RedBlack) Color(0xFFD9D6CF) else p.b.toned(Tone(0.75f, 1f))).liftedFor(NightPaper, 4f)
+        Inks(p.name, NightPaper, p.a.toned(NightTone), b, NightText, ruleAlpha = 0.3f, dark = true, tone = NightTone)
+    }
 
     /** The paper version of [inks]: for things that should print the same at night (the mascot). */
     fun onPaper(inks: Inks): Inks = if (!inks.dark) inks else inks.dayTwin?.takeIf { !it.dark }
@@ -95,4 +123,4 @@ object InkPairs {
     fun of(index: Int, dark: Boolean): Inks = (if (dark) night else all)[index.coerceIn(0, all.lastIndex)]
 }
 
-val LocalInks = staticCompositionLocalOf { InkPairs.ScarletTeal }
+val LocalInks = staticCompositionLocalOf { InkPairs.all.first() }

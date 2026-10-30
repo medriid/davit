@@ -11,7 +11,7 @@ import androidx.compose.ui.unit.TextUnit
 
 /** Provides the ink pair to everything below. Wrap the root in [Grain] for paper + grain. */
 @Composable
-fun RisoTheme(inks: Inks = InkPairs.ScarletTeal, content: @Composable () -> Unit) {
+fun RisoTheme(inks: Inks = InkPairs.all.first(), content: @Composable () -> Unit) {
     CompositionLocalProvider(LocalInks provides inks, content = content)
 }
 

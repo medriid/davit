@@ -171,8 +171,8 @@ internal fun ColoursScreen(route: Route) {
             InkText("A pair to build on. Starting over drops the colours you changed.", style = RisoType.small)
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                InkPairs.all.forEachIndexed { i, pair ->
-                    PairChip(pair, selected = i == palette.base) { if (palette.custom) startingOver = i else repo.setInk(i) }
+                InkPairs.all.indices.forEach { i ->
+                    PairChip(InkPairs.of(i, night), selected = i == palette.base) { if (palette.custom) startingOver = i else repo.setInk(i) }
                 }
             }
             startingOver?.let { i ->

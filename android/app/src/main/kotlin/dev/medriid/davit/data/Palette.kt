@@ -9,6 +9,7 @@ import dev.medriid.davit.design.argb
 import dev.medriid.davit.design.contrast
 import dev.medriid.davit.design.liftedFor
 import dev.medriid.davit.design.textFor
+import dev.medriid.davit.design.toned
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
@@ -50,7 +51,8 @@ data class Palette(
         val pair = InkPairs.of(base, dark)
         val paperOverride = (if (dark) nightPaper else paper)?.let(::color)
         val p = paperOverride ?: pair.paper
-        val inkA = a?.let(::color) ?: pair.a
+        // Your primary prints toned down at night like the pair's own.
+        val inkA = a?.let(::color)?.let { if (dark) it.toned(pair.tone) else it } ?: pair.a
         // Your secondary by day; at night the pair's lifted one, or yours lifted to read.
         val inkB = b?.let(::color)?.let { if (dark || p.luminanceDark()) it.liftedFor(p, 3f) else it } ?: pair.b.liftedFor(p, 3f)
         val textOverride = (if (dark) nightText else text)?.let(::color)
@@ -63,8 +65,9 @@ data class Palette(
             text = t,
             ruleAlpha = pair.ruleAlpha,
             dark = p.luminanceDark(),
-            kinds = Kind.entries.map(::kind),
+            kinds = Kind.entries.map { k -> kinds[k.name]?.let(::color) },
             tinted = tinted,
+            tone = pair.tone,
         )
     }
 

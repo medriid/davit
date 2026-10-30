@@ -1,0 +1,4 @@
+<resources>
+    <!-- Night print's charcoal stock, so a dark-mode launch doesn't flash light paper. -->
+    <color name="paper">#1E1C19</color>
+</resources>

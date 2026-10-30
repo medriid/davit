@@ -25,8 +25,13 @@ class MainActivity : ComponentActivity() {
     private var stoppedAt = 0L
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        // Paper is light in every ink pair, so the bar icons start dark; night print flips them.
-        val bars = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
+        // Bar icons dark on paper, light on night print, from the first frame (AppScreen keeps them in step).
+        val night = when (repo.state.value.theme) {
+            1 -> false
+            2 -> true
+            else -> (resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
+        }
+        val bars = if (night) SystemBarStyle.dark(Color.TRANSPARENT) else SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
         enableEdgeToEdge(statusBarStyle = bars, navigationBarStyle = bars)
         super.onCreate(savedInstanceState)
         locked = lockWanted()
