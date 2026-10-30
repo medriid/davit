@@ -2,6 +2,12 @@
 
 Downloads are on the [releases page](https://github.com/medriid/davit/releases). daVIT updates itself after the first install.
 
+## 0.9.0 — 2026-10-30
+
+- **Follow a route**: press Start and the map stays on you, turned the way you're going, with the next turn, what's left, and a new route if you stray.
+- **Monochrome glass**: a new look in black, white and greys with frosted glass cards, by day and night.
+- **Home** (was Today) keeps the display card; every other tab has a plain bar.
+
 ## 0.8.1 — 2026-10-30
 
 - **The top bar is the display card**: your background, stats and mascot in one slim card, instead of a second big card on Today. Your name can replace "daVIT" in it.
