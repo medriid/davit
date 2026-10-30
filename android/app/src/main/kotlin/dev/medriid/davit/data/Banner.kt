@@ -6,9 +6,9 @@ import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
 
 /**
- * The display card at the top of Today: a background (one of the built-in prints, or your
- * own photo), your mascot, your name, and two little stats in its corners. All yours to
- * change; none of it leaves the phone.
+ * The display card: the top bar printed on a background (one of the built-in prints, or
+ * your own photo), with two little stats of your choice. All yours to change; none of it
+ * leaves the phone.
  */
 @Serializable
 data class Banner(
@@ -20,9 +20,9 @@ data class Banner(
     val focus: Float = 0.5f,
     val left: String = BannerStat.Exam.id,
     val right: String = BannerStat.Attendance.id,
-    val showName: Boolean = true,
-    val showUsername: Boolean = false,
-    /** Hide the whole card. */
+    /** Your name in the bar instead of "daVIT". */
+    val nameInBar: Boolean = false,
+    /** A plain top bar instead of the card. */
     val hidden: Boolean = false,
 ) {
     fun toJson(): String = BannerJson.encodeToString(serializer(), this)

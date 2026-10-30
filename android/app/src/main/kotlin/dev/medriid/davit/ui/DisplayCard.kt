@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
@@ -44,18 +43,12 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.medriid.davit.data.Banner
 import dev.medriid.davit.data.BannerStat
-import dev.medriid.davit.data.Reminder
-import dev.medriid.davit.data.Snapshot
-import dev.medriid.davit.data.bannerText
 import dev.medriid.davit.design.InkButton
 import dev.medriid.davit.design.InkText
 import dev.medriid.davit.design.Inks
@@ -66,71 +59,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.time.LocalDateTime
 import kotlin.math.PI
 import kotlin.math.sin
 import kotlin.random.Random
 
-private val BannerShape = RoundedCornerShape(18.dp)
-
-/**
- * The display card: your background (a built-in print in your colours, or your photo),
- * two stats in its top corners, your mascot sitting on its bottom edge, and your name
- * under it. Tapping it opens [onEdit].
- */
 @Composable
-internal fun DisplayCard(
-    banner: Banner,
-    photoAt: Long,
-    photo: File,
-    mascot: Mascot,
-    name: String?,
-    username: String?,
-    snapshot: Snapshot?,
-    reminders: List<Reminder>,
-    onEdit: (() -> Unit)?,
-    modifier: Modifier = Modifier,
-) {
-    val inks = LocalInks.current
-    val now = remember { LocalDateTime.now() }
-    val left = snapshot?.bannerText(BannerStat.of(banner.left), reminders, now)
-    val right = snapshot?.bannerText(BannerStat.of(banner.right), reminders, now)
-    Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(Modifier.fillMaxWidth().height(186.dp)) {
-            // The card, with a hard shadow like every other card.
-            Box(Modifier.fillMaxWidth().height(140.dp).offset(5.dp, 5.dp).padding(end = 5.dp).clip(BannerShape).background(inks.plate(null)))
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(end = 5.dp)
-                    .height(140.dp)
-                    .clip(BannerShape)
-                    .border(2.dp, inks.text, BannerShape)
-                    .then(if (onEdit != null) Modifier.clickable(role = Role.Button, onClick = onEdit).semantics { contentDescription = "Change your display card" } else Modifier),
-            ) {
-                BannerBackground(banner, photoAt, photo, Modifier.fillMaxSize())
-                Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                    left?.let { StatChip(it) } ?: Spacer(Modifier)
-                    right?.let { StatChip(it) }
-                }
-            }
-            // The mascot sits on the card's bottom edge.
-            Box(Modifier.align(Alignment.BottomCenter).padding(end = 5.dp)) {
-                MascotAvatar(mascot, 86.dp, ring = 3.dp)
-            }
-        }
-        if (banner.showName && !name.isNullOrBlank()) {
-            Spacer(Modifier.height(6.dp))
-            InkText(name, style = RisoType.title.copy(textAlign = TextAlign.Center), maxLines = 1)
-        }
-        if (banner.showUsername && !username.isNullOrBlank()) {
-            InkText(username, style = RisoType.small.copy(textAlign = TextAlign.Center))
-        }
-    }
-}
-
-@Composable
-private fun StatChip(text: String) {
+internal fun StatChip(text: String) {
     val inks = LocalInks.current
     val shape = RoundedCornerShape(50)
     Box(
@@ -144,7 +78,7 @@ private fun StatChip(text: String) {
 
 /** Your photo, cropped to the card at [Banner.focus], or the chosen built-in print. */
 @Composable
-private fun BannerBackground(banner: Banner, photoAt: Long, photo: File, modifier: Modifier) {
+internal fun BannerBackground(banner: Banner, photoAt: Long, photo: File, modifier: Modifier) {
     val image by produceState<ImageBitmap?>(null, banner.photo, photoAt) {
         value = if (banner.photo && photo.exists()) withContext(Dispatchers.IO) {
             runCatching { BitmapFactory.decodeFile(photo.path)?.asImageBitmap() }.getOrNull()
@@ -260,7 +194,7 @@ private fun DrawScope.drawArt(style: Int, inks: Inks) {
     }
 }
 
-/** Make the display card yours: a built-in print or your own photo, what its corners say, and your name. */
+/** Make the top bar yours: a built-in print or your own photo behind it, the two stats it shows, and your name. */
 @Composable
 internal fun DisplayCardScreen(route: Route) {
     val repo = LocalRepo.current
@@ -272,11 +206,7 @@ internal fun DisplayCardScreen(route: Route) {
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri: Uri? ->
         if (uri != null) scope.launch { note = if (repo.setBannerPhoto(uri)) null else "Couldn't read that image." }
     }
-    RouteScreen(route, "Display card", "The card at the top of Today. Everything on it is yours to change, and stays on this phone.") {
-        DisplayCard(
-            b, state.bannerPhotoAt, repo.bannerPhoto, Mascot.parse(state.mascot),
-            state.snapshot?.profile?.name, state.regNo, state.snapshot, state.reminders, onEdit = null,
-        )
+    RouteScreen(route, "Display card", "The top bar, printed on a background of your choice. It changes above as you pick; nothing leaves this phone.") {
 
         GroupLabel("Background", Modifier.padding(top = 18.dp, bottom = 8.dp))
         Banner.Styles.chunked(3).forEachIndexed { row, names ->
@@ -316,16 +246,15 @@ internal fun DisplayCardScreen(route: Route) {
             }
         }
 
-        GroupLabel("Top left corner", Modifier.padding(top = 18.dp, bottom = 8.dp))
+        GroupLabel("First stat", Modifier.padding(top = 18.dp, bottom = 8.dp))
         ChoiceRow(BannerStat.entries.map { it.title }, BannerStat.of(b.left).ordinal) { repo.setBanner(b.copy(left = BannerStat.entries[it].id)) }
-        GroupLabel("Top right corner", Modifier.padding(top = 16.dp, bottom = 8.dp))
+        GroupLabel("Second stat", Modifier.padding(top = 16.dp, bottom = 8.dp))
         ChoiceRow(BannerStat.entries.map { it.title }, BannerStat.of(b.right).ordinal) { repo.setBanner(b.copy(right = BannerStat.entries[it].id)) }
 
-        GroupLabel("Under your mascot", Modifier.padding(top = 18.dp, bottom = 4.dp))
-        ToggleRow("Your name", "As VTOP has it.", b.showName) { repo.setBanner(b.copy(showName = !b.showName)) }
-        ToggleRow("Your VTOP username", "Only on your screen; worth hiding if others see your phone.", b.showUsername) { repo.setBanner(b.copy(showUsername = !b.showUsername)) }
-        ToggleRow("Show the card on Today", "Turn it off for a plainer Today.", !b.hidden) { repo.setBanner(b.copy(hidden = !b.hidden)) }
+        GroupLabel("In the bar", Modifier.padding(top = 18.dp, bottom = 4.dp))
+        ToggleRow("Your name instead of daVIT", "As VTOP has it. Only on your screen.", b.nameInBar) { repo.setBanner(b.copy(nameInBar = !b.nameInBar)) }
+        ToggleRow("Print the bar on a card", "Off for a plain top bar.", !b.hidden) { repo.setBanner(b.copy(hidden = !b.hidden)) }
         Spacer(Modifier.height(10.dp))
-        InkText("Your mascot is changed in Settings → Look.", style = RisoType.small)
+        InkText("Your mascot, in the bar's corner, is changed in Settings → Look.", style = RisoType.small)
     }
 }

@@ -1,5 +1,12 @@
 package dev.medriid.davit.ui
 
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.shape.RoundedCornerShape
+import dev.medriid.davit.data.bannerText
+import dev.medriid.davit.data.BannerStat
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.background
@@ -165,7 +172,7 @@ private fun Main(state: UiState, repo: Repo) {
     CompositionLocalProvider(LocalNav provides nav, LocalRepo provides repo) {
         Box(Modifier.fillMaxSize()) {
             Column(Modifier.fillMaxSize()) {
-                TopBar(state, mascot, onSync = repo::sync, onProfile = { nav.go(Route.Settings) }, onMore = { nav.go(Route.Campus) }, modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars))
+                TopBar(state, mascot, repo.bannerPhoto, onSync = repo::sync, onProfile = { nav.go(Route.Settings) }, onMore = { nav.go(Route.Campus) }, modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars))
                 AnimatedVisibility(state.error != null) {
                     ErrorBanner(state.error.orEmpty(), onRetry = repo::sync, onDismiss = repo::dismissError)
                 }
@@ -292,7 +299,11 @@ private fun RouteHost(route: Route) = when (route) {
 }
 
 @Composable
-private fun TopBar(state: UiState, mascot: Mascot, onSync: () -> Unit, onProfile: () -> Unit, onMore: () -> Unit, modifier: Modifier = Modifier) {
+internal fun TopBar(state: UiState, mascot: Mascot, photo: java.io.File, onSync: () -> Unit, onProfile: () -> Unit, onMore: () -> Unit, modifier: Modifier = Modifier) {
+    if (!state.banner.hidden) {
+        CardBar(state, mascot, photo, onSync, onProfile, onMore, modifier)
+        return
+    }
     Row(
         modifier.fillMaxWidth().padding(start = Gutter, end = Gutter - 4.dp, top = 8.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -338,6 +349,86 @@ private fun TopBar(state: UiState, mascot: Mascot, onSync: () -> Unit, onProfile
             ) { IconGlyph(RisoIcon.Settings, LocalInks.current.text, Modifier.fillMaxSize()) }
         }
     }
+}
+
+/**
+ * The top bar as your display card: the logo, More and your mascot on your background (a
+ * built-in print or your photo), and under them the two stats you picked and the sync
+ * status. Everything that sits on the picture gets a paper pill, so it reads on any photo.
+ */
+@Composable
+private fun CardBar(state: UiState, mascot: Mascot, photo: java.io.File, onSync: () -> Unit, onProfile: () -> Unit, onMore: () -> Unit, modifier: Modifier) {
+    val inks = LocalInks.current
+    val banner = state.banner
+    val shape = RoundedCornerShape(16.dp)
+    val now = remember { java.time.LocalDateTime.now() }
+    val left = state.snapshot?.bannerText(BannerStat.of(banner.left), state.reminders, now)
+    val right = state.snapshot?.bannerText(BannerStat.of(banner.right), state.reminders, now)
+    Box(modifier.fillMaxWidth().padding(start = Gutter, end = Gutter - 4.dp, top = 6.dp, bottom = 8.dp)) {
+        Box(Modifier.padding(end = 4.dp, bottom = 4.dp)) {
+            Box(Modifier.matchParentSize().offset(4.dp, 4.dp).clip(shape).background(inks.plate(null)))
+            Box(Modifier.fillMaxWidth().clip(shape).border(2.dp, inks.text, shape)) {
+                BannerBackground(banner, state.bannerPhotoAt, photo, Modifier.matchParentSize())
+                Column(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 9.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Seal(size = 34.dp)
+                        Spacer(Modifier.width(8.dp))
+                        // The name pill doubles as the sync button: tap it to sync; under the name, when it last did (or what it's doing).
+                        Pill(Modifier.widthIn(max = 170.dp).clickable(enabled = state.busy == null, role = Role.Button, onClick = onSync)) {
+                            Column {
+                                val name = state.snapshot?.profile?.name?.ifBlank { null }?.takeIf { banner.nameInBar }
+                                if (name != null) InkText(name, style = RisoType.body.copy(fontWeight = FontWeight.SemiBold), maxLines = 1)
+                                else Heading("daVIT", 18.sp, uppercase = false)
+                                InkText(
+                                    state.busy ?: ("Synced " + (state.snapshot?.syncedAt?.let { ago(it) } ?: "never")),
+                                    style = RisoType.small.copy(fontSize = 11.sp), maxLines = 1,
+                                )
+                            }
+                        }
+                        Spacer(Modifier.weight(1f))
+                        Spacer(Modifier.width(6.dp))
+                        Box(Modifier.clip(CircleShape).background(inks.paper).border(1.5.dp, inks.text, CircleShape)) {
+                            TopIcon(RisoIcon.More, "More from VTOP", onMore)
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        Box(
+                            Modifier
+                                .clickable(role = Role.Button, onClick = onProfile)
+                                .semantics { contentDescription = "Profile and settings" },
+                        ) {
+                            MascotAvatar(mascot, 44.dp)
+                            Box(
+                                Modifier
+                                    .align(Alignment.BottomEnd)
+                                    .size(17.dp)
+                                    .background(inks.paper, CircleShape)
+                                    .border(1.5.dp, inks.text, CircleShape)
+                                    .padding(2.dp),
+                            ) { IconGlyph(RisoIcon.Settings, inks.text, Modifier.fillMaxSize()) }
+                        }
+                    }
+                    if (left != null || right != null) {
+                        Spacer(Modifier.height(8.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            left?.let { StatChip(it) }
+                            right?.let { StatChip(it) }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Paper behind text that sits on a picture, so it reads on anything. */
+@Composable
+private fun Pill(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    val inks = LocalInks.current
+    val shape = RoundedCornerShape(50)
+    Box(
+        modifier.clip(shape).background(inks.paper).border(1.5.dp, inks.text, shape).padding(horizontal = 10.dp, vertical = 4.dp),
+        contentAlignment = Alignment.Center,
+    ) { content() }
 }
 
 @Composable

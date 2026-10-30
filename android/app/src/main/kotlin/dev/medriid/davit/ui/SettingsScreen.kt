@@ -232,7 +232,7 @@ internal fun SettingsScreen(route: Route) {
             }
             Spacer(Modifier.height(6.dp))
             SettingRow("Your own colours", "Any colour for every ink, and for each kind of card.", "Choose") { nav.go(Route.Colours) }
-            SettingRow("Display card", "The card at the top of Today: a print or your own photo, and what it shows.", "Change") { nav.go(Route.DisplayCard) }
+            SettingRow("Display card", "The top bar on a print or your own photo, with two stats you pick.", "Change") { nav.go(Route.DisplayCard) }
             Spacer(Modifier.height(14.dp))
             Hairline()
             var editing by rememberSaveable { mutableStateOf(false) }
