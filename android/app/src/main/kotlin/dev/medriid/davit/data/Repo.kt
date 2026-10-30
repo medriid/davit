@@ -367,12 +367,27 @@ class Repo(private val context: Context) {
             }
             if (semesters.isEmpty()) throw UnexpectedPage("VTOP didn't list any semesters.")
             val wanted = prefs.getString(K_SEMESTER, null) ?: currentSemesterId()
-            val semester = semesters.firstOrNull { it.id == wanted } ?: semesters.first()
+            var semester = semesters.firstOrNull { it.id == wanted }
+            var found: List<dev.medriid.davit.vtop.AttendanceRow>? = null
+            _state.update { it.copy(busy = "Fetching attendance") }
+            if (semester == null) {
+                // Your current semester: the newest VTOP has classes for. A semester can be
+                // listed before it starts, with no attendance yet. Remembered for a day.
+                for (s in semesters.take(3)) {
+                    val rows = withSession(creds) { client.attendance(s.id) }
+                    if (rows.isNotEmpty()) {
+                        semester = s
+                        found = rows
+                        break
+                    }
+                }
+                semester = semester ?: semesters.first()
+                prefs.edit().putString(K_CUR_SEM, semester.id).putLong(K_CUR_SEM_AT, System.currentTimeMillis()).apply()
+            }
             val old = _state.value.snapshot?.takeIf { it.semester.id == semester.id }
 
             // Attendance first, and shown as soon as it lands.
-            _state.update { it.copy(busy = "Fetching attendance") }
-            val attendance = withSession(creds) { client.attendance(semester.id) }
+            val attendance = found ?: withSession(creds) { client.attendance(semester.id) }
             dump("attendance", creds.first)
             val partial = Snapshot(
                 semester, semesters, attendance, old?.timetable.orEmpty(),
@@ -463,25 +478,25 @@ class Repo(private val context: Context) {
             scheduleRegistrationReminders(feeds)
 
             // The academic calendar from VTOP, for your class group (freshers' Saturdays differ),
-            // every few days; the published general calendar only if VTOP's fails.
+            // every few days; if VTOP's fails, the last one read stays.
             if (full.calendar?.semesterId != semester.id || full.calendar?.group.isNullOrEmpty() || now - full.calendarAt > 3 * 24 * 3_600_000L) {
                 _state.update { it.copy(snapshot = full, busy = "Fetching calendar") }
-                val fromVtop = section("Fetching calendar", "calendar", creds, full) { vtopCalendar(semester.id, full) }
-                val cal = fromVtop ?: runCatching { PublicData.calendar(semester) }
-                    .onFailure { Log.w(TAG, "calendar failed: ${it.javaClass.simpleName}") }.getOrNull()
+                val cal = section("Fetching calendar", "calendar", creds, full) { vtopCalendar(semester.id, full) }
                 cal?.let { full = full.copy(calendar = it, calendarAt = now) }
                 if (groupsSeen.isNotEmpty()) full = full.copy(feeds = full.feeds.copy(classGroups = groupsSeen))
             }
             if (full.timetable.isNotEmpty() && (full.facultyAt == 0L || now - full.facultyAt > 7 * 24 * 3_600_000L)) {
-                _state.update { it.copy(snapshot = full, busy = "Matching faculty") }
-                val directory = runCatching { PublicData.facultyDirectory() }.getOrDefault(emptyMap())
-                if (directory.isNotEmpty()) {
-                    val ids = full.timetable.map { facultyKey(it.faculty) }.filter { it.isNotEmpty() }.distinct().mapNotNull { directory[it] }
-                    val cards = ids.mapIndexedNotNull { i, id ->
-                        section("Faculty ${i + 1}/${ids.size}", "faculty", creds, full) { client.faculty(id) }
+                // Each of your teachers through VTOP's own faculty search: the hit whose name
+                // matches (or the only hit), then its card.
+                val names = full.timetable.map { it.faculty }.filter { facultyKey(it).length >= 3 }.distinctBy { facultyKey(it) }
+                val cards = names.mapIndexedNotNull { i, name ->
+                    section("Faculty ${i + 1}/${names.size}", "faculty", creds, full) {
+                        val hits = client.searchFaculty(facultyKey(name))
+                        val hit = hits.singleOrNull { facultyKey(it.name) == facultyKey(name) } ?: hits.singleOrNull()
+                        hit?.let { client.faculty(it.empId) }
                     }
-                    full = full.copy(faculty = cards.ifEmpty { full.faculty }, facultyAt = now)
                 }
+                full = full.copy(faculty = cards.ifEmpty { full.faculty }, facultyAt = now)
             }
 
             // Since you last looked: new marks first, then attendance moves; else keep the last list.
@@ -587,13 +602,10 @@ class Repo(private val context: Context) {
         }
     }
 
-    /** The published current semester id, checked at most daily; null if unknown. */
+    /** The current semester found within the last day; null to look again. */
     private fun currentSemesterId(): String? {
         val at = prefs.getLong(K_CUR_SEM_AT, 0)
-        if (System.currentTimeMillis() - at < 24 * 3_600_000L) return prefs.getString(K_CUR_SEM, null)
-        val id = runCatching { PublicData.currentSemester()["id"] }.getOrNull()
-        prefs.edit().putString(K_CUR_SEM, id).putLong(K_CUR_SEM_AT, System.currentTimeMillis()).apply()
-        return id
+        return if (System.currentTimeMillis() - at < 24 * 3_600_000L) prefs.getString(K_CUR_SEM, null) else null
     }
 
     private fun saveSession() {

@@ -27,11 +27,12 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Tag matches versionName
+      - name: Tag matches versionName, and CHANGELOG.md has its notes
         if: startsWith(github.ref, 'refs/tags/')
         run: |
           v=$(sed -n 's/^ *versionName = "\(.*\)"/\1/p' android/app/build.gradle.kts)
           [ "v$v" = "$GITHUB_REF_NAME" ] || { echo "::error::Tag is $GITHUB_REF_NAME but versionName is $v"; exit 1; }
+          grep -q "^## $v " CHANGELOG.md || { echo "::error::CHANGELOG.md has no '## $v' section"; exit 1; }
 
       - uses: actions/setup-java@v4
         with:
@@ -85,15 +86,17 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          prev=$(git describe --tags --abbrev=0 "$GITHUB_REF_NAME^" 2>/dev/null || true)
+          # The notes are this version's few lines from CHANGELOG.md, and a link to the rest.
+          heading=$(grep -m1 "^## $VERSION " CHANGELOG.md | sed 's/^## //')
+          anchor=$(printf '%s' "$heading" | tr 'A-Z' 'a-z' | sed 's/[^a-z0-9 -]//g; s/ /-/g')
           {
-            echo "## What's new"
+            awk -v h="## $heading" '$0 == h {on = 1; next} on && /^## / {exit} on' CHANGELOG.md | sed '/./,$!d'
             echo
-            git log --no-merges --format='- %s' ${prev:+$prev..}"$GITHUB_REF_NAME"
+            echo "**Android 8+** · \`davit-$VERSION.apk\` · already installed? daVIT offers this itself."
             echo
-            echo "Android 8+. Already have daVIT? It downloads this by itself and asks you to install it (Settings → About)."
-            echo "On OnePlus, Oppo, Realme and Xiaomi phones, allow daVIT to run in the background (Settings → Sync) so syncs and alerts arrive."
+            echo "[Full changelog](https://github.com/$GITHUB_REPOSITORY/blob/$GITHUB_REF_NAME/CHANGELOG.md#$anchor)"
           } > notes.md
+          cat notes.md
           if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
             gh release upload "$GITHUB_REF_NAME" "davit-$VERSION.apk" --clobber
           else

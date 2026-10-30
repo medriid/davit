@@ -4,8 +4,11 @@ import dev.medriid.davit.vtop.AttendanceRow
 import dev.medriid.davit.vtop.Meeting
 import dev.medriid.davit.vtop.SlotTimes
 import dev.medriid.davit.vtop.TimetableCourse
+import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.format.TextStyle
+import java.util.Locale
 
 const val THRESHOLD = 0.75
 
@@ -85,10 +88,7 @@ data class TodayPlan(
  */
 fun planFor(week: Map<Int, List<ClassSlot>>, at: LocalDateTime, calendar: AcademicCalendar? = null): TodayPlan {
     val date = at.toLocalDate()
-    fun classesOn(d: LocalDate): List<ClassSlot> {
-        val wd = if (calendar != null) calendar.timetableDay(d) else d.dayOfWeek.value
-        return wd?.let { week[it] }.orEmpty()
-    }
+    fun classesOn(d: LocalDate) = classesOn(week, d, calendar)
     val minute = at.hour * 60 + at.minute
     val today = classesOn(date)
     val now = today.firstOrNull { minute >= it.meeting.start && minute < it.meeting.end }
@@ -108,6 +108,37 @@ fun planFor(week: Map<Int, List<ClassSlot>>, at: LocalDateTime, calendar: Academ
         today, now, next, inDays, today.count { it.meeting.end <= minute },
         next?.let { date.plusDays(inDays.toLong()) }, calendar?.day(date),
     )
+}
+
+/**
+ * The classes on [date]: the timetable of the weekday the calendar says it runs (a
+ * Saturday on Wednesday's order gets Wednesday's classes); none on holidays and exam days.
+ */
+fun classesOn(week: Map<Int, List<ClassSlot>>, date: LocalDate, calendar: AcademicCalendar?): List<ClassSlot> {
+    val wd = if (calendar != null) calendar.timetableDay(date) else date.dayOfWeek.value
+    return wd?.let { week[it] }.orEmpty()
+}
+
+/** The dates the Week tab shows: Monday to Sunday of this week, or of the coming one on a Sunday. */
+fun weekDates(today: LocalDate): List<LocalDate> {
+    val monday = if (today.dayOfWeek == DayOfWeek.SUNDAY) today.plusDays(1) else today.with(DayOfWeek.MONDAY)
+    return (0..6).map { monday.plusDays(it.toLong()) }
+}
+
+/**
+ * What the calendar changes about [date], in a few words ("Runs Wednesday's timetable",
+ * "Holiday: Deepavali", "CAT-2: no regular classes"); null for an ordinary day.
+ */
+fun AcademicCalendar.dayNote(date: LocalDate): String? {
+    val d = day(date) ?: return null
+    return when {
+        d.instructional -> d.dayOrder.takeIf { it in 1..7 && it != date.dayOfWeek.value }
+            ?.let { "Runs ${DayOfWeek.of(it).getDisplayName(TextStyle.FULL, Locale.ENGLISH)}'s timetable" }
+        d.exam -> "${d.type}: no regular classes"
+        d.type.equals("Holiday", ignoreCase = true) -> d.note?.let { "Holiday: $it" }
+        d.type.equals("None", ignoreCase = true) -> null
+        else -> d.note ?: d.type
+    }
 }
 
 /**
@@ -178,3 +209,7 @@ fun AttendanceRow.hint(remaining: Int?): String {
 }
 
 fun clock(minutes: Int) = "%02d:%02d".format(minutes / 60, minutes % 60)
+
+/** "Dr. Asha  Raman" and "ASHA RAMAN" match: uppercase, titles and punctuation dropped. */
+fun facultyKey(name: String): String =
+    name.uppercase().replace(Regex("""^(DR|PROF|MR|MRS|MS)\.?\s+"""), "").replace(Regex("[^A-Z ]"), " ").trim().replace(Regex("\\s+"), " ")

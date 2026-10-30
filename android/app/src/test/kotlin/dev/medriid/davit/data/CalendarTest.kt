@@ -59,6 +59,31 @@ class CalendarTest {
     }
 
     @Test
+    fun theWeekTabShowsEachDatesOwnOrder() {
+        // Sat 31 Oct runs Wednesday's order, as VTOP's calendar says.
+        val wednesday = AcademicCalendar(
+            "VL1", null, null, null,
+            listOf(
+                CalDay(LocalDate.of(2026, 10, 31), "Instructional", 3, null),
+                CalDay(LocalDate.of(2026, 11, 4), "Holiday", 0, "Deepavali"),
+            ),
+        )
+        val wed = slot(3, 540)
+        val week = mapOf(3 to listOf(wed))
+        val saturday = LocalDate.of(2026, 10, 31)
+        assertEquals(listOf(wed), classesOn(week, saturday, wednesday))
+        assertEquals(emptyList<ClassSlot>(), classesOn(week, saturday, null))
+        assertEquals("Runs Wednesday's timetable", wednesday.dayNote(saturday))
+        // The Wednesday after is Deepavali: no classes, and it says why.
+        assertEquals(emptyList<ClassSlot>(), classesOn(week, LocalDate.of(2026, 11, 4), wednesday))
+        assertEquals("Holiday: Deepavali", wednesday.dayNote(LocalDate.of(2026, 11, 4)))
+        assertNull(wednesday.dayNote(LocalDate.of(2026, 11, 2)))
+        // Monday to Sunday of this week; on a Sunday, the coming week.
+        assertEquals(LocalDate.of(2026, 10, 26), weekDates(LocalDate.of(2026, 10, 30)).first())
+        assertEquals(LocalDate.of(2026, 11, 2), weekDates(LocalDate.of(2026, 11, 1)).first())
+    }
+
+    @Test
     fun cachedFormatRoundTrips() {
         assertEquals(cal, AcademicCalendar.fromJson(cal.toJson()))
     }

@@ -41,8 +41,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.medriid.davit.data.Snapshot
+import dev.medriid.davit.data.classesOn
 import dev.medriid.davit.data.clock
+import dev.medriid.davit.data.dayNote
+import dev.medriid.davit.data.effectiveCalendar
 import dev.medriid.davit.data.percent
+import dev.medriid.davit.data.weekDates
 import dev.medriid.davit.data.weekOf
 import dev.medriid.davit.design.Heading
 import dev.medriid.davit.design.InkCard
@@ -55,14 +59,23 @@ import java.time.LocalDateTime
 import java.time.format.TextStyle
 import java.util.Locale
 
-/** The week as one day at a time; the grid view and calendar come in M4. */
+/**
+ * This week's dates, one at a time or side by side, each with the classes the calendar
+ * says it runs: a Saturday on Wednesday's order shows Wednesday's classes, a holiday none.
+ */
 @Composable
 internal fun WeekTab(snapshot: Snapshot) {
     val week = remember(snapshot) { weekOf(snapshot) }
+    val calendar = remember(snapshot) { snapshot.effectiveCalendar() }
     val now = LocalDateTime.now()
-    val today = now.dayOfWeek.value
-    val days = (1..7).filter { it <= 6 || week[it].orEmpty().isNotEmpty() }
+    val todayDate = now.toLocalDate()
+    val dates = remember(snapshot, todayDate) {
+        weekDates(todayDate).filter { it.dayOfWeek != DayOfWeek.SUNDAY || classesOn(week, it, calendar).isNotEmpty() }
+    }
+    val today = todayDate.dayOfWeek.value
+    val days = dates.map { it.dayOfWeek.value }
     var day by rememberSaveable { mutableIntStateOf(if (today in days) today else days.first()) }
+    val date = dates[days.indexOf(day).coerceAtLeast(0)]
     val inks = LocalInks.current
     var mode by rememberSaveable { mutableIntStateOf(0) }
 
@@ -73,7 +86,7 @@ internal fun WeekTab(snapshot: Snapshot) {
         ChoiceRow(listOf("Day", "Grid", "Calendar"), mode) { mode = it }
         Spacer(Modifier.height(12.dp))
         if (mode == 1) {
-            WeekGrid(week, days, today, now.hour * 60 + now.minute, snapshot.attendanceExempt) {
+            WeekGrid(week, calendar, dates, todayDate, now.hour * 60 + now.minute, snapshot.attendanceExempt) {
                 day = it
                 mode = 0
             }
@@ -86,8 +99,11 @@ internal fun WeekTab(snapshot: Snapshot) {
         ChoiceRow(days.map { DayOfWeek.of(it).getDisplayName(TextStyle.SHORT, Locale.ENGLISH) }, days.indexOf(day)) {
             day = days[it]
         }
-        Spacer(Modifier.height(16.dp))
-        val classes = week[day].orEmpty()
+        Spacer(Modifier.height(14.dp))
+        InkText(date.format(DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.ENGLISH)), style = RisoType.body.copy(fontWeight = FontWeight.SemiBold))
+        calendar?.dayNote(date)?.let { InkText(it, style = RisoType.small.copy(color = inks.a, fontWeight = FontWeight.SemiBold)) }
+        Spacer(Modifier.height(10.dp))
+        val classes = classesOn(week, date, calendar)
         if (classes.isEmpty()) {
             InkText(if (snapshot.timetable.isEmpty()) "No timetable for ${snapshot.semester.name} yet." else "No classes.")
         }
@@ -95,8 +111,8 @@ internal fun WeekTab(snapshot: Snapshot) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             classes.forEach { slot ->
                 val m = slot.meeting
-                val live = day == today && minute >= m.start && minute < m.end
-                val done = day == today && minute >= m.end
+                val live = date == todayDate && minute >= m.start && minute < m.end
+                val done = date.isBefore(todayDate) || (date == todayDate && minute >= m.end)
                 InkCard(
                     Modifier.fillMaxWidth(),
                     kind = dev.medriid.davit.design.Kind.Classes,
@@ -132,46 +148,68 @@ internal fun WeekTab(snapshot: Snapshot) {
 }
 
 /**
- * Mon–Sat side by side, each class a block at its real time; at-risk courses print in
- * ink A. A line marks now in today's column. Tapping a block opens that day.
+ * This week's dates side by side, each class a block at its real time; at-risk courses
+ * print in ink A. A day on another weekday's order says so under its name ("as Wed").
+ * A line marks now in today's column. Tapping a block opens that day.
  */
 @Composable
-private fun WeekGrid(week: Map<Int, List<ClassSlot>>, days: List<Int>, today: Int, minute: Int, exempt: Boolean, onDay: (Int) -> Unit) {
+private fun WeekGrid(
+    week: Map<Int, List<ClassSlot>>,
+    calendar: AcademicCalendar?,
+    dates: List<LocalDate>,
+    todayDate: LocalDate,
+    minute: Int,
+    exempt: Boolean,
+    onDay: (Int) -> Unit,
+) {
     val inks = LocalInks.current
-    val all = days.flatMap { week[it].orEmpty() }
+    val byDate = dates.associateWith { classesOn(week, it, calendar) }
+    val all = byDate.values.flatten()
     if (all.isEmpty()) {
-        InkText("No classes.")
+        InkText("No classes this week.")
         return
     }
     val startH = all.minOf { it.meeting.start } / 60
     val endH = (all.maxOf { it.meeting.end } + 59) / 60
     val hour = 54.dp
-    val head = 24.dp
+    // Each date's order when it isn't its own weekday's; the header grows a line for it.
+    val swapped = dates.associateWith { date ->
+        calendar?.takeIf { it.day(date)?.instructional == true }?.timetableDay(date)?.takeIf { it != date.dayOfWeek.value }
+    }
+    val head = if (swapped.values.any { it != null }) 38.dp else 24.dp
     Row(Modifier.fillMaxWidth()) {
         Column(Modifier.width(30.dp)) {
             Spacer(Modifier.height(head))
             for (h in startH until endH) Box(Modifier.height(hour)) { InkText("%02d".format(h), style = RisoType.small) }
         }
-        days.forEach { d ->
+        dates.forEach { date ->
+            val d = date.dayOfWeek.value
+            val today = date == todayDate
             Column(Modifier.weight(1f)) {
-                Box(Modifier.fillMaxWidth().height(head), contentAlignment = Alignment.Center) {
-                    InkText(DayOfWeek.of(d).getDisplayName(TextStyle.SHORT, Locale.ENGLISH), label = true)
+                Column(Modifier.fillMaxWidth().height(head), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                    InkText(date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.ENGLISH), label = true)
+                    swapped[date]?.let {
+                        BasicText(
+                            "as " + DayOfWeek.of(it).getDisplayName(TextStyle.SHORT, Locale.ENGLISH),
+                            style = RisoType.small.copy(color = inks.a, fontSize = 10.sp, fontWeight = FontWeight.SemiBold),
+                        )
+                    }
                 }
                 Box(
                     Modifier
                         .fillMaxWidth()
                         .height(hour * (endH - startH))
-                        .background(if (d == today) inks.b.copy(alpha = 0.07f) else Color.Transparent),
+                        .background(if (today) inks.b.copy(alpha = 0.07f) else Color.Transparent),
                 ) {
                     Canvas(Modifier.matchParentSize()) {
                         val hp = hour.toPx()
                         for (i in 0..(endH - startH)) drawLine(inks.rule, Offset(0f, i * hp), Offset(size.width, i * hp), 1.dp.toPx())
-                        if (d == today && minute in startH * 60..endH * 60) {
+                        if (today && minute in startH * 60..endH * 60) {
                             val y = (minute - startH * 60) / 60f * hp
                             drawLine(inks.a, Offset(0f, y), Offset(size.width, y), 2.5.dp.toPx())
                         }
                     }
-                    week[d].orEmpty().forEach { slot ->
+                    byDate.getValue(date).forEach { slot ->
                         val m = slot.meeting
                         val risk = slot.attendance?.atRisk == true && !exempt
                         Box(
@@ -208,7 +246,7 @@ private fun initials(name: String): String {
 private fun CalendarView(cal: AcademicCalendar?, today: LocalDate) {
     val inks = LocalInks.current
     if (cal == null || cal.days.isEmpty()) {
-        InkText("No published calendar for this semester yet.")
+        InkText("No calendar from VTOP for this semester yet.")
         return
     }
     val left = cal.instructionalDaysLeft(today)
@@ -219,7 +257,7 @@ private fun CalendarView(cal: AcademicCalendar?, today: LocalDate) {
             "teaching days left" + (cal.lastTheory?.let { " · last day ${it.format(DateTimeFormatter.ofPattern("d MMM", Locale.ENGLISH))}" } ?: ""),
             style = RisoType.body.copy(fontWeight = FontWeight.SemiBold),
         )
-        InkText(if (cal.group.isNotEmpty()) "VTOP calendar for ${cal.group}" else "General calendar", style = RisoType.small)
+        InkText(if (cal.group.isNotEmpty()) "VTOP calendar for ${cal.group}" else "VTOP calendar", style = RisoType.small)
     }
     val exams = cal.examWindows()
     if (exams.isNotEmpty()) {
@@ -311,5 +349,4 @@ private fun CalendarView(cal: AcademicCalendar?, today: LocalDate) {
         }
     }
     Spacer(Modifier.height(10.dp))
-    if (cal.group.isEmpty()) InkText("Calendar data: github.com/IshanJ25/vtop-cal-data", style = RisoType.small.copy(color = inks.rule))
 }

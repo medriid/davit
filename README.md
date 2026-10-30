@@ -51,7 +51,7 @@ Attendance, classes, marks and the campus map for VIT students, printed in two i
 
 * Your password and data stay on your phone, encrypted with a key Android keeps. No server of ours, no accounts, no analytics.
 * It writes to VTOP only after you've confirmed on screen. Payments, registration and password changes are blocked in code.
-* It also fetches public files (the academic calendar, faculty directory and campus map) and checks GitHub once a day for a new release. None of these send anything about you.
+* Besides VTOP, it only fetches the campus map and checks GitHub once a day for a new release. Neither sends anything about you.
 * Signing out erases everything it stored, key included. More in [the security model](docs/06-security-and-encryption.md).
 
 </div>
@@ -90,7 +90,7 @@ The captcha model and slot timetable aren't in this repository, so a build from 
 
 ### Credits
 
-Campus map by [Jeman](https://www.linkedin.com/in/jemankalita/) (MIT) · map data © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors · calendar and faculty data from [IshanJ25](https://github.com/IshanJ25) · fonts Bagel Fat One and IBM Plex Mono (OFL)
+Campus map by [Jeman](https://www.linkedin.com/in/jemankalita/) (MIT) · map data © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors · fonts Bagel Fat One and IBM Plex Mono (OFL)
 
 ### License
 

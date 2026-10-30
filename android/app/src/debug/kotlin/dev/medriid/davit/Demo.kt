@@ -1,6 +1,8 @@
 package dev.medriid.davit
 
 import android.app.Application
+import dev.medriid.davit.data.AcademicCalendar
+import dev.medriid.davit.data.CalDay
 import dev.medriid.davit.data.CachedCourse
 import dev.medriid.davit.data.Campus
 import dev.medriid.davit.data.HomeFeeds
@@ -119,6 +121,21 @@ internal object Demo {
                 FacultyInfo("10003", "MEERA NAIR", "Professor", "Department of Mathematics", "SAS", "meera.nair@example.edu", "TT 524"),
             ),
             facultyAt = System.currentTimeMillis(),
+            // This week's Saturday runs Wednesday's order; next Wednesday is a holiday.
+            calendar = AcademicCalendar(
+                sem.id, today.minusDays(100), today.plusDays(30), today.plusDays(30),
+                (-100L..30L).map { today.plusDays(it) }.map { day ->
+                    val saturday = today.with(java.time.DayOfWeek.SATURDAY)
+                    when {
+                        day == saturday -> CalDay(day, "Instructional", 3, null)
+                        day == saturday.plusDays(4) -> CalDay(day, "Holiday", 0, "Founders' Day")
+                        day.dayOfWeek.value >= 6 -> CalDay(day, "Holiday", 0, null)
+                        else -> CalDay(day, "Instructional", day.dayOfWeek.value, null)
+                    }
+                },
+                "General Freshers",
+            ),
+            calendarAt = System.currentTimeMillis(),
         )
         repo.showDemo(snapshot)
         DemoVtop.start(repo)

@@ -94,12 +94,10 @@ Warm-up `/hostels/student/leave/1` (`verifyMenu=true`), then `/leave/4`
 `POST /logout` + base params.
 
 ## Semester ids
-`semesterSubId` identifies a term, e.g. **`VL20262701`** (Fall 2026). The current
-one is published at
-`raw.githubusercontent.com/IshanJ25/vtop-cal-data/refs/heads/main/curr_sem.txt`.
-At runtime, the attendance landing page also carries a
-`select#semesterSubId` dropdown of all available terms — daVIT reads that and
-defaults to the most recent.
+`semesterSubId` identifies a term, e.g. **`VL20262701`** (Fall 2026). The
+attendance landing page carries a `select#semesterSubId` dropdown of all
+available terms, newest first. A term can be listed before it starts, so daVIT
+defaults to the newest one with attendance rows.
 
 ## Read-only stance
 Never call write/upload endpoints. daVIT blocks

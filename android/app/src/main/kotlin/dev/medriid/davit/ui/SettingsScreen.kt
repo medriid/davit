@@ -351,7 +351,6 @@ internal fun SettingsScreen(route: Route) {
                 "Jeman",
             ) { open("https://www.linkedin.com/in/jemankalita/") }
             SettingRow("Map data", "© OpenStreetMap contributors, under the Open Database Licence.", "OSM") { open("https://www.openstreetmap.org/copyright") }
-            SettingRow("Calendar and faculty", "The academic calendar and faculty directory come from IshanJ25's public data.", "GitHub") { open("https://github.com/IshanJ25") }
             InkText("Fonts: Bagel Fat One and IBM Plex Mono, under the SIL Open Font Licence.", style = RisoType.small, modifier = Modifier.padding(top = 6.dp))
         }
 
