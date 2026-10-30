@@ -8,9 +8,23 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-/** A file picked for an assignment, read into memory (VTOP takes 4 MB at most). */
-class PickedFile(val name: String, val mime: String, val bytes: ByteArray) {
+/** A file picked for an assignment, read into memory (VTOP takes 4 MB at most); [note] says how it was made to fit. */
+class PickedFile(val name: String, val mime: String, val bytes: ByteArray, val note: String? = null) {
     val size: Int get() = bytes.size
+}
+
+/** The assignment an upload is for: what [Uploads.send] needs, and what its confirm card says. */
+data class UploadTarget(
+    val classId: String,
+    val code: String,
+    val title: String,
+    val course: String,
+    val semesterId: String?,
+    /** A file is already there, so VTOP will ask for its emailed code. */
+    val replacing: Boolean,
+    val updated: String?,
+) {
+    val key: String get() = "$classId|$code"
 }
 
 /** Where one assignment's upload is. Kept outside the screen, so leaving it doesn't lose an upload or its OTP step. */
@@ -41,15 +55,19 @@ class Uploads(private val repo: Repo) {
 
     /** Checks the file the way VTOP's page does (type and size), so a wrong one never leaves the phone. */
     /** [size] is what the file says it is (null if unknown); [bytes] null when it wasn't read (too big, or unreadable). */
-    fun pick(key: String, name: String, mime: String, size: Long?, bytes: ByteArray?) {
+    fun pick(key: String, name: String, mime: String, size: Long?, bytes: ByteArray?, note: String? = null) {
         val problem = problemWith(name, size ?: bytes?.size?.toLong(), bytes)
         val ext = name.substringAfterLast('.', "").lowercase()
         set(
             key,
             if (problem != null || bytes == null) UploadState.Failed(problem ?: "Couldn't read that file.")
-            else UploadState.Ready(PickedFile(name, mime.ifBlank { MimeByExt[ext] ?: "application/octet-stream" }, bytes)),
+            else UploadState.Ready(PickedFile(name, mime.ifBlank { MimeByExt[ext] ?: "application/octet-stream" }, bytes, note)),
         )
     }
+
+    /** The confirm tap for [target]. */
+    fun send(target: UploadTarget, consent: UserConsent) =
+        send(target.key, consent, target.semesterId, target.classId, target.code, target.replacing)
 
     fun clear(key: String) = set(key, null)
 

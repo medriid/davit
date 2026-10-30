@@ -119,8 +119,37 @@ internal object DemoVtop {
         "hostels/late/hour/student/request/11" -> "<table id=\"LateHourHistoryTable\"><tbody></tbody></table>"
         "hostels/student/leave/4" -> "<table id=\"LeaveAppliedTable\"><tbody><tr><td>1</td><td><input type=\"hidden\" value=\"y\"></td><td>Chennai</td><td>Family function</td><td>HOME TOWN</td><td>07-Nov-2026</td><td>09-Nov-2026</td><td>Pending</td></tr></tbody></table>"
         "hostels/student/leave/6" -> "<table id=\"LeaveHistoryTable\"><tbody></tbody></table>"
+        // Assignments: a first upload lands; replacing a file asks for the emailed code, which is 123456 here.
+        "examinations/doDigitalAssignment", "examinations/processDigitalAssignment" -> "<div>Digital Assignment Upload</div>"
+        "examinations/processDigitalAssignmentUpload" -> """<form id="daUpload" name="daUpload" method="post">
+            <input type="hidden" name="authorizedID" value="DEMO"><input type="hidden" name="_csrf" value="DEMO-CSRF">
+            <input type="hidden" name="classId" value="${p["classId"].orEmpty()}"><input type="hidden" name="mCode" value="${p["mode"].orEmpty()}">
+            <input type="hidden" name="code" value="${p["mode"].orEmpty()}"><input type="file" name="studDaUpload"></form>"""
+        "examinations/doDAssignmentUploadMethod" -> p["mCode"].orEmpty().let { code ->
+            if (code in submitted) {
+                otpFor = code
+                """<div><p>Kindly enter 6 digit OTP sent to your email ID de***@example.edu</p>
+                <form id="daUploadOtpAlert"><input type="hidden" name="authorizedID" value="DEMO"><input type="hidden" name="_csrf" value="DEMO-CSRF">
+                <input type="text" name="otpEmail" maxlength="6"></form></div>"""
+            } else {
+                submitted += code
+                UPLOADED
+            }
+        }
+        "examinations/doDAssignmentOtpUpload" -> if (p["otpEmail"] == "123456") {
+            otpFor?.let { submitted += it }
+            UPLOADED
+        } else {
+            """<span style="color: red;">Invalid OTP. Please try again.</span><p>Kindly enter 6 digit OTP sent to your email ID de***@example.edu</p>
+            <form id="daUploadOtpAlert"><input type="hidden" name="_csrf" value="DEMO-CSRF"><input type="text" name="otpEmail" maxlength="6"></form>"""
+        }
         else -> null
     }
+
+    /** Assignments that already have a file (so uploading again asks for the code), and the one waiting for it. */
+    private val submitted = mutableSetOf("AST01", "AST03")
+    private var otpFor: String? = null
+    private const val UPLOADED = "<div><span style=\"color: green;\">Uploaded successfully</span></div>"
 
     private val pdfs = setOf(
         "events/swf/doDownloadCertificate", "events/swf/doDownloadWinnerCertificate",

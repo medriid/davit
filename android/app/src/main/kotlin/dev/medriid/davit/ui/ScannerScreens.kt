@@ -90,6 +90,10 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.verticalScroll
+import dev.medriid.davit.data.UploadState
+import dev.medriid.davit.data.UploadTarget
 import dev.medriid.davit.data.Uploads
 import dev.medriid.davit.data.sizeText
 import dev.medriid.davit.design.Heading
@@ -466,20 +470,19 @@ private fun EditorScreen(s: ScanState, onCamera: (Into) -> Unit, onCrop: (Long) 
     }
     val fileName = s.name.trim().ifEmpty { "Scan" }.replace(Regex("""[\\/:*?"<>|]"""), "-") + ".pdf"
 
-    fun export(limit: Int?, then: suspend (ByteArray) -> Unit) {
+    fun export(limit: Int?, then: suspend (dev.medriid.davit.scan.ScanPdf) -> Unit) {
         if (busy != null) return
-        busy = if (limit != null) "Making the PDF and fitting it under 4 MB" else "Making the PDF"
+        busy = if (limit != null) "Making the PDF, compressed to fit under 4 MB" else "Making the PDF"
         note = null
         scope.launch {
             runCatching { repo.scanner.export(limit) }
                 .onSuccess { pdf ->
                     busy = null
-                    if (limit != null && pdf.bytes.size > Uploads.MAX) {
+                    if (limit != null && pdf.bytes.size > limit) {
                         haptics.reject()
-                        note = "Even at lower quality this is ${sizeText(pdf.bytes.size.toLong())}, over VTOP's 4 MB. Drop a page or two, or save it and compress it elsewhere."
+                        note = "Compressed as far as it goes this is still ${sizeText(pdf.bytes.size.toLong())}, over VTOP's 4 MB. Drop a few pages and try again."
                     } else {
-                        then(pdf.bytes)
-                        if (limit != null && pdf.fitted) note = "Shrunk a little to fit VTOP's 4 MB."
+                        then(pdf)
                     }
                 }
                 .onFailure {
@@ -487,6 +490,19 @@ private fun EditorScreen(s: ScanState, onCamera: (Into) -> Unit, onCrop: (Long) 
                     haptics.reject()
                     note = it.message ?: "Couldn't make the PDF."
                 }
+        }
+    }
+
+    // Uploading from here: the PDF goes to the assignment's confirm step, shown in place of the buttons.
+    val uploads by repo.uploads.state.collectAsState()
+    var uploading by remember { mutableStateOf(false) }
+    var choosing by remember { mutableStateOf(false) }
+    fun upload(t: UploadTarget) {
+        haptics.heavy()
+        export(Scanner.UPLOAD_LIMIT) { pdf ->
+            val how = if (pdf.fitted) "Compressed from ${sizeText(pdf.original.toLong())} to fit VTOP's 4 MB." else null
+            repo.uploads.pick(t.key, fileName, "application/pdf", pdf.bytes.size.toLong(), pdf.bytes, how)
+            uploading = true
         }
     }
 
@@ -555,28 +571,46 @@ private fun EditorScreen(s: ScanState, onCamera: (Into) -> Unit, onCrop: (Long) 
                 note != null -> InkText(note!!, style = RisoType.small)
             }
             if (busy != null || note != null) Spacer(Modifier.height(10.dp))
-            val key = s.target.key
-            if (key != null) {
-                InkButton("Upload to \"${s.target.title}\"", {
-                    haptics.heavy()
-                    export(Scanner.UPLOAD_LIMIT) { bytes ->
-                        // Into the assignment's upload, which still asks for its own confirm tap.
-                        repo.uploads.pick(key, fileName, "application/pdf", bytes.size.toLong(), bytes)
+            val target = s.target.upload
+            val step = target?.let { uploads[it.key] }
+            if (uploading && target != null && step != null) {
+                // The confirm, progress, emailed code and done, right here.
+                LaunchedEffect(step is UploadState.Done) {
+                    if (step is UploadState.Done) {
                         haptics.confirm()
-                        repo.scanner.close()
+                        repo.files.delete("da:${target.classId}:${target.code}")
                     }
-                }, enabled = s.pages.isNotEmpty() && busy == null, fillWidth = true, modifier = Modifier.fillMaxWidth())
-                Spacer(Modifier.height(10.dp))
+                }
+                UploadStep(target, step, onClose = {
+                    uploading = false
+                    if (step is UploadState.Done) repo.scanner.close()
+                })
+                return@Column
             }
+            if (choosing) {
+                AssignmentChoice(onPick = { t ->
+                    choosing = false
+                    repo.scanner.aimAt(t)
+                    upload(t)
+                }, onCancel = { choosing = false })
+                return@Column
+            }
+            InkButton(
+                if (target != null) "Upload to \"${target.title}\"" else "Upload to an assignment",
+                { if (target != null) upload(target) else choosing = true },
+                enabled = s.pages.isNotEmpty() && busy == null, fillWidth = true, modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(10.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 InkButton("Save", {
-                    export(null) { bytes ->
-                        pending = bytes
+                    export(null) { pdf ->
+                        pending = pdf.bytes
                         runCatching { saveAs.launch(fileName) }
                     }
-                }, enabled = s.pages.isNotEmpty() && busy == null, quiet = key != null, modifier = Modifier.weight(1f), fillWidth = true)
+                }, enabled = s.pages.isNotEmpty() && busy == null, quiet = true, modifier = Modifier.weight(1f), fillWidth = true)
                 InkButton("Share", {
-                    export(null) { bytes ->
+                    export(null) { pdf ->
+                        val bytes = pdf.bytes
                         val f = repo.files.fetch("scan:${System.currentTimeMillis()}") { tmp, _ ->
                             withContext(Dispatchers.IO) { tmp.writeBytes(bytes) }
                             Download(fileName, "application/pdf", bytes.size.toLong())
@@ -588,6 +622,46 @@ private fun EditorScreen(s: ScanState, onCamera: (Into) -> Unit, onCrop: (Long) 
             }
         }
     }
+}
+
+/** Which assignment a scan started on its own goes to: the ones VTOP takes uploads for, soonest due first. */
+@Composable
+private fun AssignmentChoice(onPick: (UploadTarget) -> Unit, onCancel: () -> Unit) {
+    val repo = LocalRepo.current
+    val state by repo.state.collectAsState()
+    val snapshot = state.snapshot
+    val open = snapshot?.assignments.orEmpty().flatMap { c ->
+        c.items.filter { it.canUpload && it.code.isNotEmpty() }.map { a ->
+            UploadTarget(c.classId, a.code, a.title, c.courseCode, snapshot?.semester?.id, a.updated != null || a.hasSubmission, a.updated) to
+                (c.courseName to a.dueDay())
+        }
+    }.sortedWith(compareBy(nullsLast()) { it.second.second })
+    InkText("Upload to", label = true)
+    Spacer(Modifier.height(6.dp))
+    if (open.isEmpty()) {
+        InkText("No assignment is taking uploads right now. Save or share the PDF instead.", style = RisoType.small)
+    } else {
+        Column(Modifier.heightIn(max = 260.dp).verticalScroll(rememberScrollState())) {
+            open.forEach { (t, info) ->
+                Row(
+                    Modifier.fillMaxWidth().clickable(role = Role.Button) { onPick(t) }.padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        InkText(t.title, style = RisoType.body.copy(fontWeight = FontWeight.SemiBold), maxLines = 2)
+                        InkText(
+                            listOfNotNull(info.first, info.second?.let { "due " + it.format(java.time.format.DateTimeFormatter.ofPattern("d MMM", java.util.Locale.ENGLISH)) })
+                                .joinToString(" · "),
+                            style = RisoType.small, maxLines = 1,
+                        )
+                    }
+                    if (t.replacing) InkChip("Replaces")
+                }
+            }
+        }
+    }
+    Spacer(Modifier.height(10.dp))
+    InkButton("Cancel", onCancel, quiet = true, fillWidth = true, modifier = Modifier.fillMaxWidth())
 }
 
 @Composable

@@ -37,6 +37,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.medriid.davit.data.UploadState
+import dev.medriid.davit.data.UploadTarget
 import dev.medriid.davit.data.Uploads
 import dev.medriid.davit.data.sizeText
 import dev.medriid.davit.design.HalftoneBar
@@ -137,10 +138,11 @@ private fun UploadPanel(course: CourseAssignments, a: Assignment, semesterId: St
     val context = LocalContext.current
     val haptics = rememberHaptics()
     val scope = rememberCoroutineScope()
-    val key = "${course.classId}|${a.code}"
+    val replacing = a.updated != null || a.hasSubmission
+    val target = UploadTarget(course.classId, a.code, a.title, course.courseCode, semesterId, replacing, a.updated)
+    val key = target.key
     val all by repo.uploads.state.collectAsState()
     val s = all[key]
-    val replacing = a.updated != null || a.hasSubmission
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         if (uri == null) return@rememberLauncherForActivityResult
@@ -151,7 +153,7 @@ private fun UploadPanel(course: CourseAssignments, a: Assignment, semesterId: St
     }
     val scan = {
         haptics.tick()
-        repo.scanner.open(dev.medriid.davit.scan.ScanTarget(key, a.title, course.courseCode))
+        repo.scanner.open(dev.medriid.davit.scan.ScanTarget(target))
     }
     val pick = {
         haptics.tick()
@@ -201,58 +203,85 @@ private fun UploadPanel(course: CourseAssignments, a: Assignment, semesterId: St
                         InkButton("Scan", scan, quiet = true, modifier = Modifier.weight(1f), fillWidth = true)
                     }
                     Spacer(Modifier.height(6.dp))
-                    InkText("Scan photographs your pages into one PDF, cleaned up and under 4 MB.", style = RisoType.small)
+                    InkText("Scan photographs your pages into one PDF, cleaned up and compressed under 4 MB.", style = RisoType.small)
                 }
-                is UploadState.Ready -> InkCard(Modifier.fillMaxWidth(), plateOffset = 4.dp) {
-                    InkText("Upload this?", label = true)
-                    Spacer(Modifier.height(8.dp))
-                    InkText(st.file.name, style = RisoType.title, maxLines = 3)
-                    InkText("${sizeText(st.file.size.toLong())} · as \"${a.title}\"", style = RisoType.small)
-                    if (replacing) {
-                        Spacer(Modifier.height(8.dp))
-                        InkText("This replaces the file you uploaded${a.updated?.let { " on $it" } ?: ""}. VTOP will email you a code to confirm it.", style = RisoType.small)
-                    }
-                    Spacer(Modifier.height(14.dp))
-                    InkButton(
-                        if (replacing) "Yes, replace it" else "Yes, upload",
-                        {
-                            haptics.heavy()
-                            repo.uploads.send(key, UserConsent("upload ${a.code}"), semesterId, course.classId, a.code, replacing)
-                        },
-                        fillWidth = true, modifier = Modifier.fillMaxWidth(),
-                    )
-                    Spacer(Modifier.height(10.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        InkButton("Another file", pick, quiet = true, modifier = Modifier.weight(1f), fillWidth = true)
-                        InkButton("Cancel", { repo.uploads.clear(key) }, quiet = true, modifier = Modifier.weight(1f), fillWidth = true)
-                    }
-                }
-                is UploadState.Sending -> InkCard(Modifier.fillMaxWidth(), plateOffset = 4.dp) {
-                    InkText(st.stage, style = RisoType.body.copy(fontWeight = FontWeight.SemiBold), maxLines = 2)
-                    Spacer(Modifier.height(10.dp))
-                    HalftoneBar(st.fraction ?: 0.35f, height = 12.dp)
-                    Spacer(Modifier.height(8.dp))
-                    InkText(st.fraction?.let { "${(it * 100).toInt()}%" } ?: "Waiting for VTOP", style = RisoType.small)
-                }
-                is UploadState.Otp -> OtpCard(st, onSubmit = { code ->
+                else -> UploadStep(target, st, onPick = pick, onScan = scan)
+            }
+        }
+    }
+}
+
+/**
+ * One step of [target]'s upload after a file is picked: the confirm (the only thing that
+ * sends), progress, VTOP's emailed code for a replacement, done, or what went wrong. The
+ * assignment screen and the scanner both show these. [onPick] and [onScan] offer another
+ * file where that makes sense; [onClose] runs when you close it (it clears the step).
+ */
+@Composable
+internal fun UploadStep(
+    target: UploadTarget,
+    st: UploadState,
+    onPick: (() -> Unit)? = null,
+    onScan: (() -> Unit)? = null,
+    onClose: () -> Unit = {},
+) {
+    val repo = LocalRepo.current
+    val haptics = rememberHaptics()
+    val close = {
+        repo.uploads.clear(target.key)
+        onClose()
+    }
+    when (st) {
+        is UploadState.Ready -> InkCard(Modifier.fillMaxWidth(), plateOffset = 4.dp) {
+            InkText("Upload this?", label = true)
+            Spacer(Modifier.height(8.dp))
+            InkText(st.file.name, style = RisoType.title, maxLines = 3)
+            InkText("${sizeText(st.file.size.toLong())} · as \"${target.title}\"", style = RisoType.small)
+            st.file.note?.let { InkText(it, style = RisoType.small.copy(fontWeight = FontWeight.SemiBold)) }
+            if (target.replacing) {
+                Spacer(Modifier.height(8.dp))
+                InkText("This replaces the file you uploaded${target.updated?.let { " on $it" } ?: ""}. VTOP will email you a code to confirm it.", style = RisoType.small)
+            }
+            Spacer(Modifier.height(14.dp))
+            InkButton(
+                if (target.replacing) "Yes, replace it" else "Yes, upload",
+                {
                     haptics.heavy()
-                    repo.uploads.submitOtp(key, UserConsent("upload otp ${a.code}"), course.classId, a.code, code)
-                }, onCancel = {
-                    haptics.tick()
-                    repo.uploads.cancel(key, course.classId)
-                })
-                is UploadState.Done -> DoneCard(st) { repo.uploads.clear(key) }
-                is UploadState.Failed -> InkCard(Modifier.fillMaxWidth(), plate = LocalInks.current.a, plateOffset = 4.dp) {
-                    InkText("Not uploaded", label = true)
-                    Spacer(Modifier.height(8.dp))
-                    InkText(st.message)
-                    Spacer(Modifier.height(12.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        InkButton("Choose", pick, modifier = Modifier.weight(1f), fillWidth = true)
-                        InkButton("Scan", scan, quiet = true, modifier = Modifier.weight(1f), fillWidth = true)
-                        InkButton("Close", { repo.uploads.clear(key) }, quiet = true, modifier = Modifier.weight(1f), fillWidth = true)
-                    }
-                }
+                    repo.uploads.send(target, UserConsent("upload ${target.code}"))
+                },
+                fillWidth = true, modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (onPick != null) InkButton("Another file", onPick, quiet = true, modifier = Modifier.weight(1f), fillWidth = true)
+                InkButton("Cancel", close, quiet = true, modifier = Modifier.weight(1f), fillWidth = true)
+            }
+        }
+        is UploadState.Sending -> InkCard(Modifier.fillMaxWidth(), plateOffset = 4.dp) {
+            InkText(st.stage, style = RisoType.body.copy(fontWeight = FontWeight.SemiBold), maxLines = 2)
+            Spacer(Modifier.height(10.dp))
+            HalftoneBar(st.fraction ?: 0.35f, height = 12.dp)
+            Spacer(Modifier.height(8.dp))
+            InkText(st.fraction?.let { "${(it * 100).toInt()}%" } ?: "Waiting for VTOP", style = RisoType.small)
+        }
+        is UploadState.Otp -> OtpCard(st, onSubmit = { code ->
+            haptics.heavy()
+            repo.uploads.submitOtp(target.key, UserConsent("upload otp ${target.code}"), target.classId, target.code, code)
+        }, onCancel = {
+            haptics.tick()
+            repo.uploads.cancel(target.key, target.classId)
+            onClose()
+        })
+        is UploadState.Done -> DoneCard(st, close)
+        is UploadState.Failed -> InkCard(Modifier.fillMaxWidth(), plate = LocalInks.current.a, plateOffset = 4.dp) {
+            InkText("Not uploaded", label = true)
+            Spacer(Modifier.height(8.dp))
+            InkText(st.message)
+            Spacer(Modifier.height(12.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (onPick != null) InkButton("Choose", onPick, modifier = Modifier.weight(1f), fillWidth = true)
+                if (onScan != null) InkButton("Scan", onScan, quiet = true, modifier = Modifier.weight(1f), fillWidth = true)
+                InkButton("Close", close, quiet = true, modifier = Modifier.weight(1f), fillWidth = true)
             }
         }
     }

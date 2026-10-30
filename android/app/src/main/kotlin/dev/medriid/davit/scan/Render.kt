@@ -108,6 +108,16 @@ object Render {
         return Scan.findPage(px, b.width, b.height)
     }
 
+    /** A finished page image back from its JPEG, no wider or taller than [maxSide]. */
+    fun decode(jpeg: ByteArray, maxSide: Int): Bitmap? {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(jpeg, 0, jpeg.size, bounds)
+        var sample = 1
+        while (max(bounds.outWidth, bounds.outHeight) / (sample * 2) >= maxSide) sample *= 2
+        val b = BitmapFactory.decodeByteArray(jpeg, 0, jpeg.size, BitmapFactory.Options().apply { inSampleSize = sample }) ?: return null
+        return fit(b, maxSide)
+    }
+
     fun jpeg(b: Bitmap, quality: Int): ByteArray =
         ByteArrayOutputStream().also { b.compress(Bitmap.CompressFormat.JPEG, quality, it) }.toByteArray()
 }

@@ -2,6 +2,7 @@ package dev.medriid.davit.scan
 
 import android.content.Context
 import android.net.Uri
+import dev.medriid.davit.data.UploadTarget
 import dev.medriid.davit.data.Uploads
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -22,8 +23,12 @@ data class Shot(val id: Long, val file: File, val quad: Quad?, val found: Quad?)
 /** A page of the PDF: one photo, or several stacked on one sheet. */
 data class ScanPage(val id: Long, val shots: List<Shot>, val filter: ScanFilter, val turns: Int)
 
-/** Where the scan is headed: an assignment (upload) or just a PDF. */
-data class ScanTarget(val key: String? = null, val title: String = "", val course: String = "")
+/** Where the scan is headed: an assignment's upload, or just a PDF (until you pick one to upload to). */
+data class ScanTarget(val upload: UploadTarget? = null) {
+    val key: String? get() = upload?.key
+    val title: String get() = upload?.title.orEmpty()
+    val course: String get() = upload?.course.orEmpty()
+}
 
 /** Where the next photo goes. */
 sealed interface Into {
@@ -42,8 +47,8 @@ data class ScanState(
     val filter: ScanFilter = ScanFilter.Enhanced,
 )
 
-/** A finished PDF and what it took to fit. */
-class ScanPdf(val bytes: ByteArray, val pages: Int, val fitted: Boolean)
+/** A finished PDF and what it took to fit: [original] is its size before any compressing. */
+class ScanPdf(val bytes: ByteArray, val pages: Int, val fitted: Boolean, val original: Int = bytes.size)
 
 /**
  * The document scanner's session: photos (in the app's cache until the PDF is made),
@@ -64,6 +69,14 @@ class Scanner(private val context: Context, private val scope: CoroutineScope) {
         val stamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("d MMM yyyy, HH.mm", Locale.ENGLISH))
         val name = if (target.title.isNotBlank()) listOf(target.course, target.title).filter { it.isNotBlank() }.joinToString(" - ") else "Scan $stamp"
         _state.value = ScanState(target, name = name)
+    }
+
+    /** A scan started on its own, now headed for [upload]; the name follows when it was still the default. */
+    fun aimAt(upload: UploadTarget) = _state.update { s ->
+        s?.copy(
+            target = ScanTarget(upload),
+            name = if (s.name.startsWith("Scan ")) listOf(upload.course, upload.title).filter { it.isNotBlank() }.joinToString(" - ") else s.name,
+        )
     }
 
     fun close() {
@@ -171,41 +184,66 @@ class Scanner(private val context: Context, private val scope: CoroutineScope) {
     }
 
     /**
-     * The PDF. With [limit] (VTOP's 4 MB) it steps resolution and JPEG quality down until
-     * it fits: sharp first, smaller only if it has to be.
+     * The PDF. With [limit] (VTOP's 4 MB) it compresses until it fits: each page is cut,
+     * straightened and filtered once, then only scaled and re-encoded, stepping down as
+     * [Fit] chooses from the size each try came out at. Sharp first, smaller only if it has to be.
      */
     suspend fun export(limit: Int? = null): ScanPdf = withContext(Dispatchers.Default) {
         val s = _state.value ?: throw IllegalStateException("Nothing scanned.")
         if (s.pages.isEmpty()) throw IllegalStateException("Add a page first.")
-        val steps = listOf(2200 to 82, 1800 to 76, 1500 to 70, 1300 to 62, 1100 to 55, 900 to 50, 750 to 45)
-        var last: ByteArray? = null
-        for ((side, quality) in steps) {
+        val masters = masters(s)
+        var at = 0
+        var first: Int? = null
+        var done: ScanPdf? = null
+        while (done == null) {
             // A phone short of memory gets the next size down rather than a crash.
             val bytes = try {
-                build(s, side, quality)
+                build(s, masters, Fit.ladder[at])
             } catch (_: OutOfMemoryError) {
                 System.gc()
+                if (at == Fit.ladder.lastIndex) throw IllegalStateException("Not enough memory to make the PDF. Close other apps and try again.")
+                at++
                 continue
             }
-            last = bytes
-            if (limit == null || bytes.size <= limit) return@withContext ScanPdf(bytes, s.pages.size, side != steps.first().first)
+            if (first == null) first = bytes.size
+            val next = if (limit == null) null else Fit.next(at, bytes.size.toLong(), limit.toLong())
+            if (next == null) done = ScanPdf(bytes, s.pages.size, at != 0, first) else at = next
         }
-        ScanPdf(last ?: throw IllegalStateException("Not enough memory to make the PDF. Close other apps and try again."), s.pages.size, true)
+        done
     }
 
-    private fun build(s: ScanState, side: Int, quality: Int): ByteArray {
-        val pages = s.pages.map { p ->
+    /** A finished page image, kept as a sharp JPEG while the PDF is fitted. */
+    private class Master(val jpeg: ByteArray, val w: Int, val h: Int)
+
+    /** Every page's photos cut, straightened, turned and filtered, once, at the sharpest size. */
+    private fun masters(s: ScanState): List<List<Master>> {
+        val top = Fit.ladder.first().side
+        return s.pages.map { p ->
+            p.shots.mapNotNull { sh ->
+                val b = try {
+                    Render.shot(sh.file, sh.quad, p.turns, p.filter, top)
+                } catch (_: OutOfMemoryError) {
+                    System.gc()
+                    Render.shot(sh.file, sh.quad, p.turns, p.filter, top / 2)
+                } ?: return@mapNotNull null
+                Master(Render.jpeg(b, 94), b.width, b.height).also { b.recycle() }
+            }
+        }
+    }
+
+    private fun build(s: ScanState, masters: List<List<Master>>, step: FitStep): ByteArray {
+        val pages = s.pages.mapIndexed { i, p ->
             // Stacked photos share a page, so each can be smaller.
-            val each = if (p.shots.size > 1) (side * 0.75f).toInt() else side
-            val images = p.shots.mapNotNull { sh ->
-                val b = Render.shot(sh.file, sh.quad, p.turns, p.filter, each) ?: return@mapNotNull null
-                Triple(Render.jpeg(b, if (p.filter == ScanFilter.Mono) (quality - 15).coerceAtLeast(40) else quality), b.width, b.height)
-                    .also { b.recycle() }
+            val each = if (p.shots.size > 1) (step.side * 0.75f).toInt() else step.side
+            val quality = if (p.filter == ScanFilter.Mono) (step.quality - 15).coerceAtLeast(25) else step.quality
+            val images = masters[i].mapNotNull { m ->
+                val b = Render.decode(m.jpeg, each) ?: return@mapNotNull null
+                Triple(Render.jpeg(b, quality), b.width, b.height).also { b.recycle() }
             }
             val (size, rects) = PdfWriter.layout(images.map { it.second to it.third })
             PdfWriter.Page(
                 size.first, size.second,
-                images.mapIndexed { i, (jpeg, w, h) -> PdfWriter.Placed(jpeg, w, h, false, rects[i][0], rects[i][1], rects[i][2], rects[i][3]) },
+                images.mapIndexed { k, (jpeg, w, h) -> PdfWriter.Placed(jpeg, w, h, false, rects[k][0], rects[k][1], rects[k][2], rects[k][3]) },
             )
         }
         return ByteArrayOutputStream().also { PdfWriter.write(pages, s.name, it) }.toByteArray()
