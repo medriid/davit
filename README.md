@@ -41,8 +41,8 @@ Attendance, classes, marks and the campus map for VIT students, printed in two i
 * **Course materials** by module, kept offline, with a search that forgives typos.
 * **Your week** as a list, a grid or the academic calendar, swapped days and holidays included, and in your phone's calendar if you like.
 * **Free time with friends**: swap weeks by QR code, phone to phone, and see when you're all out of class.
-* **Timetable planner** for next semester, from VTOP's course allocation, with clashes shown before registration.
-* **Campus map**: find a block, a mess or a room (PRP 327), and walk there from where you are.
+* **FFCS**: pick your subjects and rules (no 8:00 starts, a proper lunch, days off) and get the best clash-free timetables from VTOP's course allocation; save the ones you like.
+* **Campus map**: find a block, a mess or a room (PRP 327), and walk there from where you are. Works on a first open even when the map site is down.
 * **The rest of VTOP**: hostel leave, club events, messages, receipts, curriculum, feedback and more.
 * **Alerts you set up**: low attendance, a reminder before class, new marks and deadlines; plus two home-screen widgets.
 * **Your own course names**: rename any course and the new name shows everywhere.

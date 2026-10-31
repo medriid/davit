@@ -2,6 +2,12 @@
 
 Downloads are on the [releases page](https://github.com/medriid/davit/releases). daVIT updates itself after the first install.
 
+## 0.12.0 — 2026-10-31
+
+- **FFCS** (was Timetable planner) has a smart mode: pick your subjects, the faculty you'd take and how you like your days (8:00 starts, start and end times, short lunches, days off, gaps), and get the best clash-free timetables.
+- **Saved plans**: keep any timetable under a name and open it again later.
+- **The campus map ships with the app**, so it works on a first open even when the map site is down.
+
 ## 0.11.1 — 2026-10-31
 
 - **Plan this semester** can leave a course out while its grade isn't known, and shows each course's code and theory or lab.
