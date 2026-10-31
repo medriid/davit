@@ -1,5 +1,9 @@
 package dev.medriid.davit.ui
 
+import dev.medriid.davit.data.summary
+import dev.medriid.davit.design.InkField
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -48,7 +52,8 @@ import java.time.format.TextStyle
 import java.util.Locale
 
 /**
- * Next semester's timetable, planned before registration: pick a class for each course from
+ * FFCS: next semester's timetable, planned before registration. Smart mode finds the best
+ * timetables for your subjects and rules; by hand you pick a class for each course from
  * VTOP's course allocation, see the week it makes and any clash at once, and keep or share the
  * plan. Read only: registering happens on VTOP, and daVIT never registers.
  */
@@ -67,6 +72,9 @@ internal fun PlannerScreen(route: Route) {
     var loading by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var clearing by remember { mutableStateOf(false) }
+    // 0 Smart, 1 By hand; a plan already made opens by hand.
+    var mode by rememberSaveable { mutableIntStateOf(if (repo.state.value.plan.second.isEmpty()) 0 else 1) }
+    var note by remember { mutableStateOf<String?>(null) }
 
     fun run(what: String, block: suspend () -> Unit) {
         loading = what
@@ -83,8 +91,52 @@ internal fun PlannerScreen(route: Route) {
     val picks = state.plan.second
     val clashes = picks.clashes()
 
-    RouteScreen(route, "Timetable planner", "Plan ${semester.ifBlank { "next semester" }} before registration: a class for each course, the week it makes, and any clash. Registering still happens on VTOP.") {
+    RouteScreen(route, "FFCS", "Plan ${semester.ifBlank { "next semester" }}: Smart finds timetables that fit your rules, or pick each class by hand.") {
         error?.let { ErrorNote(it) { error = null; run("Reading course allocation") { page = repo.onVtop { c -> c.allocation() } } } }
+
+        // Plans kept under a name: open one into By hand, or delete it (a second tap confirms).
+        if (state.savedPlans.isNotEmpty()) {
+            GroupLabel("Saved plans · ${state.savedPlans.size}")
+            var deleting by remember { mutableStateOf<Long?>(null) }
+            state.savedPlans.sortedByDescending { it.id }.forEach { sp ->
+                Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        InkText(sp.name, style = RisoType.body.copy(fontWeight = FontWeight.SemiBold), maxLines = 1)
+                        InkText(sp.picks.summary(), style = RisoType.small, maxLines = 2)
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Box(Modifier.clickable(role = Role.Button) {
+                        repo.setPlan(sp.semester, sp.picks)
+                        note = "Opened \"${sp.name}\". Changes here don't touch the saved copy until you save again."
+                        mode = 1
+                    }) { InkChip("Open", solid = true) }
+                    Spacer(Modifier.width(6.dp))
+                    Box(Modifier.clickable(role = Role.Button) {
+                        if (deleting == sp.id) { repo.deleteSavedPlan(sp.id); deleting = null } else deleting = sp.id
+                    }) { InkChip(if (deleting == sp.id) "Sure?" else "Delete") }
+                }
+            }
+            Spacer(Modifier.height(14.dp))
+        }
+        ChoiceRow(listOf("Smart", "By hand"), mode) { mode = it }
+        Spacer(Modifier.height(14.dp))
+        if (mode == 0) {
+            val p = page
+            if (p == null) {
+                loading?.let { Loading(it) }
+                return@RouteScreen
+            }
+            SmartFfcs(p.semester, p.categories) { n, chosen ->
+                repo.setPlan(p.semester, chosen)
+                note = "Option $n is now your plan. Change any class below."
+                mode = 1
+            }
+            return@RouteScreen
+        }
+        note?.let {
+            InkText(it, style = RisoType.small.copy(fontWeight = FontWeight.SemiBold))
+            Spacer(Modifier.height(10.dp))
+        }
 
         if (picks.isNotEmpty()) {
             val courseCount = picks.distinctBy { it.code }.size
@@ -137,6 +189,21 @@ internal fun PlannerScreen(route: Route) {
                 InkButton(if (clearing) "Yes, start over" else "Start over", {
                     if (clearing) { repo.setPlan(semester, emptyList()); clearing = false } else clearing = true
                 }, quiet = !clearing, modifier = Modifier.weight(1f), fillWidth = true)
+            }
+            Spacer(Modifier.height(10.dp))
+            var naming by remember { mutableStateOf(false) }
+            var name by remember { mutableStateOf("") }
+            if (!naming) {
+                InkButton("Save as…", { naming = true }, quiet = true, fillWidth = true, modifier = Modifier.fillMaxWidth())
+            } else {
+                InkField(name, { name = it.take(40) }, "Name this plan", modifier = Modifier.fillMaxWidth())
+                Spacer(Modifier.height(8.dp))
+                InkButton("Save", {
+                    repo.savePlan(name, semester, picks)
+                    note = "Saved as \"${name.trim().ifEmpty { "Plan" }}\"."
+                    naming = false
+                    name = ""
+                }, fillWidth = true, modifier = Modifier.fillMaxWidth())
             }
             Spacer(Modifier.height(22.dp))
         }

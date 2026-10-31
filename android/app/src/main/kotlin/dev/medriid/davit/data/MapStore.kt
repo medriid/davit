@@ -17,7 +17,8 @@ import java.util.concurrent.TimeUnit
 /**
  * The campus map's data: public static files (OpenStreetMap buildings,
  * paths and places, PRP room ranges, mess menus, a walking graph). Fetched when the map
- * is first opened, about 600 KB, then kept on the phone and refreshed weekly. Nothing
+ * is first opened, about 600 KB, then kept on the phone and refreshed weekly; a snapshot ships
+ * in the app for a first open when the site can't be reached. Nothing
  * about you is sent: they're plain GETs of static files.
  */
 class MapStore(private val context: Context, private val scope: CoroutineScope) {
@@ -36,7 +37,8 @@ class MapStore(private val context: Context, private val scope: CoroutineScope) 
         if (s.map != null && System.currentTimeMillis() - s.at < WEEK) return
         _state.update { it.copy(loading = true, error = null) }
         scope.launch(Dispatchers.IO) {
-            val cached = runCatching { read() }.getOrNull()
+            // This phone's copy; failing that, the snapshot shipped in the app (dated 0, so a fetch is still tried).
+            val cached = runCatching { read() }.getOrNull() ?: runCatching { bundled() }.getOrNull()
             if (cached != null) _state.update { it.copy(map = cached.first, at = cached.second) }
             val stale = cached == null || System.currentTimeMillis() - cached.second > WEEK
             if (stale) fetch(quiet = cached != null) else _state.update { it.copy(loading = false) }
@@ -55,6 +57,15 @@ class MapStore(private val context: Context, private val scope: CoroutineScope) 
         if (!files.all { it.exists() && it.length() > 0 }) return null
         val map = CampusMapParser.parse(files[0].readText(), files[1].readText(), files[2].readText())
         return map to files.minOf { it.lastModified() }
+    }
+
+    /**
+     * The map as shipped in the app (assets/campus-map, refreshed by tools/refresh-map-snapshot.sh):
+     * a first open still has a map when vit-map can't be reached.
+     */
+    private fun bundled(): Pair<CampusMap, Long> {
+        fun asset(name: String) = context.assets.open("campus-map/$name.json").bufferedReader().use { it.readText() }
+        return CampusMapParser.parse(asset("campus"), asset("geo"), asset("graph")) to 0L
     }
 
     private fun fetch(quiet: Boolean) {

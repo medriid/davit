@@ -85,6 +85,14 @@ class PlanningTest {
     }
 
     @Test
+    fun savedPlansKeepTheirNamesAndClasses() {
+        val a = PlanPick("BXYZ201", "Data Structures", "A1+TA1", "SJT401", "ASHA", "ETH")
+        val list = listOf(SavedPlan(1, "Fridays off", "Winter 2026-27", listOf(a)))
+        assertEquals(list, savedPlansFromJson(savedPlansToJson(list)))
+        assertEquals("1 course · Tue, Thu off · 8:00 on 1 day", listOf(a).summary())
+    }
+
+    @Test
     fun allocationRowsBecomePicks() {
         val table = SimpleTable(listOf("Slot Detail", "Venue", "Faculty", "Course Type"), listOf(listOf("A1+TA1", "SJT401", "ASHA RAMAN", "ETH"), listOf("-", "", "", "")))
         assertEquals(listOf(PlanPick("BXYZ201", "Data Structures", "A1+TA1", "SJT401", "ASHA RAMAN", "ETH")), allocationOptions(table, "BXYZ201", "Data Structures"))

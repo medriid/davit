@@ -1,0 +1,5 @@
+Campus map data by Jeman (vit-map, https://vit-map.vercel.app), shared under the MIT licence
+and bundled here with his permission, as a fallback for when it can't be downloaded.
+
+Buildings, paths and places in it are © OpenStreetMap contributors, available under the
+Open Database Licence (ODbL): https://www.openstreetmap.org/copyright

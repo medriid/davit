@@ -76,3 +76,30 @@ internal fun planFromJson(text: String?): Pair<String, List<PlanPick>> = runCatc
         PlanPick(it.getString("code"), it.getString("title"), it.getString("slot"), it.optString("venue"), it.optString("faculty"), it.optString("type"))
     }
 }.getOrDefault("" to emptyList())
+
+/** A plan kept under a name, to come back to and compare. */
+data class SavedPlan(val id: Long, val name: String, val semester: String, val picks: List<PlanPick>)
+
+/** "4 courses · Fri off · 8:00 on 1 day": a saved plan at a glance. */
+fun List<PlanPick>.summary(): String {
+    val week = week()
+    val off = (1..5).filter { week[it].isNullOrEmpty() }
+    val eight = week.values.count { day -> day.any { it.first.start == 8 * 60 } }
+    return listOf(
+        "${distinctBy { it.code }.size} course${if (distinctBy { it.code }.size == 1) "" else "s"}",
+        if (off.isEmpty()) "no day off" else off.joinToString(", ") { java.time.DayOfWeek.of(it).getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.ENGLISH) } + " off",
+        "8:00 on $eight day${if (eight == 1) "" else "s"}",
+    ).joinToString(" · ")
+}
+
+internal fun savedPlansToJson(list: List<SavedPlan>): String = JSONArray(list.map {
+    JSONObject().put("id", it.id).put("name", it.name).put("plan", planToJson(it.semester, it.picks))
+}).toString()
+
+internal fun savedPlansFromJson(text: String?): List<SavedPlan> = runCatching {
+    val a = JSONArray(text ?: return emptyList())
+    List(a.length()) { a.getJSONObject(it) }.map { o ->
+        val (semester, picks) = planFromJson(o.getString("plan"))
+        SavedPlan(o.getLong("id"), o.getString("name"), semester, picks)
+    }
+}.getOrDefault(emptyList())

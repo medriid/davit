@@ -71,6 +71,10 @@ data class UiState(
     val shareName: String = "",
     /** Next semester's timetable plan: the semester it's for and the classes picked. */
     val plan: Pair<String, List<PlanPick>> = "" to emptyList(),
+    /** FFCS smart mode: the subjects you want and how you like your days. */
+    val smart: SmartSetup = SmartSetup(),
+    /** FFCS plans kept under a name. */
+    val savedPlans: List<SavedPlan> = emptyList(),
 )
 
 /**
@@ -156,6 +160,8 @@ class Repo(private val context: Context) {
             friends = friendsFromJson(prefs.getString(K_FRIENDS, null)?.let(Vault::decrypt)),
             shareName = prefs.getString(K_SHARE_NAME, null)?.let(Vault::decrypt).orEmpty(),
             plan = planFromJson(prefs.getString(K_PLAN, null)?.let(Vault::decrypt)),
+            smart = smartFromJson(prefs.getString(K_SMART, null)?.let(Vault::decrypt)),
+            savedPlans = savedPlansFromJson(prefs.getString(K_SAVED_PLANS, null)?.let(Vault::decrypt)),
         )
         prefs.getString(K_SESSION, null)?.let(Vault::decrypt)?.let(client::restoreSession)
     }
@@ -409,6 +415,33 @@ class Repo(private val context: Context) {
         prefs.edit().putString(K_SHARE_NAME, Vault.encrypt(name)).apply()
         _state.update { it.copy(shareName = name) }
     }
+
+    /** Keeps [picks] under [name]; the same name again replaces the old one. */
+    fun savePlan(name: String, semester: String, picks: List<PlanPick>) {
+        val label = name.trim().ifEmpty { "Plan" }.take(40)
+        val next = _state.value.savedPlans.filterNot { it.name.equals(label, ignoreCase = true) } +
+            SavedPlan(System.currentTimeMillis(), label, semester, picks)
+        saveSavedPlans(next)
+    }
+
+    fun deleteSavedPlan(id: Long) = saveSavedPlans(_state.value.savedPlans.filterNot { it.id == id })
+
+    private fun saveSavedPlans(list: List<SavedPlan>) {
+        prefs.edit().putString(K_SAVED_PLANS, Vault.encrypt(savedPlansToJson(list))).apply()
+        _state.update { it.copy(savedPlans = list) }
+    }
+
+    fun setSmart(s: SmartSetup) {
+        prefs.edit().putString(K_SMART, Vault.encrypt(smartToJson(s))).apply()
+        _state.update { it.copy(smart = s) }
+    }
+
+    /** Each course's allotted classes as read this session (code → classes), so the planner asks VTOP once. */
+    val allocated = java.util.concurrent.ConcurrentHashMap<String, List<PlanPick>>()
+
+    /** [code]'s allotted classes: from this session's copy, or from VTOP. */
+    suspend fun allottedClasses(code: String, title: String): List<PlanPick> =
+        allocated[code] ?: allocationOptions(onVtop { c -> c.allocationClasses(code) }, code, title).also { allocated[code] = it }
 
     fun setPlan(semester: String, picks: List<PlanPick>) {
         prefs.edit().putString(K_PLAN, Vault.encrypt(planToJson(semester, picks))).apply()
@@ -833,6 +866,8 @@ class Repo(private val context: Context) {
         private const val K_FRIENDS = "friends"
         private const val K_SHARE_NAME = "share_name"
         private const val K_PLAN = "timetable_plan"
+        private const val K_SMART = "ffcs_smart"
+        private const val K_SAVED_PLANS = "ffcs_saved"
         private const val K_BACKGROUND = "background"
         private const val K_ALERTS = "alerts"
         private const val K_ASKED = "askedNotifications"
