@@ -134,9 +134,14 @@ class CampusMap(
 object CampusMapParser {
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
+    /** Names the map's data has wrong, put right as it's read. */
+    private val Fixes = listOf("Perl Research Park" to "Pearl Research Park")
+
+    private fun String.fixed(): String = Fixes.fold(this) { s, (wrong, right) -> s.replace(wrong, right) }
+
     fun parse(campus: String, geo: String, graph: String?): CampusMap {
-        val c = json.parseToJsonElement(campus).jsonObject
-        val g = json.parseToJsonElement(geo).jsonObject
+        val c = json.parseToJsonElement(campus.fixed()).jsonObject
+        val g = json.parseToJsonElement(geo.fixed()).jsonObject
         val meta = c.obj("meta")
         val bounds = meta?.get("bounds")?.arr()
         val centre = meta?.get("center")?.arr()

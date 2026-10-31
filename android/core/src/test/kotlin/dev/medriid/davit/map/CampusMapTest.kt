@@ -74,6 +74,13 @@ class CampusMapTest {
     }
 
     @Test
+    fun pearlResearchParkIsSpelledRight() {
+        // The map's data has it as "Perl" in places.
+        val m = CampusMapParser.parse(res("campus.json").replace("\"PRP Block E\"", "\"Perl Research Park Block E\""), res("geo.json"), res("graph.json"))
+        assertEquals("Pearl Research Park Block E", m.pois.first { it.id == "prp-e" }.name)
+    }
+
+    @Test
     fun prpRoomsFindTheirBlockAndFloor() {
         assertTrue(Places.roomInRange("327–341", "330"))
         assertTrue(Places.roomInRange("G29–41", "g35"))

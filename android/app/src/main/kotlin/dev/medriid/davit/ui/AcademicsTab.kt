@@ -471,8 +471,6 @@ private fun GradesSegment(snapshot: Snapshot) {
                 InkText("CGPA", label = true)
                 Spacer(Modifier.height(8.dp))
                 g?.creditsEarned?.let { InkText("${fmt(it)} credits earned", style = RisoType.small) }
-                Spacer(Modifier.height(10.dp))
-                InkChip(if (snapshot.attendanceExempt) "Exempt from 75% rule" else "75% attendance rule applies", solid = !snapshot.attendanceExempt)
             }
             // Two decimals, cut not rounded: 8.996 must not read as 9.00.
             Overprint(g?.cgpa?.let { "%.2f".format(Locale.ENGLISH, Math.floor(it * 100) / 100) } ?: "–", heroSize, registerKey = g?.cgpa)
@@ -549,17 +547,21 @@ private fun GradesSegment(snapshot: Snapshot) {
 
 /**
  * "Plan this semester": a grade per current course gives the CGPA it would lead to, and
- * the average needed for 9, which lifts the 75% attendance rule.
+ * the average needed for 9, which lifts the 75% attendance rule. A course can be left out
+ * while its grade isn't known.
  */
 @Composable
 private fun PlannerCard(snapshot: Snapshot) {
     val courses = snapshot.timetable.filter { it.credits > 0 }.distinctBy { it.courseCode + "|" + it.courseType }
     if (courses.isEmpty()) return
-    // Grade index per course; A by default. Not saved: it's a scratchpad.
+    // Grade index per course, A by default, and the ones left out for now (a grade that isn't
+    // known yet). Not saved: it's a scratchpad.
     val picks = remember(courses.size) { mutableStateListOf(*Array(courses.size) { 1 }) }
-    val planned = courses.mapIndexed { i, c -> c.credits to GradePoints[picks[i]].second }
+    val out = remember(courses.size) { mutableStateListOf(*Array(courses.size) { false }) }
+    val counted = courses.indices.filter { !out[it] }
+    val planned = counted.map { i -> courses[i].credits to GradePoints[picks[i]].second }
     val projected = projectCgpa(snapshot.grades, planned)
-    val needed = neededAverage(snapshot.grades, courses.sumOf { it.credits })
+    val needed = neededAverage(snapshot.grades, counted.sumOf { courses[it].credits })
     val heroSize = with(LocalDensity.current) { 44.dp.toSp() }
 
     SectionTitle("Plan this semester")
@@ -577,6 +579,8 @@ private fun PlannerCard(snapshot: Snapshot) {
                     },
                     style = RisoType.small,
                 )
+                val left = courses.size - counted.size
+                if (left > 0) InkText("$left course${if (left == 1) "" else "s"} left out", style = RisoType.small.copy(fontWeight = FontWeight.SemiBold))
             }
             Overprint(projected?.let { "%.2f".format(Locale.ENGLISH, Math.floor(it * 100) / 100) } ?: "–", heroSize)
         }
@@ -584,9 +588,17 @@ private fun PlannerCard(snapshot: Snapshot) {
         Rule()
         courses.forEachIndexed { i, c ->
             Spacer(Modifier.height(10.dp))
-            InkText(c.courseName, style = RisoType.body.copy(fontWeight = FontWeight.SemiBold), maxLines = 2)
-            InkText("${fmt(c.credits)} credits", style = RisoType.small)
-            ChoiceRow(GradePoints.map { it.first }, picks[i]) { picks[i] = it }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f).alpha(if (out[i]) 0.5f else 1f)) {
+                    InkText(c.courseName, style = RisoType.body.copy(fontWeight = FontWeight.SemiBold), maxLines = 2)
+                    // Code and theory or lab: a course's two parts share its name but not its credits.
+                    InkText("${c.courseCode} · ${if (isLabType(c.courseType)) "Lab" else "Theory"} · ${fmt(c.credits)} credit${if (c.credits == 1.0) "" else "s"}", style = RisoType.small)
+                }
+                Spacer(Modifier.width(8.dp))
+                Box(Modifier.clickable(role = Role.Switch) { out[i] = !out[i] }) { InkChip(if (out[i]) "Count it" else "Leave out", solid = out[i]) }
+            }
+            if (out[i]) InkText("Left out of the estimate until you count it again.", style = RisoType.small, modifier = Modifier.padding(top = 2.dp))
+            else ChoiceRow(GradePoints.map { it.first }, picks[i]) { picks[i] = it }
         }
     }
 }
