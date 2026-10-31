@@ -76,6 +76,7 @@ dependencies {
     implementation(libs.androidx.camera.camera2)
     implementation(libs.androidx.camera.lifecycle)
     implementation(libs.androidx.camera.view)
+    implementation(libs.zxing.core)
     val bom = platform(libs.compose.bom)
     implementation(bom)
     implementation(libs.compose.ui.tooling.preview)

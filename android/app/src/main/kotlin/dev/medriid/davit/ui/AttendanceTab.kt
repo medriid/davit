@@ -92,7 +92,10 @@ internal fun AttendanceTab(snapshot: Snapshot) {
         if (rows.isNotEmpty()) {
             Spacer(Modifier.height(14.dp))
             val nav = LocalNav.current
-            InkButton("Plan a leave", { nav.go(Route.LeavePlanner) }, quiet = true, fillWidth = true, modifier = Modifier.fillMaxWidth().sharedCard(Route.LeavePlanner.sharedKey))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                InkButton("Plan a leave", { nav.go(Route.LeavePlanner) }, quiet = true, fillWidth = true, modifier = Modifier.weight(1f).sharedCard(Route.LeavePlanner.sharedKey))
+                InkButton("Corrections", { nav.go(Route.Corrections) }, quiet = true, fillWidth = true, modifier = Modifier.weight(1f).sharedCard(Route.Corrections.sharedKey))
+            }
         }
         Spacer(Modifier.height(18.dp))
         if (rows.isEmpty()) {

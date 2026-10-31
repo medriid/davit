@@ -63,6 +63,14 @@ data class UiState(
     val bannerPhotoAt: Long = 0,
     /** Your names for courses, by course code. Already applied to [snapshot] as [Repo.state] gives it. */
     val aliases: Map<String, String> = emptyMap(),
+    /** Days VTOP has you absent for that you say you attended. */
+    val corrections: List<Correction> = emptyList(),
+    /** Friends' weeks, from the codes they shared. */
+    val friends: List<Friend> = emptyList(),
+    /** The name your shared week carries. */
+    val shareName: String = "",
+    /** Next semester's timetable plan: the semester it's for and the classes picked. */
+    val plan: Pair<String, List<PlanPick>> = "" to emptyList(),
 )
 
 /**
@@ -144,6 +152,10 @@ class Repo(private val context: Context) {
             banner = Banner.fromJson(prefs.getString(K_BANNER, null)),
             bannerPhotoAt = bannerPhoto.lastModified(),
             aliases = aliasesFromJson(prefs.getString(K_ALIASES, null)),
+            corrections = correctionsFromJson(prefs.getString(K_CORRECTIONS, null)?.let(Vault::decrypt)),
+            friends = friendsFromJson(prefs.getString(K_FRIENDS, null)?.let(Vault::decrypt)),
+            shareName = prefs.getString(K_SHARE_NAME, null)?.let(Vault::decrypt).orEmpty(),
+            plan = planFromJson(prefs.getString(K_PLAN, null)?.let(Vault::decrypt)),
         )
         prefs.getString(K_SESSION, null)?.let(Vault::decrypt)?.let(client::restoreSession)
     }
@@ -366,6 +378,42 @@ class Repo(private val context: Context) {
         saveReminders(_state.value.reminders + Reminder(System.currentTimeMillis(), title.trim(), date))
 
     fun removeReminder(id: Long) = saveReminders(_state.value.reminders.filterNot { it.id == id })
+
+    /** Marks a day VTOP has you absent for as attended (or on duty); again with the same day unmarks it. */
+    fun toggleCorrection(course: String, date: String, slot: String, onDuty: Boolean) {
+        val now = _state.value.corrections
+        val id = "$course|$date|$slot"
+        val next = if (now.any { it.id == id }) now.filterNot { it.id == id } else now + Correction(course, date, slot, onDuty, System.currentTimeMillis())
+        prefs.edit().putString(K_CORRECTIONS, Vault.encrypt(correctionsToJson(next))).apply()
+        _state.update { it.copy(corrections = next) }
+    }
+
+    /** Adds the week in [code] (a QR code or a pasted message); false if there's no week in it. */
+    fun addFriend(code: String): Boolean {
+        val (name, classes) = WeekCode.decode(code) ?: return false
+        val now = _state.value.friends
+        // The same name again replaces their old week: a new semester, a changed class.
+        val next = now.filterNot { it.name.equals(name, ignoreCase = true) } + Friend(System.currentTimeMillis(), name, classes)
+        saveFriends(next)
+        return true
+    }
+
+    fun removeFriend(id: Long) = saveFriends(_state.value.friends.filterNot { it.id == id })
+
+    private fun saveFriends(list: List<Friend>) {
+        prefs.edit().putString(K_FRIENDS, Vault.encrypt(friendsToJson(list))).apply()
+        _state.update { it.copy(friends = list) }
+    }
+
+    fun setShareName(name: String) {
+        prefs.edit().putString(K_SHARE_NAME, Vault.encrypt(name)).apply()
+        _state.update { it.copy(shareName = name) }
+    }
+
+    fun setPlan(semester: String, picks: List<PlanPick>) {
+        prefs.edit().putString(K_PLAN, Vault.encrypt(planToJson(semester, picks))).apply()
+        _state.update { it.copy(plan = semester to picks) }
+    }
 
     private fun saveReminders(list: List<Reminder>) {
         val sorted = list.sortedBy { it.date }
@@ -781,6 +829,10 @@ class Repo(private val context: Context) {
         private const val K_BANNER = "banner"
         private const val K_ALIASES = "aliases"
         private const val K_CLASSIC = "classic_palette"
+        private const val K_CORRECTIONS = "corrections"
+        private const val K_FRIENDS = "friends"
+        private const val K_SHARE_NAME = "share_name"
+        private const val K_PLAN = "timetable_plan"
         private const val K_BACKGROUND = "background"
         private const val K_ALERTS = "alerts"
         private const val K_ASKED = "askedNotifications"

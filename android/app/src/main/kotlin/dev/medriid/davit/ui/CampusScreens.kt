@@ -67,6 +67,12 @@ internal fun CampusHub(route: Route) {
     val campus by repo.campus.state.collectAsState()
     val snap = state.snapshot
     val sections = listOf(
+        "Plan" to listOf(
+            Tile(Route.ExamBoard, "Exam board", "Every paper, room and seat", dev.medriid.davit.design.Kind.Exams),
+            Tile(Route.Planner, "Timetable planner", "Next semester, clash-free", dev.medriid.davit.design.Kind.Classes),
+            Tile(Route.Friends, "Free with friends", "Swap weeks by QR code", dev.medriid.davit.design.Kind.People),
+            Tile(Route.Corrections, "Attendance corrections", "Absent by mistake? Keep track", dev.medriid.davit.design.Kind.Attendance),
+        ),
         "News and people" to listOf(
             Tile(Route.Messages, "Messages", (campus.classMessages.size + campus.proctorMessages.size).let { if (it > 0) "$it from class and proctor" else "Class and proctor" }, dev.medriid.davit.design.Kind.People),
             Tile(Route.Spotlight, "Spot-light", if (campus.spotlight.isNotEmpty()) "${campus.spotlight.size} notices" else "VTOP's notices and files", dev.medriid.davit.design.Kind.People),

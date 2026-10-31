@@ -182,7 +182,8 @@ internal fun TodayTab(
             .minByOrNull { (_, d) -> d }?.first
         if (nextExam != null) {
             SectionTitle(nextExam.type.ifBlank { "Exam" })
-            ExamCard(nextExam, today)
+            val nav = LocalNav.current
+            ExamCard(nextExam, today, onClick = { nav.go(Route.ExamBoard) })
         }
 
         val worst = att.filter { it.atRisk }.minByOrNull { it.percent }.takeUnless { snapshot.attendanceExempt }

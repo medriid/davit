@@ -265,6 +265,8 @@ private fun ExamsSegment(exams: List<Exam>) {
     }
     val today = LocalDate.now()
     val (done, upcoming) = exams.partition { e -> e.day()?.isBefore(today) == true }
+    val nav = LocalNav.current
+    if (upcoming.isNotEmpty()) InkButton("Exam board: every paper at a glance", { nav.go(Route.ExamBoard) }, quiet = true, fillWidth = true, modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp))
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         upcoming.sortedWith(compareBy(nullsLast()) { it.day() }).groupBy { it.type }.forEach { (type, list) ->
             InkText(type.ifBlank { "Exams" }, label = true, modifier = Modifier.padding(top = 6.dp))
@@ -278,10 +280,10 @@ private fun ExamsSegment(exams: List<Exam>) {
 }
 
 @Composable
-internal fun ExamCard(exam: Exam, today: LocalDate, modifier: Modifier = Modifier) {
+internal fun ExamCard(exam: Exam, today: LocalDate, modifier: Modifier = Modifier, onClick: (() -> Unit)? = null) {
     val day = exam.day()
     val days = day?.let { ChronoUnit.DAYS.between(today, it).toInt() }
-    InkCard(modifier.fillMaxWidth(), kind = dev.medriid.davit.design.Kind.Exams, plateOffset = 4.dp) {
+    InkCard(modifier.fillMaxWidth(), onClick = onClick, kind = dev.medriid.davit.design.Kind.Exams, plateOffset = 4.dp) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.width(70.dp)) {
                 Heading(day?.dayOfMonth?.toString() ?: "?", 30.sp)
@@ -314,7 +316,7 @@ internal fun ExamCard(exam: Exam, today: LocalDate, modifier: Modifier = Modifie
 }
 
 /** Opens the calendar app with the exam filled in; all-day if VTOP's time can't be read. */
-private fun addToCalendar(context: Context, exam: Exam) {
+internal fun addToCalendar(context: Context, exam: Exam) {
     val day = exam.day() ?: return
     val clock = DateTimeFormatter.ofPattern("hh:mm a", Locale.ENGLISH)
     val times = exam.time.split("-").map { it.trim().uppercase() }

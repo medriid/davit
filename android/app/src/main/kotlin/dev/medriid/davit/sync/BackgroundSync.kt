@@ -1,5 +1,7 @@
 package dev.medriid.davit.sync
 
+import dev.medriid.davit.data.key
+import dev.medriid.davit.data.fixedBetween
 import dev.medriid.davit.data.withLabSessions
 import dev.medriid.davit.data.withAliases
 import android.annotation.SuppressLint
@@ -107,7 +109,13 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
                 if (repo.state.value.alerts) {
                     // As the app shows them: labs in sessions, your names for courses.
                     val names = repo.state.value.aliases
-                    val alerts = alertsFor(before?.withLabSessions()?.withAliases(names), after.withLabSessions().withAliases(names), LocalDate.now(), repo.state.value.reminders, repo.state.value.alertPrefs)
+                    val shown = after.withLabSessions().withAliases(names)
+                    // Days you flagged that VTOP has now put right.
+                    val fixed = fixedBetween(before, after, repo.state.value.corrections).map { c ->
+                        val course = shown.attendance.firstOrNull { it.key == c.course }?.courseName ?: c.course.substringBefore('|')
+                        Alert(AlertChannel.Attendance, "fixed|${c.id}", "VTOP fixed your attendance", "$course, ${c.date}: now ${if (c.onDuty) "on duty" else "present"}.")
+                    }
+                    val alerts = alertsFor(before?.withLabSessions()?.withAliases(names), shown, LocalDate.now(), repo.state.value.reminders, repo.state.value.alertPrefs) + fixed
                     Log.i("daVIT", "background sync: ${alerts.size} alert(s)")
                     Notifier.post(applicationContext, alerts)
                 }

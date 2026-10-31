@@ -316,6 +316,10 @@ private fun RouteHost(route: Route) = when (route) {
     Route.LeavePlanner -> LeavePlannerScreen(route)
     Route.DisplayCard -> DisplayCardScreen(route)
     Route.CourseNames -> CourseNamesScreen(route)
+    Route.Corrections -> CorrectionsScreen(route)
+    Route.ExamBoard -> ExamBoardScreen(route)
+    Route.Friends -> FriendsScreen(route)
+    Route.Planner -> PlannerScreen(route)
 }
 
 @Composable

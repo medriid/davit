@@ -241,7 +241,7 @@ internal fun EditorialHome(snapshot: Snapshot, reminders: List<Reminder>, onOpen
                     Modifier.fillMaxWidth().aspectRatio(1f),
                     description = exam?.let { "${it.first.type} in ${ChronoUnit.DAYS.between(today, it.second)} days" } ?: "No exams coming up",
                     fill = inks.raised,
-                    onClick = onOpenAcademics,
+                    onClick = { onOpen(Route.ExamBoard) },
                 ) {
                     Column(Modifier.fillMaxSize().padding(14.dp)) {
                         InkText(exam?.first?.type ?: "Exams", label = true)
@@ -304,7 +304,7 @@ private fun Hub(snapshot: Snapshot, onOpen: (Route) -> Unit, onOpenWeek: () -> U
         "Study" to listOf(
             HubItem("Marks", RisoIcon.Marks, academics(0)),
             HubItem("Assignments", RisoIcon.Assignments, academics(1)),
-            HubItem("Exams", RisoIcon.Exams, academics(2)),
+            HubItem("Exam board", RisoIcon.Exams) { onOpen(Route.ExamBoard) },
             HubItem("Grades & CGPA", RisoIcon.Grades, academics(3)),
             HubItem("Materials", RisoIcon.Materials, academics(4)),
             HubItem("Faculty", RisoIcon.Faculty, academics(5)),
@@ -312,7 +312,9 @@ private fun Hub(snapshot: Snapshot, onOpen: (Route) -> Unit, onOpenWeek: () -> U
         "Time" to listOf(
             HubItem("Week", RisoIcon.Week, onOpenWeek),
             HubItem("Curriculum", RisoIcon.Book) { onOpen(Route.Curriculum) },
-            HubItem("Next semester", RisoIcon.Next) { onOpen(Route.Allocation) },
+            HubItem("Plan next sem", RisoIcon.Today) { onOpen(Route.Planner) },
+            HubItem("Free with friends", RisoIcon.People) { onOpen(Route.Friends) },
+            HubItem("Allocation", RisoIcon.Next) { onOpen(Route.Allocation) },
         ),
         "Campus" to listOfNotNull(
             HubItem("Hostel", RisoIcon.Home) { onOpen(Route.Hostel) }.takeIf { snapshot.profile?.hostel != null },
@@ -329,6 +331,7 @@ private fun Hub(snapshot: Snapshot, onOpen: (Route) -> Unit, onOpenWeek: () -> U
             HubItem("Receipts", RisoIcon.Receipt) { onOpen(Route.Money) },
             HubItem("Gate log", RisoIcon.Gate) { onOpen(Route.Gate) },
             HubItem("Activities", RisoIcon.Trophy) { onOpen(Route.Activities) },
+            HubItem("Corrections", RisoIcon.Attendance) { onOpen(Route.Corrections) },
         ),
         "Yours" to listOf(
             HubItem("Course names", RisoIcon.Tag) { onOpen(Route.CourseNames) },
@@ -491,7 +494,10 @@ internal fun EditorialAttendance(snapshot: Snapshot) {
                                 InkText("VTOP: ${it.remark}", style = RisoType.small.copy(color = if (it.serious) inks.a else inks.muted, fontWeight = FontWeight.Bold))
                             }
                             Spacer(Modifier.height(10.dp))
-                            InkText("Plan a leave  →", style = RisoType.label.copy(color = inks.a), modifier = Modifier.clickable(role = Role.Button) { nav.go(Route.LeavePlanner) }.padding(vertical = 6.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                                InkText("Plan a leave  →", style = RisoType.label.copy(color = inks.a), modifier = Modifier.clickable(role = Role.Button) { nav.go(Route.LeavePlanner) }.padding(vertical = 6.dp))
+                                InkText("Marked wrong?  →", style = RisoType.label.copy(color = inks.a), modifier = Modifier.clickable(role = Role.Button) { nav.go(Route.Corrections) }.padding(vertical = 6.dp))
+                            }
                         }
                     }
                 }
@@ -622,13 +628,6 @@ private fun MarksTicker(snapshot: Snapshot) {
                     Spacer(Modifier.height(4.dp))
                     BasicText(c.courseName, style = RisoType.title.copy(color = inks.text, fontSize = 15.sp), maxLines = 1)
                     BasicText(m.title, style = RisoType.small.copy(color = inks.muted, fontSize = 13.sp), maxLines = 1)
-                }
-            }
-        }
-        if (marks.size > 1) {
-            Row(Modifier.align(Alignment.TopEnd).padding(16.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                marks.indices.take(8).forEach { k ->
-                    Box(Modifier.size(if (k == i % 8) 10.dp else 5.dp, 5.dp).background(if (k == i % 8) inks.text else inks.rule))
                 }
             }
         }
