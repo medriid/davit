@@ -22,8 +22,8 @@ android {
         applicationId = "dev.medriid.davit"
         minSdk = 26
         targetSdk = 35
-        versionCode = 19
-        versionName = "0.13.0"
+        versionCode = 20
+        versionName = "0.13.1"
     }
 
     signingConfigs {

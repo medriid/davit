@@ -2,6 +2,10 @@
 
 Downloads are on the [releases page](https://github.com/medriid/davit/releases). daVIT updates itself after the first install.
 
+## 0.13.1 — 2026-10-31
+
+- **Overall attendance** is the average of your subjects' percentages, so a subject with many classes no longer outweighs the rest.
+
 ## 0.13.0 — 2026-10-31
 
 - **Settings, sorted**: six groups on one screen, each showing how it's set, each with its own short page, and **Find a setting** to jump straight to anything.
