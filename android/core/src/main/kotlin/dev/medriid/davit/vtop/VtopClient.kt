@@ -525,10 +525,8 @@ class VtopClient(
     ): UploadOutcome = timed("upload") {
         val s = session ?: throw SessionExpired()
         val path = "/examinations/doDAssignmentUploadMethod"
-        val body = MultipartBody.Builder().setType(MultipartBody.FORM).apply {
-            form.fields.forEach { (k, v) -> addFormDataPart(k, if (k == "_csrf") s.csrf else v) }
-            addFormDataPart(form.fileField, fileName, Counting(bytes, mimeType.toMediaTypeOrNull(), onProgress))
-        }.build()
+        val fields = form.fields.map { (k, v) -> k to if (k == "_csrf") s.csrf else v }
+        val body = BrowserFormData(fields, form.fileAt, form.fileField, fileName, mimeType, bytes, onProgress)
         val (html, headers) = multipart(path, body, WritePermit(path, consent))
         CoursePages.uploadOutcome(html, form.code, headers["error"], headers["message"])
     }
@@ -808,7 +806,7 @@ class VtopClient(
     /** An authenticated POST. Throws [SessionExpired] if VTOP bounced us to a login page. */
     private fun authed(path: String, extra: Map<String, String>, permit: WritePermit? = null): String {
         val s = session ?: throw SessionExpired()
-        val (html, url) = post(path, base(s) + extra, permit = permit)
+        val (html, url) = post(path, base(s) + extra, permit = permit, signedIn = true)
         if (Parsers.isLoggedOutPage(html, url)) throw SessionExpired()
         // Keep the CSRF token current if the page carries a newer one.
         Parsers.csrfOf(org.jsoup.Jsoup.parse(html))?.let { if (it != s.csrf) session = s.copy(csrf = it) }
@@ -825,7 +823,9 @@ class VtopClient(
             .url(url(path))
             .post(body)
             .header("Referer", url("/content").toString())
-            .header("X-Requested-With", "XMLHttpRequest")
+            // As the page's own fetch(FormData) sends it: Origin and Accept, and no X-Requested-With.
+            .header("Origin", "${base.scheme}://${base.host}" + if (base.port != HttpUrl.defaultPort(base.scheme)) ":${base.port}" else "")
+            .header("Accept", "*/*")
             .apply { if (permit != null) tag(WritePermit::class.java, permit) }
             .build()
         return call(req, slow).use { resp ->
@@ -841,7 +841,7 @@ class VtopClient(
 
     private fun get(path: String): Response = call(Request.Builder().url(url(path)).get().build())
 
-    private fun post(path: String, form: Map<String, String>, referer: String = "/content", permit: WritePermit? = null): Pair<String, String> {
+    private fun post(path: String, form: Map<String, String>, referer: String = "/content", permit: WritePermit? = null, signedIn: Boolean = false): Pair<String, String> {
         val body = FormBody.Builder().apply { form.forEach { (k, v) -> add(k, v) } }.build()
         val req = Request.Builder()
             .url(url(path))
@@ -850,7 +850,12 @@ class VtopClient(
             .header("X-Requested-With", "XMLHttpRequest")
             .apply { if (permit != null) tag(WritePermit::class.java, permit) }
             .build()
-        return call(req).use { (it.body?.string().orEmpty()) to it.request.url.toString() }
+        return call(req).use {
+            // A page behind sign-in answers 404 once VTOP has ended the session (signing in on the
+            // website ends the app's), not its sign-in page.
+            if (signedIn && it.code == 404) throw SessionExpired()
+            (it.body?.string().orEmpty()) to it.request.url.toString()
+        }
     }
 
     /** Uploads: VTOP can take a while to answer once a file is in. */
@@ -954,26 +959,58 @@ internal fun fileNameOf(disposition: String?): String? {
     return name.substringAfterLast('/').substringAfterLast('\\').trim().takeIf { it.isNotEmpty() && it != "." && it != ".." }
 }
 
-/** Reports bytes as they're written, for the upload progress bar. */
-private class Counting(private val bytes: ByteArray, private val type: MediaType?, private val onProgress: (Long, Long) -> Unit) : RequestBody() {
-    override fun contentType(): MediaType? = type
-    override fun contentLength(): Long = bytes.size.toLong()
+/**
+ * A file upload exactly as a browser sends `new FormData(form)`: fields in page order with the
+ * file at its place, a WebKit-style boundary, and no per-part Content-Length lines (OkHttp's
+ * multipart adds those, and VTOP stopped reading such an upload partway). The file goes out in
+ * flushed pieces, so the write timeout measures a stall rather than the whole file, and
+ * [onProgress] moves as it goes.
+ */
+private class BrowserFormData(
+    fields: List<Pair<String, String>>,
+    fileAt: Int,
+    fileField: String,
+    fileName: String,
+    mimeType: String,
+    private val file: ByteArray,
+    private val onProgress: (Long, Long) -> Unit,
+) : RequestBody() {
+    private val boundary = "----WebKitFormBoundary" + (1..16).map { BOUNDARY_CHARS.random() }.joinToString("")
+    private val head: ByteArray
+    private val tail: ByteArray
 
-    // In pieces, each flushed to the network: the write timeout then measures a stall, not
-    // how long the whole file takes (2 MB on a slow uplink ran past it), and progress moves.
+    init {
+        fun part(name: String, value: String) = "--$boundary\r\nContent-Disposition: form-data; name=\"${escape(name)}\"\r\n\r\n$value\r\n"
+        val at = fileAt.coerceIn(0, fields.size)
+        val fileHead = "--$boundary\r\nContent-Disposition: form-data; name=\"${escape(fileField)}\"; filename=\"${escape(fileName)}\"\r\n" +
+            "Content-Type: ${mimeType.ifBlank { "application/octet-stream" }}\r\n\r\n"
+        head = (fields.take(at).joinToString("") { (k, v) -> part(k, v) } + fileHead).toByteArray(Charsets.UTF_8)
+        tail = ("\r\n" + fields.drop(at).joinToString("") { (k, v) -> part(k, v) } + "--$boundary--\r\n").toByteArray(Charsets.UTF_8)
+    }
+
+    override fun contentType(): MediaType? = "multipart/form-data; boundary=$boundary".toMediaTypeOrNull()
+    override fun contentLength(): Long = (head.size + file.size + tail.size).toLong()
+
     override fun writeTo(sink: BufferedSink) {
+        sink.write(head)
         var sent = 0
-        while (sent < bytes.size) {
-            val n = minOf(PIECE, bytes.size - sent)
-            sink.write(bytes, sent, n)
+        while (sent < file.size) {
+            val n = minOf(PIECE, file.size - sent)
+            sink.write(file, sent, n)
             sink.flush()
             sent += n
-            onProgress(sent.toLong(), bytes.size.toLong())
+            onProgress(sent.toLong(), file.size.toLong())
         }
+        sink.write(tail)
+        sink.flush()
     }
 
     private companion object {
         const val PIECE = 16 * 1024
+        val BOUNDARY_CHARS = ('A'..'Z') + ('a'..'z') + ('0'..'9')
+
+        /** As browsers escape names in a form-data header. */
+        fun escape(s: String) = s.replace("\"", "%22").replace("\r", "%0D").replace("\n", "%0A")
     }
 }
 

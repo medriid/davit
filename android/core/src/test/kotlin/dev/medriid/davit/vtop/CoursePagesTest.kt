@@ -70,6 +70,15 @@ class CoursePagesTest {
             ),
             f.fields,
         )
+        // The file input comes after all eight in the page, so that's where the browser sends it.
+        assertEquals(8, f.fileAt)
+    }
+
+    @Test
+    fun fileAtFollowsThePage() {
+        val html = """<form id="daUpload"><input type="hidden" name="authorizedID" value="R"><input type="hidden" name="_csrf" value="T">
+            <input type="file" name="studDaUpload"><input type="hidden" name="classId" value="VL1"><input type="hidden" name="mCode" value="CP"></form>"""
+        assertEquals(2, CoursePages.uploadForm(html, "VL1", "CP").fileAt)
     }
 
     @Test

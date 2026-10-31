@@ -92,7 +92,12 @@ class WriteFlowTest {
         assertTrue(seen.first { it.path!!.endsWith("doDAssignmentUploadMethod") }.getHeader("Content-Type")!!.startsWith("multipart/form-data"))
         assertTrue("name=\"studDaUpload\"; filename=\"answer.pdf\"" in upload)
         assertTrue("%PDF-1.4 hello" in upload)
-        assertTrue("name=\"mCode\"\r\nContent-Length: 2\r\n\r\nCP" in upload)
+        // As a browser's FormData: no Content-Length inside parts, a WebKit boundary, the file where the page has it.
+        assertTrue("name=\"mCode\"\r\n\r\nCP\r\n" in upload)
+        assertTrue("Content-Length" !in upload)
+        assertTrue(seen.first { it.path!!.endsWith("doDAssignmentUploadMethod") }.getHeader("Content-Type")!!.contains("boundary=----WebKitFormBoundary"))
+        assertTrue(upload.indexOf("name=\"studDaUpload\"") > upload.lastIndexOf("name=\"opt\""))
+        assertEquals(upload.toByteArray().size.toString(), seen.first { it.path!!.endsWith("doDAssignmentUploadMethod") }.getHeader("Content-Length"))
         // Both code/opt pairs go, as the browser's FormData sends them.
         assertEquals(2, Regex("name=\"opt\"").findAll(upload).count())
         // The token is the session's current one (the form page carried it).

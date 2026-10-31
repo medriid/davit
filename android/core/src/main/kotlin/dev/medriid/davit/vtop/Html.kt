@@ -42,18 +42,25 @@ internal object Html {
         }
 
     /** A form's fields as a browser would send them (no files or buttons; unchecked boxes left out). */
-    fun formFields(form: Element): List<Pair<String, String>> =
-        form.select("input, select, textarea").mapNotNull { e ->
-            val name = e.attr("name")
-            if (name.isEmpty() || e.hasAttr("disabled")) return@mapNotNull null
-            when (e.tagName()) {
-                "select" -> name to (e.selectFirst("option[selected]") ?: e.selectFirst("option"))?.attr("value").orEmpty()
-                "textarea" -> name to e.text()
-                else -> when (e.attr("type").lowercase()) {
-                    "file", "button", "submit", "reset", "image" -> null
-                    "checkbox", "radio" -> if (e.hasAttr("checked")) name to e.attr("value").ifEmpty { "on" } else null
-                    else -> name to e.attr("value")
-                }
+    fun formFields(form: Element): List<Pair<String, String>> = form.select("input, select, textarea").mapNotNull(::fieldOf)
+
+    /** How many of [form]'s fields come before [input] in the page: where a browser puts the file. */
+    fun fieldsBefore(form: Element, input: Element): Int {
+        val all = form.select("input, select, textarea")
+        return all.take(all.indexOf(input).coerceAtLeast(0)).count { fieldOf(it) != null }
+    }
+
+    private fun fieldOf(e: Element): Pair<String, String>? {
+        val name = e.attr("name")
+        if (name.isEmpty() || e.hasAttr("disabled")) return null
+        return when (e.tagName()) {
+            "select" -> name to (e.selectFirst("option[selected]") ?: e.selectFirst("option"))?.attr("value").orEmpty()
+            "textarea" -> name to e.text()
+            else -> when (e.attr("type").lowercase()) {
+                "file", "button", "submit", "reset", "image" -> null
+                "checkbox", "radio" -> if (e.hasAttr("checked")) name to e.attr("value").ifEmpty { "on" } else null
+                else -> name to e.attr("value")
             }
         }
+    }
 }

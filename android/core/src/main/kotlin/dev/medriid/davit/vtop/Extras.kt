@@ -24,7 +24,14 @@ class Refused(message: String) : VtopException(message)
 // ---- assignment upload ---------------------------------------------------------------
 
 /** VTOP's upload form for one assignment, every field as rendered, minus the file. */
-data class UploadForm(val classId: String, val code: String, val fields: List<Pair<String, String>>, val fileField: String)
+data class UploadForm(
+    val classId: String,
+    val code: String,
+    val fields: List<Pair<String, String>>,
+    val fileField: String,
+    /** Where the file goes among [fields], as the page has it: a browser sends them in page order. */
+    val fileAt: Int = fields.size,
+)
 
 sealed class UploadOutcome {
     /** "Uploaded successfully"; [updated] is the row's new "Last Updated On" when the page shows it. */

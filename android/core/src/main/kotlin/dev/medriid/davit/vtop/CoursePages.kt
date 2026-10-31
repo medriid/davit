@@ -92,7 +92,7 @@ object CoursePages {
             ?: doc.select("form").firstOrNull { it.selectFirst("input[type=file]") != null }
             ?: throw Refused(Feeds.warnings(doc) ?: "VTOP didn't open the upload form for this assignment.")
         val file = form.selectFirst("input[type=file]")!!
-        return UploadForm(classId, code, Html.formFields(form), file.attr("name").ifEmpty { "studDaUpload" })
+        return UploadForm(classId, code, Html.formFields(form), file.attr("name").ifEmpty { "studDaUpload" }, Html.fieldsBefore(form, file))
     }
 
     /**
