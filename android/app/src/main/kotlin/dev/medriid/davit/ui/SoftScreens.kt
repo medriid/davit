@@ -54,6 +54,7 @@ import dev.medriid.davit.data.clock
 import dev.medriid.davit.data.hint
 import dev.medriid.davit.data.isLabType
 import dev.medriid.davit.data.key
+import dev.medriid.davit.data.overallPercent
 import dev.medriid.davit.data.percent
 import dev.medriid.davit.data.planFor
 import dev.medriid.davit.data.remainingFor
@@ -85,8 +86,7 @@ internal fun SoftHome(snapshot: Snapshot, reminders: List<Reminder>, onOpen: (Ro
     val now = remember { LocalDateTime.now() }
     val plan = remember(snapshot) { planFor(weekOf(snapshot), now, snapshot.calendar) }
     val att = snapshot.attendance
-    val total = att.sumOf { it.total }
-    val overall = if (total == 0) null else att.sumOf { it.attended } * 100 / total
+    val overall = overallPercent(att)
 
     TabColumn {
         // Hello, with your mascot, More and Settings.

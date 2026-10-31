@@ -4,6 +4,7 @@ import dev.medriid.davit.vtop.AttendanceRow
 import dev.medriid.davit.vtop.Meeting
 import dev.medriid.davit.vtop.SlotTimes
 import dev.medriid.davit.vtop.TimetableCourse
+import java.math.BigInteger
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -33,6 +34,24 @@ val AttendanceRow.key: String get() = "$courseCode|$classType"
 /** attended/total as a whole percentage, rounded down. */
 val AttendanceRow.percent: Int
     get() = if (total == 0) 100 else attended * 100 / total
+
+/**
+ * The mean of every course's exact attended/total, rounded down once at the end; each
+ * course counts the same however many classes it has. Exact (a common denominator) so
+ * the floor can't slip; null when no course has held a class.
+ */
+fun overallPercent(rows: List<AttendanceRow>): Int? {
+    val held = rows.filter { it.total > 0 }
+    if (held.isEmpty()) return null
+    var num = BigInteger.ZERO
+    var den = BigInteger.ONE
+    for (r in held) {
+        val t = r.total.toBigInteger()
+        num = num * t + r.attended.toBigInteger() * den
+        den *= t
+    }
+    return (num * 100.toBigInteger() / (den * held.size.toBigInteger())).toInt()
+}
 
 val AttendanceRow.atRisk: Boolean get() = 4 * attended < 3 * total
 

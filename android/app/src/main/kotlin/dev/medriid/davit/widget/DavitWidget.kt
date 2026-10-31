@@ -35,6 +35,7 @@ import dev.medriid.davit.data.UiState
 import dev.medriid.davit.data.atRisk
 import dev.medriid.davit.data.clock
 import dev.medriid.davit.data.hint
+import dev.medriid.davit.data.overallPercent
 import dev.medriid.davit.data.percent
 import dev.medriid.davit.data.planFor
 import dev.medriid.davit.data.remainingFor
@@ -150,9 +151,8 @@ private fun footer(s: UiState, now: LocalDateTime): String {
         return "Due $whenText · ${due.first.title}"
     }
     val att = snap.attendance
-    val total = att.sumOf { it.total }
     val risky = if (snap.attendanceExempt) 0 else att.count { it.atRisk }
-    return (if (total == 0) "" else "${att.sumOf { it.attended } * 100 / total}% overall · ") + "$risky at risk"
+    return (overallPercent(att)?.let { "$it% overall · " } ?: "") + "$risky at risk"
 }
 
 internal fun ago(at: Long): String {

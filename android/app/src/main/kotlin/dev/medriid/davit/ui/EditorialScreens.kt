@@ -73,6 +73,7 @@ import dev.medriid.davit.data.atRisk
 import dev.medriid.davit.data.clock
 import dev.medriid.davit.data.hint
 import dev.medriid.davit.data.isLabType
+import dev.medriid.davit.data.overallPercent
 import dev.medriid.davit.data.percent
 import dev.medriid.davit.data.planFor
 import dev.medriid.davit.data.remainingFor
@@ -113,8 +114,7 @@ internal fun EditorialPicture(snapshot: Snapshot?, onClick: () -> Unit, onChange
     val state by repo.state.collectAsState()
     val inks = LocalInks.current
     val att = snapshot?.attendance.orEmpty()
-    val total = att.sumOf { it.total }
-    val overall = if (total == 0) null else att.sumOf { it.attended } * 100 / total
+    val overall = overallPercent(att)
     val risky = if (snapshot?.attendanceExempt == true) 0 else att.count { it.atRisk }
     Tile(
         Modifier.fillMaxWidth().height(168.dp),

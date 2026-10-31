@@ -70,7 +70,7 @@ fun Snapshot.bannerText(stat: BannerStat, reminders: List<Reminder>, now: LocalD
                     else -> "in $days days"
                 }
             }
-        BannerStat.Attendance -> attendance.sumOf { it.total }.takeIf { it > 0 }?.let { "${attendance.sumOf { r -> r.attended } * 100 / it}% overall" }
+        BannerStat.Attendance -> overallPercent(attendance)?.let { "$it% overall" }
         BannerStat.AtRisk -> if (attendanceExempt) "75% rule: exempt" else "${attendance.count { it.atRisk }} at risk"
         BannerStat.Due -> assignments.flatMap { it.items }
             .count { a -> a.updated == null && vtopDate(a.due)?.let { !it.isBefore(today) && ChronoUnit.DAYS.between(today, it) <= 7 } == true }
