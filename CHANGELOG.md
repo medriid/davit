@@ -2,6 +2,12 @@
 
 Downloads are on the [releases page](https://github.com/medriid/davit/releases). daVIT updates itself after the first install.
 
+## 0.10.0 — 2026-10-31
+
+- **Two styles**: Classic, the printed cards in your colours, or the new **Editorial**, a Swiss grid of big numbers and live tiles on cream (near-black at night). Pick one when you first open daVIT, or in Settings → Look.
+- **Editorial's Home** has every page sorted into Study, Time, Campus, Requests & records, and Yours.
+- **Your own course names**: call a course whatever you call it, and that name shows everywhere, widgets and alerts included.
+
 ## 0.9.0 — 2026-10-30
 
 - **Follow a route**: press Start and the map stays on you, turned the way you're going, with the next turn, what's left, and a new route if you stray.
