@@ -2,6 +2,11 @@
 
 Downloads are on the [releases page](https://github.com/medriid/davit/releases). daVIT updates itself after the first install.
 
+## 0.11.1 — 2026-10-31
+
+- **Plan this semester** can leave a course out while its grade isn't known, and shows each course's code and theory or lab.
+- **Pearl Research Park** is spelled right on the map.
+
 ## 0.11.0 — 2026-10-31
 
 - **Exam board**: every paper's time, room, seat and countdown, the free days between, and the course's materials a tap away.
