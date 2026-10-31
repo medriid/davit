@@ -1,5 +1,7 @@
 package dev.medriid.davit.design
 
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.foundation.background
@@ -32,6 +34,12 @@ val CardShape = RoundedCornerShape(10.dp)
 /** Glass cards are rounder. */
 val GlassShape = RoundedCornerShape(18.dp)
 
+/** Soft sheets and cards: generously rounded. */
+val SoftShape = RoundedCornerShape(24.dp)
+
+/** Editorial tiles: all but square. */
+val EditorialShape = RoundedCornerShape(3.dp)
+
 /**
  * The workhorse surface: paper with a 2 dp ink border and a solid ink-A plate printed
  * [plateOffset] down-right behind it. The plate space is reserved, so cards never
@@ -55,6 +63,42 @@ fun InkCard(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val inks = LocalInks.current
+    if (inks.editorial) {
+        // Editorial: a flat tile, nearly square, a hairline edge; a flagged card (its own plate)
+        // gets a red bar down its left. Tappable ones sink a little under your finger.
+        val interaction = remember { MutableInteractionSource() }
+        val pressed by interaction.collectIsPressedAsState()
+        val sink by androidx.compose.animation.core.animateFloatAsState(if (pressed) 0.975f else 1f, RisoMotion.quick(), label = "sink")
+        Column(
+            modifier
+                .graphicsLayer { scaleX = sink; scaleY = sink }
+                .clip(EditorialShape)
+                .background(fill ?: inks.fill(kind))
+                .border(1.dp, inks.rule, EditorialShape)
+                .then(
+                    if (plate != null) Modifier.drawBehind { drawRect(inks.a, size = androidx.compose.ui.geometry.Size(4.dp.toPx(), size.height)) }
+                    else Modifier,
+                )
+                .then(if (onClick != null) Modifier.clickable(interaction, indication = null, role = Role.Button, onClick = onClick) else Modifier)
+                .padding(contentPadding),
+            content = content,
+        )
+        return
+    }
+    if (inks.soft) {
+        // Soft: a rounded sheet, no border and no shadow; a flagged card (its own plate) gets a coral edge.
+        Column(
+            modifier
+                .clip(SoftShape)
+                .background(fill ?: inks.fill(kind))
+                .then(if (plate != null) Modifier.border(2.dp, inks.a, SoftShape) else Modifier)
+                .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)
+                .padding(contentPadding)
+                .padding(2.dp),
+            content = content,
+        )
+        return
+    }
     // Glass always casts the same soft shadow (a coloured one would show through the card);
     // a card flagged with its own plate gets a bright edge instead.
     val plateColor = if (inks.glass) inks.glassShadow else plate ?: inks.plate(kind)
@@ -107,12 +151,12 @@ fun InkCard(
 @Composable
 fun InkChip(text: String, modifier: Modifier = Modifier, solid: Boolean = false) {
     val inks = LocalInks.current
-    val shape = RoundedCornerShape(6.dp)
+    val shape = if (inks.soft) RoundedCornerShape(50) else if (inks.editorial) EditorialShape else RoundedCornerShape(6.dp)
     Box(
         modifier
             .clip(shape)
-            .background(if (solid) (if (inks.sticker || inks.glass) inks.a else inks.b) else Color.Transparent)
-            .border(1.5.dp, if (inks.glass) (if (solid) inks.a else inks.rule) else if (solid && !inks.sticker) inks.b else inks.text, shape)
+            .background(if (solid) (if (inks.soft || inks.editorial) inks.text else if (inks.sticker || inks.glass) inks.a else inks.b) else Color.Transparent)
+            .border(if (inks.soft || inks.editorial) 1.dp else 1.5.dp, if (inks.soft || inks.editorial) (if (solid) inks.text else inks.text.copy(alpha = 0.3f)) else if (inks.glass) (if (solid) inks.a else inks.rule) else if (solid && !inks.sticker) inks.b else inks.text, shape)
             .padding(horizontal = 10.dp, vertical = 5.dp),
     ) {
         BasicText(

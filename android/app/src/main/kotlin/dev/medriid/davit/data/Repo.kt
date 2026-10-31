@@ -1,5 +1,6 @@
 package dev.medriid.davit.data
 
+import dev.medriid.davit.design.InkPairs
 import androidx.compose.ui.graphics.toArgb
 import android.content.Context
 import android.graphics.BitmapFactory
@@ -60,6 +61,8 @@ data class UiState(
     val banner: Banner = Banner(),
     /** When your own background photo last changed, so the card reloads it. */
     val bannerPhotoAt: Long = 0,
+    /** Your names for courses, by course code. Already applied to [snapshot] as [Repo.state] gives it. */
+    val aliases: Map<String, String> = emptyMap(),
 )
 
 /**
@@ -74,7 +77,21 @@ class Repo(private val context: Context) {
     private val client = VtopClient(BitmapDecoder)
 
     private val _state = MutableStateFlow(UiState())
-    val state: StateFlow<UiState> = _state
+
+    /**
+     * What everything outside reads: the state with your course names put in place of VTOP's.
+     * Inside, [_state] keeps VTOP's own, which is what gets saved.
+     */
+    @OptIn(kotlinx.coroutines.ExperimentalForInheritanceCoroutinesApi::class)
+    val state: StateFlow<UiState> = object : StateFlow<UiState> {
+        // Worked out on read, never lagging behind: the app reads this the moment it starts.
+        override val value: UiState get() = _state.value.withNames()
+        override val replayCache: List<UiState> get() = listOf(value)
+        override suspend fun collect(collector: kotlinx.coroutines.flow.FlowCollector<UiState>): Nothing =
+            _state.collect { collector.emit(it.withNames()) }
+    }
+
+    private fun UiState.withNames(): UiState = if (aliases.isEmpty()) this else copy(snapshot = snapshot?.withAliases(aliases))
 
     /** Downloaded files, kept for offline. */
     val files by lazy { FileStore(context) }
@@ -96,6 +113,9 @@ class Repo(private val context: Context) {
     /** A venue another screen asked the map to show ("SJT-401", a cabin); the map clears it. */
     val mapFocus = MutableStateFlow<String?>(null)
 
+    /** Asked for from elsewhere (a Home shortcut): which Academics section to open (0 marks … 5 faculty). */
+    val academicsFocus = MutableStateFlow<Int?>(null)
+
     init {
         val creds = credentials()
         _state.value = UiState(
@@ -114,6 +134,7 @@ class Repo(private val context: Context) {
             alertPrefs = AlertPrefs.fromJson(prefs.getString(K_ALERT_PREFS, null)),
             banner = Banner.fromJson(prefs.getString(K_BANNER, null)),
             bannerPhotoAt = bannerPhoto.lastModified(),
+            aliases = aliasesFromJson(prefs.getString(K_ALIASES, null)),
         )
         prefs.getString(K_SESSION, null)?.let(Vault::decrypt)?.let(client::restoreSession)
     }
@@ -160,6 +181,21 @@ class Repo(private val context: Context) {
     /** Starts over from ink pair [index], dropping any colours you changed. */
     fun setInk(index: Int) = setPalette(Palette(base = index, tinted = _state.value.palette.tinted))
 
+    /**
+     * Classic (the print looks, in the colours you chose) or Editorial. Your Classic colours
+     * are kept while you try Editorial, and come back when you switch back.
+     */
+    fun setEditorial(on: Boolean) {
+        val now = _state.value.palette
+        if (on == InkPairs.of(now.base, false).editorial) return
+        if (on) {
+            prefs.edit().putString(K_CLASSIC, now.toJson()).apply()
+            setPalette(Palette(base = InkPairs.editorialIndex, tinted = now.tinted))
+        } else {
+            setPalette(Palette.fromJson(prefs.getString(K_CLASSIC, null)) ?: Palette(base = 0, tinted = now.tinted))
+        }
+    }
+
     /** Shows [p] everywhere while you drag the colour wheel, without saving it; [setPalette] keeps it. */
     fun previewPalette(p: Palette) = _state.update { it.copy(palette = p) }
 
@@ -196,6 +232,17 @@ class Repo(private val context: Context) {
 
     /** Your own display card background, kept on this phone only (like the mascot, it stays when you sign out). */
     val bannerPhoto: File get() = File(context.filesDir, "look/banner.jpg")
+
+    /** Every course this semester by code, with VTOP's own name (not yours): for the names screen. */
+    fun vtopCourses(): List<Pair<String, String>> = _state.value.snapshot?.coursesForAliases().orEmpty()
+
+    /** Your name for the course [code]; blank brings back VTOP's. */
+    fun setAlias(code: String, name: String) {
+        val next = (_state.value.aliases + (code to name.trim())).filterValues { it.isNotBlank() }
+        prefs.edit().putString(K_ALIASES, aliasesToJson(next)).apply()
+        _state.update { it.copy(aliases = next) }
+        DavitWidget.refresh(context)
+    }
 
     fun setBanner(b: Banner) {
         prefs.edit().putString(K_BANNER, b.toJson()).apply()
@@ -384,7 +431,9 @@ class Repo(private val context: Context) {
                 val mascot = prefs.getString(K_MASCOT, "").orEmpty()
                 val theme = prefs.getInt(K_THEME, 0)
                 val banner = prefs.getString(K_BANNER, null)
+                val classic = prefs.getString(K_CLASSIC, null)
                 prefs.edit().clear().putInt(K_INK, ink).putString(K_PALETTE, palette).putString(K_MASCOT, mascot).putInt(K_THEME, theme).putString(K_BANNER, banner)
+                    .putString(K_CLASSIC, classic)
                     .putBoolean(K_WELCOMED, true).apply()
                 Notifier.forget(context)
                 PhoneCalendar.turnOff(context)
@@ -718,6 +767,8 @@ class Repo(private val context: Context) {
         private const val K_DUMP = "dump"
         private const val K_MASCOT = "mascot"
         private const val K_BANNER = "banner"
+        private const val K_ALIASES = "aliases"
+        private const val K_CLASSIC = "classic_palette"
         private const val K_BACKGROUND = "background"
         private const val K_ALERTS = "alerts"
         private const val K_ASKED = "askedNotifications"

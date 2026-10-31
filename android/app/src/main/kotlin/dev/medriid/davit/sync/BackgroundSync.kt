@@ -1,5 +1,6 @@
 package dev.medriid.davit.sync
 
+import dev.medriid.davit.data.withAliases
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
@@ -103,7 +104,9 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
             error != null || after == null -> Result.success()
             else -> {
                 if (repo.state.value.alerts) {
-                    val alerts = alertsFor(before, after, LocalDate.now(), repo.state.value.reminders, repo.state.value.alertPrefs)
+                    // In your names for courses, as the app shows them.
+                    val names = repo.state.value.aliases
+                    val alerts = alertsFor(before?.withAliases(names), after.withAliases(names), LocalDate.now(), repo.state.value.reminders, repo.state.value.alertPrefs)
                     Log.i("daVIT", "background sync: ${alerts.size} alert(s)")
                     Notifier.post(applicationContext, alerts)
                 }

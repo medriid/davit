@@ -84,6 +84,15 @@ internal fun TodayTab(
     onRemoveReminder: (Long) -> Unit,
     onOpen: (Route) -> Unit = {},
 ) {
+    // The Soft look has its own Home.
+    if (LocalInks.current.editorial) {
+        EditorialHome(snapshot, reminders, onOpen, onOpenAttendance, onOpenWeek, onOpenAcademics)
+        return
+    }
+    if (LocalInks.current.soft) {
+        SoftHome(snapshot, reminders, onOpen, onOpenWeek, onOpenAttendance)
+        return
+    }
     var adding by rememberSaveable { mutableStateOf(false) }
     var now by remember { mutableStateOf(LocalDateTime.now()) }
     LaunchedEffect(Unit) {

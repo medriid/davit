@@ -32,6 +32,11 @@ fun Grain(
 ) {
     val inks = LocalInks.current
     val grain = remember { grainBrush() }
+    if (inks.soft || inks.editorial) {
+        // Soft: plain warm grey, no grain.
+        Box(modifier.background(inks.paper), content = content)
+        return
+    }
     if (inks.glass) {
         // Glass: no grain, a soft grey sheet with two pale glows, so the frosted cards have something to show through.
         Box(

@@ -209,33 +209,46 @@ internal fun SettingsScreen(route: Route) {
 
         // The look.
         SettingsCard("Look") {
+            val editorial = LocalInks.current.editorial
+            InkText("Style", style = RisoType.body.copy(fontWeight = FontWeight.SemiBold))
+            Spacer(Modifier.height(8.dp))
+            StylePicker(editorial, repo::setEditorial)
+            Spacer(Modifier.height(14.dp))
             InkText("Light or dark", style = RisoType.body.copy(fontWeight = FontWeight.SemiBold))
             Spacer(Modifier.height(8.dp))
             ChoiceRow(listOf("System", "Light", "Dark"), state.theme) { repo.setTheme(it) }
             Spacer(Modifier.height(14.dp))
-            val palette = state.palette
-            var replacing by remember { mutableStateOf<Int?>(null) }
-            InkText(
-                if (palette.custom) "Colours · your own, from " + InkPairs.all[palette.base.coerceIn(0, InkPairs.all.lastIndex)].name
-                else "Ink pair · " + InkPairs.all[palette.base.coerceIn(0, InkPairs.all.lastIndex)].name,
-                style = RisoType.body.copy(fontWeight = FontWeight.SemiBold),
-            )
-            Spacer(Modifier.height(8.dp))
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                InkPairs.all.indices.forEach { i -> InkSwatch(InkPairs.of(i, LocalInks.current.dark), selected = !palette.custom && i == palette.base) { if (palette.custom) replacing = i else repo.setInk(i) } }
-            }
-            replacing?.let { i ->
+            // Colours belong to Classic; Editorial keeps its own newsprint and red.
+            if (!editorial) {
+                val palette = state.palette
+                var replacing by remember { mutableStateOf<Int?>(null) }
+                InkText(
+                    if (palette.custom) "Colours · your own, from " + InkPairs.all[palette.base.coerceIn(0, InkPairs.all.lastIndex)].name
+                    else "Ink pair · " + InkPairs.all[palette.base.coerceIn(0, InkPairs.all.lastIndex)].name,
+                    style = RisoType.body.copy(fontWeight = FontWeight.SemiBold),
+                )
                 Spacer(Modifier.height(8.dp))
-                InkText("Start over from " + InkPairs.all[i].name + "? Your own colours go.", style = RisoType.small)
-                Spacer(Modifier.height(6.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Box(Modifier.clickable(role = Role.Button) { repo.setInk(i); replacing = null }) { InkChip("Start over", solid = true) }
-                    Box(Modifier.clickable(role = Role.Button) { replacing = null }) { InkChip("Keep mine") }
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    InkPairs.classic.forEach { i -> InkSwatch(InkPairs.of(i, LocalInks.current.dark), selected = !palette.custom && i == palette.base) { if (palette.custom) replacing = i else repo.setInk(i) } }
                 }
+                replacing?.let { i ->
+                    Spacer(Modifier.height(8.dp))
+                    InkText("Start over from " + InkPairs.all[i].name + "? Your own colours go.", style = RisoType.small)
+                    Spacer(Modifier.height(6.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Box(Modifier.clickable(role = Role.Button) { repo.setInk(i); replacing = null }) { InkChip("Start over", solid = true) }
+                        Box(Modifier.clickable(role = Role.Button) { replacing = null }) { InkChip("Keep mine") }
+                    }
+                }
+                Spacer(Modifier.height(6.dp))
+                SettingRow("Your own colours", "Any colour for every ink, and for each kind of card.", "Choose") { nav.go(Route.Colours) }
             }
-            Spacer(Modifier.height(6.dp))
-            SettingRow("Your own colours", "Any colour for every ink, and for each kind of card.", "Choose") { nav.go(Route.Colours) }
-            SettingRow("Display card", "The top bar on a print or your own photo, with two stats you pick.", "Change") { nav.go(Route.DisplayCard) }
+            SettingRow(
+                "Display card",
+                if (LocalInks.current.editorial) "The picture at the top of Home: a print or your own photo." else "The top bar on a print or your own photo, with two stats you pick.",
+                "Change",
+            ) { nav.go(Route.DisplayCard) }
+            SettingRow("Course names", "Your own short names for courses, shown everywhere.", "Rename") { nav.go(Route.CourseNames) }
             Spacer(Modifier.height(14.dp))
             Hairline()
             var editing by rememberSaveable { mutableStateOf(false) }

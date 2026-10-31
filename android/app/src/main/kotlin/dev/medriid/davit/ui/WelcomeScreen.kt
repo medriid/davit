@@ -2,6 +2,10 @@
 
 package dev.medriid.davit.ui
 
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -38,12 +42,18 @@ import dev.medriid.davit.design.RisoType
 import dev.medriid.davit.design.Seal
 
 /**
- * Before signing in: make daVIT yours. Light or dark, the ink colours and your mascot,
+ * Before signing in: make daVIT yours. Classic or Editorial, light or dark, the ink colours and your mascot,
  * each change shown at once on a sample card, then on to the sign-in form. All of it
  * stays in Settings → Look afterwards.
  */
 @Composable
 internal fun WelcomeScreen(state: UiState, repo: Repo, onContinue: () -> Unit) {
+    // The Soft look opens on its coral intro first.
+    var intro by rememberSaveable { mutableStateOf(true) }
+    if (LocalInks.current.soft && intro) {
+        SoftIntro { intro = false }
+        return
+    }
     Column(
         Modifier
             .fillMaxSize()
@@ -59,22 +69,29 @@ internal fun WelcomeScreen(state: UiState, repo: Repo, onContinue: () -> Unit) {
         Spacer(Modifier.height(26.dp))
         Heading("Welcome", 36.sp)
         Spacer(Modifier.height(6.dp))
-        InkText("Your attendance, classes, marks and the campus map, from VTOP. First, make it look the way you like.")
+        InkText("Your attendance, classes, marks and the campus map, from VTOP. First, pick how it looks.")
         Spacer(Modifier.height(18.dp))
+        GroupLabel("Style", Modifier.padding(bottom = 8.dp))
+        val editorial = LocalInks.current.editorial
+        StylePicker(editorial, repo::setEditorial)
+        Spacer(Modifier.height(14.dp))
         SampleCard(Mascot.parse(state.mascot))
 
         GroupLabel("Light or dark", Modifier.padding(top = 22.dp, bottom = 8.dp))
         ChoiceRow(listOf("System", "Light", "Dark"), state.theme) { repo.setTheme(it) }
 
-        GroupLabel("Colours", Modifier.padding(top = 20.dp, bottom = 8.dp))
-        val palette = state.palette
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            InkPairs.all.indices.forEach { i ->
-                InkSwatch(InkPairs.of(i, LocalInks.current.dark), selected = !palette.custom && i == palette.base) { repo.setInk(i) }
+        // Colours belong to Classic; Editorial keeps its own newsprint and red.
+        if (!editorial) {
+            GroupLabel("Colours", Modifier.padding(top = 20.dp, bottom = 8.dp))
+            val palette = state.palette
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                InkPairs.classic.forEach { i ->
+                    InkSwatch(InkPairs.of(i, LocalInks.current.dark), selected = !palette.custom && i == palette.base) { repo.setInk(i) }
+                }
             }
+            Spacer(Modifier.height(6.dp))
+            InkText(InkPairs.all[palette.base.coerceIn(0, InkPairs.all.lastIndex)].name + ". Any colour for every ink and card later, in Settings.", style = RisoType.small)
         }
-        Spacer(Modifier.height(6.dp))
-        InkText(InkPairs.all[palette.base.coerceIn(0, InkPairs.all.lastIndex)].name + ". Any colour for every ink and card later, in Settings.", style = RisoType.small)
 
         GroupLabel("Your mascot", Modifier.padding(top = 20.dp, bottom = 8.dp))
         MascotEditor(Mascot.parse(state.mascot)) { repo.setMascot(it.encode()) }

@@ -70,6 +70,8 @@ data class Palette(
             tone = pair.tone,
             sticker = pair.sticker && !p.luminanceDark(),
             glass = pair.glass,
+            soft = pair.soft,
+            editorial = pair.editorial,
         )
     }
 

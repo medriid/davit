@@ -1,5 +1,8 @@
 package dev.medriid.davit.ui
 
+import androidx.compose.runtime.snapshots.SnapshotStateList
+import androidx.compose.runtime.MutableIntState
+import androidx.compose.runtime.key
 import androidx.compose.ui.unit.Dp
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.ui.text.font.FontWeight
@@ -126,7 +129,19 @@ fun AppScreen(repo: Repo, locked: Boolean = false, onUnlock: () -> Unit = {}) {
         val bars = if (dark) SystemBarStyle.dark(AndroidColor.TRANSPARENT) else SystemBarStyle.light(AndroidColor.TRANSPARENT, AndroidColor.TRANSPARENT)
         activity?.enableEdgeToEdge(statusBarStyle = bars, navigationBarStyle = bars)
     }
-    RisoTheme(state.palette.inks(dark)) {
+    val inks = state.palette.inks(dark)
+    // Where you are (tab and open screens) lives outside the rebuild below, so changing style keeps you there.
+    val tab = rememberSaveable { mutableIntStateOf(0) }
+    val stack = rememberSaveable(saver = Route.StackSaver) { mutableStateListOf<Route>() }
+    LaunchedEffect(state.signedIn) {
+        if (!state.signedIn) {
+            stack.clear()
+            tab.intValue = 0
+        }
+    }
+    RisoTheme(inks) {
+        // Switching style rebuilds everything, so every text picks up its type.
+        key(inks.soft, inks.editorial) {
         Grain(Modifier.fillMaxSize()) {
             if (locked && state.signedIn) {
                 LockScreen(onUnlock)
@@ -136,7 +151,7 @@ fun AppScreen(repo: Repo, locked: Boolean = false, onUnlock: () -> Unit = {}) {
             var welcome by rememberSaveable { mutableStateOf(!repo.welcomed) }
             Crossfade(if (state.signedIn) 0 else if (welcome) 1 else 2, label = "signedIn") { screen ->
                 when (screen) {
-                    0 -> Main(state, repo)
+                    0 -> Main(state, repo, tab, stack)
                     1 -> WelcomeScreen(state, repo) {
                         repo.welcomed = true
                         welcome = false
@@ -145,14 +160,14 @@ fun AppScreen(repo: Repo, locked: Boolean = false, onUnlock: () -> Unit = {}) {
                 }
             }
         }
+        }
     }
 }
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
-private fun Main(state: UiState, repo: Repo) {
-    var tab by rememberSaveable { mutableIntStateOf(0) }
-    val stack = rememberSaveable(saver = Route.StackSaver) { mutableStateListOf<Route>() }
+private fun Main(state: UiState, repo: Repo, tabState: MutableIntState, stack: SnapshotStateList<Route>) {
+    var tab by tabState
     val nav = remember(stack) { Nav(stack) { tab = it } }
     val mascot = Mascot.parse(state.mascot)
     val motion = rememberMotionEnabled()
@@ -174,7 +189,9 @@ private fun Main(state: UiState, repo: Repo) {
         Box(Modifier.fillMaxSize()) {
             Column(Modifier.fillMaxSize()) {
                 // The display card on Home only; every other tab and screen gets the plain bar.
-                TopBar(state, mascot, repo.bannerPhoto, card = tab == 0 && stack.isEmpty(), onSync = repo::sync, onProfile = { nav.go(Route.Settings) }, onMore = { nav.go(Route.Campus) }, modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars))
+                // Soft Home draws its own hello in place of the bar.
+                if ((LocalInks.current.soft || LocalInks.current.editorial) && tab == 0 && stack.isEmpty()) Spacer(Modifier.windowInsetsPadding(WindowInsets.statusBars))
+                else TopBar(state, mascot, repo.bannerPhoto, card = tab == 0 && stack.isEmpty(), onSync = repo::sync, onProfile = { nav.go(Route.Settings) }, onMore = { nav.go(Route.Campus) }, modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars))
                 AnimatedVisibility(state.error != null) {
                     ErrorBanner(state.error.orEmpty(), onRetry = repo::sync, onDismiss = repo::dismissError)
                 }
@@ -298,6 +315,7 @@ private fun RouteHost(route: Route) = when (route) {
     Route.Colours -> ColoursScreen(route)
     Route.LeavePlanner -> LeavePlannerScreen(route)
     Route.DisplayCard -> DisplayCardScreen(route)
+    Route.CourseNames -> CourseNamesScreen(route)
 }
 
 @Composable

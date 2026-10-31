@@ -103,6 +103,19 @@ internal object Demo {
                 listOf(Assignment("Drawing Workbook", 20.0, 13.0, today.plusDays(1).format(d), null, code = "CBDP", hasQuestion = true, canUpload = true)),
             ),
         )
+        // A made-up day-by-day history for each course: its classes spread over the past weeks,
+        // absences sprinkled through, adding up to the row's own totals.
+        val history = attendance.associate { row ->
+            val rnd = java.util.Random(row.classId.hashCode().toLong())
+            val absent = (0 until row.total).shuffled(rnd).take(row.total - row.attended).toSet()
+            "${row.courseCode}|${row.classType}" to (0 until row.total).map { i ->
+                val day = today.minusDays(((row.total - i) * 70L / row.total).coerceAtLeast(1))
+                dev.medriid.davit.vtop.AttendanceDay(
+                    day.format(d), "A1",
+                    if (i in absent) dev.medriid.davit.vtop.AttendanceDay.Status.Absent else dev.medriid.davit.vtop.AttendanceDay.Status.Present,
+                )
+            }
+        }
         val snapshot = Snapshot(
             sem, listOf(sem, Semester("VL20252605", "Winter Semester 2025-26")), attendance, timetable, System.currentTimeMillis(),
             listOf("+ Mark: Calculus · Quiz 2 · 9/10", "− Programming Basics: absent · 17/25"),
@@ -121,6 +134,7 @@ internal object Demo {
                 FacultyInfo("10003", "MEERA NAIR", "Professor", "Department of Mathematics", "SAS", "meera.nair@example.edu", "TT 524"),
             ),
             facultyAt = System.currentTimeMillis(),
+            history = history,
             // This week's Saturday runs Wednesday's order; next Wednesday is a holiday.
             calendar = AcademicCalendar(
                 sem.id, today.minusDays(100), today.plusDays(30), today.plusDays(30),

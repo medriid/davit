@@ -78,6 +78,12 @@ import java.util.Locale
 @Composable
 internal fun AcademicsTab(snapshot: Snapshot) {
     var segment by rememberSaveable { mutableIntStateOf(0) }
+    // A shortcut on Home can ask for a section.
+    val repo = LocalRepo.current
+    val focus by repo.academicsFocus.collectAsState()
+    androidx.compose.runtime.LaunchedEffect(focus) {
+        focus?.let { segment = it; repo.academicsFocus.value = null }
+    }
     val motion = dev.medriid.davit.design.rememberMotionEnabled()
     TabColumn {
         Heading("Academics", 28.sp, Modifier.padding(top = 8.dp, bottom = 14.dp))
@@ -628,13 +634,15 @@ private fun SegmentBar(items: List<Pair<String, RisoIcon>>, selected: Int, onSel
                         this.selected = on
                     },
             ) {
-                if (on) Box(Modifier.matchParentSize().offset(3.dp, 3.dp).clip(pill).background(inks.a))
+                // Soft: a dark pill for the open one, a faint outline for the rest, no plate behind.
+                val soft = inks.soft
+                if (on && !soft) Box(Modifier.matchParentSize().offset(3.dp, 3.dp).clip(pill).background(inks.a))
                 Row(
                     Modifier
                         .matchParentSize()
                         .clip(pill)
-                        .background(if (on) inks.b else inks.paper)
-                        .border(1.5.dp, if (on) inks.b else inks.text, pill)
+                        .background(if (on) (if (soft) inks.text else inks.b) else if (soft) inks.surface else inks.paper)
+                        .border(if (soft) 1.dp else 1.5.dp, if (soft) (if (on) inks.text else inks.text.copy(alpha = 0.2f)) else if (on) inks.b else inks.text, pill)
                         .padding(horizontal = 10.dp),
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically,

@@ -1,5 +1,11 @@
 package dev.medriid.davit.design
 
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Row
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.animation.core.animateValueAsState
 import androidx.compose.animation.core.VectorConverter
 import androidx.compose.animation.core.snap
@@ -41,6 +47,48 @@ fun InkButton(
     fillWidth: Boolean = false,
 ) {
     val inks = LocalInks.current
+    if (inks.editorial) {
+        // Editorial: a flat block in the text colour (an outline when quiet), the label set left
+        // with an arrow at the right that slides on when you press.
+        val interaction = remember { MutableInteractionSource() }
+        val pressed by interaction.collectIsPressedAsState()
+        val nudge by androidx.compose.animation.core.animateDpAsState(if (pressed) 6.dp else 0.dp, RisoMotion.quick(), label = "nudge")
+        val ink = if (quiet) inks.text else inks.paper
+        Row(
+            modifier
+                .then(if (fillWidth) Modifier.fillMaxWidth() else Modifier)
+                .clip(EditorialShape)
+                .background(if (!enabled) inks.rule else if (quiet) Color.Transparent else inks.text)
+                .then(if (quiet) Modifier.border(1.5.dp, inks.text, EditorialShape) else Modifier)
+                .clickable(interaction, indication = null, enabled = enabled, role = Role.Button, onClick = onClick)
+                .defaultMinSize(minHeight = 54.dp)
+                .padding(horizontal = 18.dp, vertical = 15.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            BasicText(text.uppercase(), Modifier.weight(1f, fill = fillWidth), style = RisoType.button.copy(color = ink))
+            Spacer(Modifier.width(14.dp))
+            BasicText("→", Modifier.offset(x = nudge), style = RisoType.button.copy(color = ink, fontSize = 18.sp))
+        }
+        return
+    }
+    if (inks.soft) {
+        // Soft: a pill. Coral with dark type for the action that matters, an outline otherwise.
+        val pill = RoundedCornerShape(50)
+        Box(
+            modifier
+                .then(if (fillWidth) Modifier.fillMaxWidth() else Modifier)
+                .clip(pill)
+                .background(if (!enabled) inks.rule else if (quiet) Color.Transparent else inks.a)
+                .then(if (quiet) Modifier.border(1.dp, inks.text.copy(alpha = 0.35f), pill) else Modifier)
+                .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+                .defaultMinSize(minHeight = 54.dp)
+                .padding(horizontal = 24.dp, vertical = 15.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            BasicText(text, style = RisoType.button.copy(color = if (quiet) inks.text else Color(0xFF1A1A1A), fontSize = 16.sp))
+        }
+        return
+    }
     val motion = rememberMotionEnabled()
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()

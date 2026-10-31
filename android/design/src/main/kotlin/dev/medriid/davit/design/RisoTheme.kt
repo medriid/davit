@@ -12,6 +12,9 @@ import androidx.compose.ui.unit.TextUnit
 /** Provides the ink pair to everything below. Wrap the root in [Grain] for paper + grain. */
 @Composable
 fun RisoTheme(inks: Inks = InkPairs.all.first(), content: @Composable () -> Unit) {
+    // The type follows the look; set before anything below composes.
+    RisoType.soft = inks.soft
+    RisoType.editorial = inks.editorial
     CompositionLocalProvider(LocalInks provides inks, content = content)
 }
 
@@ -33,7 +36,8 @@ fun InkText(
     BasicText(
         if (label) text.uppercase() else text,
         modifier = if (onCard) modifier.multiply() else modifier,
-        style = style.copy(color = if (onCard) inks.b else inks.text),
+        // A colour the caller set (an accent, a muted caption) wins; otherwise the text ink.
+        style = style.copy(color = if (onCard) inks.b else if (style.color != androidx.compose.ui.graphics.Color.Unspecified) style.color else inks.text),
         maxLines = maxLines,
         overflow = TextOverflow.Ellipsis,
     )
@@ -51,10 +55,12 @@ fun Heading(
     color: Color = LocalInks.current.b,
     uppercase: Boolean = true,
 ) {
+    // Soft: plain sans in sentence case, in the text colour.
+    val soft = LocalInks.current.soft || LocalInks.current.editorial
     BasicText(
-        if (uppercase) text.uppercase() else text,
-        modifier = modifier.trimToCaps(fontSize).multiply(),
-        style = RisoType.display(fontSize).copy(color = color),
+        if (uppercase && !soft) text.uppercase() else text,
+        modifier = if (soft) modifier else modifier.trimToCaps(fontSize).multiply(),
+        style = RisoType.display(fontSize).copy(color = if (soft) LocalInks.current.text else color),
         overflow = TextOverflow.Visible,
     )
 }

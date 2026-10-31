@@ -39,7 +39,7 @@ class PaletteTest {
         for (i in InkPairs.all.indices) {
             val day = InkPairs.of(i, false)
             val night = InkPairs.of(i, true)
-            if (day.glass) continue // Monochrome glass has no colour to tone; its own test is below.
+            if (day.glass || day.soft || day.editorial) continue // Glass has no colour to tone; Soft and Editorial have no card shadows.
             // Calmer than the day's spot ink, so nothing glows on the charcoal stock.
             assertTrue(night.a.toHsv()[1] < day.a.toHsv()[1])
             assertTrue(night.b.contrast(night.paper) >= 3f)

@@ -1,5 +1,7 @@
 package dev.medriid.davit.ui
 
+import androidx.compose.ui.graphics.compositeOver
+import dev.medriid.davit.design.EditorialShape
 import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -100,7 +102,10 @@ internal fun BannerArt(style: Int, modifier: Modifier = Modifier) {
 }
 
 private fun DrawScope.drawArt(style: Int, inks: Inks) {
-    val soft = Kind.entries.map { inks.fill(it).takeIf { f -> f != inks.paper } ?: inks.mark(it).copy(alpha = 0.35f) }
+    // Editorial cards all share one surface, so its prints step through surface, raised and a red wash instead.
+    val ramp = listOf(inks.surface, inks.raised, inks.a.copy(alpha = 0.2f).compositeOver(inks.surface))
+    val soft = if (inks.editorial) Kind.entries.indices.map { ramp[it % 3] }
+    else Kind.entries.map { inks.fill(it).takeIf { f -> f != inks.paper } ?: inks.mark(it).copy(alpha = 0.35f) }
     val line = Stroke(2.dp.toPx())
     when (style) {
         // Waves: four bands of card colours, outlined like the cards.
@@ -206,9 +211,17 @@ internal fun DisplayCardScreen(route: Route) {
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri: Uri? ->
         if (uri != null) scope.launch { note = if (repo.setBannerPhoto(uri)) null else "Couldn't read that image." }
     }
-    RouteScreen(route, "Display card", "The top bar on Home, printed on a background of your choice. Nothing leaves this phone.") {
+    val editorial = inks.editorial
+    val tile = if (editorial) EditorialShape else RoundedCornerShape(10.dp)
+    RouteScreen(
+        route,
+        "Display card",
+        if (editorial) "The picture at the top of Home: a print or your own photo. Nothing leaves this phone."
+        else "The top bar on Home, printed on a background of your choice. Nothing leaves this phone.",
+    ) {
         // As it looks on Home, changing as you pick.
-        TopBar(state, Mascot.parse(state.mascot), repo.bannerPhoto, card = true, onSync = {}, onProfile = {}, onMore = {}, gutter = 0.dp)
+        if (editorial) EditorialPicture(state.snapshot, onClick = {}, onChange = null)
+        else TopBar(state, Mascot.parse(state.mascot), repo.bannerPhoto, card = true, onSync = {}, onProfile = {}, onMore = {}, gutter = 0.dp)
 
         GroupLabel("Background", Modifier.padding(top = 18.dp, bottom = 8.dp))
         Banner.Styles.chunked(3).forEachIndexed { row, names ->
@@ -225,8 +238,12 @@ internal fun DisplayCardScreen(route: Route) {
                     ) {
                         BannerArt(
                             index,
-                            Modifier.fillMaxWidth().height(56.dp).clip(RoundedCornerShape(10.dp))
-                                .border(if (on) 3.dp else 1.5.dp, inks.text, RoundedCornerShape(10.dp)),
+                            Modifier.fillMaxWidth().height(56.dp).clip(tile)
+                                .border(
+                                    if (on) (if (editorial) 2.dp else 3.dp) else (if (editorial) 1.dp else 1.5.dp),
+                                    if (on || !editorial) inks.text else inks.rule,
+                                    tile,
+                                ),
                         )
                         InkText(label, style = RisoType.small.copy(fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal))
                     }
@@ -248,6 +265,8 @@ internal fun DisplayCardScreen(route: Route) {
             }
         }
 
+        // Editorial's picture carries the attendance figure, not these.
+        if (editorial) return@RouteScreen
         GroupLabel("First stat", Modifier.padding(top = 18.dp, bottom = 8.dp))
         ChoiceRow(BannerStat.entries.map { it.title }, BannerStat.of(b.left).ordinal) { repo.setBanner(b.copy(left = BannerStat.entries[it].id)) }
         GroupLabel("Second stat", Modifier.padding(top = 16.dp, bottom = 8.dp))

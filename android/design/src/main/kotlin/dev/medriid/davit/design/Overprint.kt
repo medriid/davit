@@ -46,6 +46,11 @@ fun Overprint(
     registerKey: Any? = Unit,
     style: TextStyle = RisoType.display(fontSize),
 ) {
+    // Soft: just the number, light and large, in the text colour.
+    if (LocalInks.current.soft || LocalInks.current.editorial) {
+        BasicText(text, modifier, style = style.copy(color = LocalInks.current.text))
+        return
+    }
     val motion = rememberMotionEnabled()
     val dots = rememberHalftoneBrush(plateB, cell = dot, dotRatio = 0.28f)
     val plate = remember { Animatable(if (motion) from else rest, DpOffset.VectorConverter) }

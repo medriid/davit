@@ -1,5 +1,8 @@
 package dev.medriid.davit.ui
 
+import dev.medriid.davit.design.EditorialShape
+import dev.medriid.davit.design.Rule
+import androidx.compose.foundation.text.BasicText
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -89,17 +92,7 @@ internal fun RouteScreen(
                     .padding(horizontal = Gutter)
                     .padding(top = 4.dp, bottom = 28.dp),
             ) {
-                Row(Modifier.padding(bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    BackButton { nav.back() }
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Heading(title, 24.sp)
-                        if (subtitle != null) {
-                            Spacer(Modifier.height(6.dp))
-                            InkText(subtitle, style = RisoType.small, maxLines = 2)
-                        }
-                    }
-                }
+                RouteHead(title, subtitle)
                 content()
             }
         }
@@ -124,33 +117,62 @@ internal fun RouteLazyScreen(
                 Modifier.fillMaxSize(),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(start = Gutter, end = Gutter, top = 4.dp, bottom = 28.dp),
             ) {
-                item(key = "head") {
-                    Row(Modifier.padding(bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        BackButton { nav.back() }
-                        Spacer(Modifier.width(12.dp))
-                        Column(Modifier.weight(1f)) {
-                            Heading(title, 24.sp)
-                            if (subtitle != null) {
-                                Spacer(Modifier.height(6.dp))
-                                InkText(subtitle, style = RisoType.small, maxLines = 2)
-                            }
-                        }
-                    }
-                }
+                item(key = "head") { RouteHead(title, subtitle) }
                 content()
             }
         }
     }
 }
 
-/** A round back arrow, 48 dp to hit. */
+/** The title block of a route screen: back, title and subtitle; in Editorial a big headline over a firm rule. */
+@Composable
+private fun RouteHead(title: String, subtitle: String?) {
+    val inks = LocalInks.current
+    val nav = LocalNav.current
+    if (inks.editorial) {
+        Column(Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 14.dp)) {
+            BackButton { nav.back() }
+            Spacer(Modifier.height(18.dp))
+            BasicText(title, style = RisoType.display(36.sp).copy(color = inks.text))
+            if (subtitle != null) {
+                Spacer(Modifier.height(6.dp))
+                BasicText(subtitle, style = RisoType.small.copy(color = inks.muted, fontSize = 14.sp), maxLines = 3)
+            }
+            Spacer(Modifier.height(14.dp))
+            Rule()
+        }
+        return
+    }
+    Row(Modifier.padding(bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        BackButton { nav.back() }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Heading(title, 24.sp)
+            if (subtitle != null) {
+                Spacer(Modifier.height(6.dp))
+                InkText(subtitle, style = RisoType.small, maxLines = 2)
+            }
+        }
+    }
+}
+
+/** A round back arrow, 48 dp to hit; square with a hairline in Editorial. */
 @Composable
 internal fun BackButton(onClick: () -> Unit) {
     val inks = LocalInks.current
+    val shape = if (inks.editorial) EditorialShape else CircleShape
     Box(
         Modifier
             .size(44.dp)
-            .border(2.dp, inks.text, CircleShape)
+            .border(
+                if (inks.soft || inks.editorial) 1.dp else 2.dp,
+                when {
+                    inks.editorial -> inks.rule
+                    inks.soft -> inks.text.copy(alpha = 0.25f)
+                    else -> inks.text
+                },
+                shape,
+            )
             .clickable(role = Role.Button, onClick = onClick)
             .semantics { contentDescription = "Back" },
         contentAlignment = Alignment.Center,

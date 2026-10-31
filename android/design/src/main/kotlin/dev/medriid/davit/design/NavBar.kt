@@ -1,5 +1,7 @@
 package dev.medriid.davit.design
 
+import androidx.compose.ui.unit.em
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.foundation.border
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.Canvas
@@ -202,6 +204,144 @@ enum class RisoIcon(val draw: DrawScope.(Color) -> Unit) {
             drawLine(c, Offset(mid.x + dx * 6.6f * u, mid.y + dy * 6.6f * u), Offset(mid.x + dx * 9 * u, mid.y + dy * 9 * u), 2.6f * u, StrokeCap.Round)
         }
     }),
+
+    /** Curriculum: a bound book. */
+    Book({ c ->
+        val u = size.width / 24f
+        drawRoundRect(c, Offset(5 * u, 3 * u), Size(14 * u, 18 * u), CornerRadius(1.6f * u), style = stroke(u))
+        drawLine(c, Offset(9 * u, 3 * u), Offset(9 * u, 21 * u), 2 * u)
+        drawLine(c, Offset(12 * u, 8 * u), Offset(16 * u, 8 * u), 2 * u, StrokeCap.Round)
+    }),
+
+    /** Next semester: an arrow running up to a line. */
+    Next({ c ->
+        val u = size.width / 24f
+        drawLine(c, Offset(4 * u, 12 * u), Offset(16 * u, 12 * u), 2 * u, StrokeCap.Round)
+        drawPath(Path().apply { moveTo(12 * u, 7.5f * u); lineTo(16.5f * u, 12 * u); lineTo(12 * u, 16.5f * u) }, c, style = stroke(u))
+        drawLine(c, Offset(20 * u, 5 * u), Offset(20 * u, 19 * u), 2 * u, StrokeCap.Round)
+    }),
+
+    /** Hostel: a house with a door. */
+    Home({ c ->
+        val u = size.width / 24f
+        drawPath(Path().apply { moveTo(3 * u, 11 * u); lineTo(12 * u, 3.5f * u); lineTo(21 * u, 11 * u) }, c, style = stroke(u))
+        drawPath(Path().apply { moveTo(6 * u, 9 * u); lineTo(6 * u, 20 * u); lineTo(18 * u, 20 * u); lineTo(18 * u, 9 * u) }, c, style = stroke(u))
+        drawPath(Path().apply { moveTo(10 * u, 20 * u); lineTo(10 * u, 14 * u); lineTo(14 * u, 14 * u); lineTo(14 * u, 20 * u) }, c, style = stroke(u))
+    }),
+
+    /** Club events: a pennant. */
+    Flag({ c ->
+        val u = size.width / 24f
+        drawLine(c, Offset(6 * u, 3 * u), Offset(6 * u, 21 * u), 2 * u, StrokeCap.Round)
+        drawPath(Path().apply { moveTo(6 * u, 4 * u); lineTo(19 * u, 4 * u); lineTo(15.5f * u, 8.5f * u); lineTo(19 * u, 13 * u); lineTo(6 * u, 13 * u) }, c, style = stroke(u))
+    }),
+
+    /** Messages: a speech bubble. */
+    Bubble({ c ->
+        val u = size.width / 24f
+        drawPath(
+            Path().apply {
+                moveTo(5 * u, 4 * u); lineTo(19 * u, 4 * u); quadraticTo(21 * u, 4 * u, 21 * u, 6 * u); lineTo(21 * u, 14 * u)
+                quadraticTo(21 * u, 16 * u, 19 * u, 16 * u); lineTo(11 * u, 16 * u); lineTo(7 * u, 20 * u); lineTo(7 * u, 16 * u)
+                lineTo(5 * u, 16 * u); quadraticTo(3 * u, 16 * u, 3 * u, 14 * u); lineTo(3 * u, 6 * u); quadraticTo(3 * u, 4 * u, 5 * u, 4 * u); close()
+            },
+            c, style = stroke(u),
+        )
+    }),
+
+    /** Spot-light: a megaphone. */
+    Megaphone({ c ->
+        val u = size.width / 24f
+        drawPath(Path().apply { moveTo(4 * u, 9.5f * u); lineTo(9 * u, 9.5f * u); lineTo(17 * u, 5 * u); lineTo(17 * u, 19 * u); lineTo(9 * u, 14.5f * u); lineTo(4 * u, 14.5f * u); close() }, c, style = stroke(u))
+        drawLine(c, Offset(7 * u, 14.5f * u), Offset(8.5f * u, 20 * u), 2 * u, StrokeCap.Round)
+        drawLine(c, Offset(20.5f * u, 10 * u), Offset(20.5f * u, 14 * u), 2 * u, StrokeCap.Round)
+    }),
+
+    /** Proctor & HOD: two people. */
+    People({ c ->
+        val u = size.width / 24f
+        drawCircle(c, 3.2f * u, Offset(9 * u, 8 * u), style = stroke(u))
+        drawPath(Path().apply { moveTo(2.5f * u, 20 * u); quadraticTo(9 * u, 10 * u, 15.5f * u, 20 * u) }, c, style = stroke(u))
+        drawCircle(c, 2.6f * u, Offset(17 * u, 7.5f * u), style = stroke(u))
+        drawPath(Path().apply { moveTo(16 * u, 13 * u); quadraticTo(20 * u, 13 * u, 21.5f * u, 18 * u) }, c, style = stroke(u))
+    }),
+
+    /** Bonafide: a page with a seal. */
+    Certificate({ c ->
+        val u = size.width / 24f
+        drawRoundRect(c, Offset(5 * u, 3 * u), Size(14 * u, 18 * u), CornerRadius(1.6f * u), style = stroke(u))
+        drawLine(c, Offset(8.5f * u, 7.5f * u), Offset(15.5f * u, 7.5f * u), 2 * u, StrokeCap.Round)
+        drawCircle(c, 3 * u, Offset(12 * u, 14.5f * u), style = stroke(u))
+    }),
+
+    /** Course feedback: a pencil. */
+    Pencil({ c ->
+        val u = size.width / 24f
+        drawPath(Path().apply { moveTo(4 * u, 20 * u); lineTo(5 * u, 15.5f * u); lineTo(15.5f * u, 5 * u); lineTo(19 * u, 8.5f * u); lineTo(8.5f * u, 19 * u); close() }, c, style = stroke(u))
+        drawLine(c, Offset(13 * u, 7.5f * u), Offset(16.5f * u, 11 * u), 2 * u)
+    }),
+
+    /** Paper seeing: an eye. */
+    Eye({ c ->
+        val u = size.width / 24f
+        drawPath(Path().apply { moveTo(2.5f * u, 12 * u); quadraticTo(12 * u, 2 * u, 21.5f * u, 12 * u); quadraticTo(12 * u, 22 * u, 2.5f * u, 12 * u); close() }, c, style = stroke(u))
+        drawCircle(c, 3 * u, Offset(12 * u, 12 * u), style = stroke(u))
+    }),
+
+    /** Receipts: a till slip with a torn foot. */
+    Receipt({ c ->
+        val u = size.width / 24f
+        drawPath(
+            Path().apply {
+                moveTo(5 * u, 3 * u); lineTo(19 * u, 3 * u); lineTo(19 * u, 21 * u); lineTo(16.7f * u, 19 * u); lineTo(14.3f * u, 21 * u)
+                lineTo(12 * u, 19 * u); lineTo(9.7f * u, 21 * u); lineTo(7.3f * u, 19 * u); lineTo(5 * u, 21 * u); close()
+            },
+            c, style = stroke(u),
+        )
+        drawLine(c, Offset(8.5f * u, 8 * u), Offset(15.5f * u, 8 * u), 2 * u, StrokeCap.Round)
+        drawLine(c, Offset(8.5f * u, 12 * u), Offset(13 * u, 12 * u), 2 * u, StrokeCap.Round)
+    }),
+
+    /** Gate log: an arched gate. */
+    Gate({ c ->
+        val u = size.width / 24f
+        drawPath(Path().apply { moveTo(4 * u, 21 * u); lineTo(4 * u, 9 * u); quadraticTo(12 * u, 1 * u, 20 * u, 9 * u); lineTo(20 * u, 21 * u) }, c, style = stroke(u))
+        drawLine(c, Offset(9.5f * u, 8 * u), Offset(9.5f * u, 21 * u), 2 * u, StrokeCap.Round)
+        drawLine(c, Offset(14.5f * u, 8 * u), Offset(14.5f * u, 21 * u), 2 * u, StrokeCap.Round)
+    }),
+
+    /** Activities: a cup. */
+    Trophy({ c ->
+        val u = size.width / 24f
+        drawPath(Path().apply { moveTo(7 * u, 4 * u); lineTo(17 * u, 4 * u); lineTo(17 * u, 9 * u); quadraticTo(17 * u, 15 * u, 12 * u, 15 * u); quadraticTo(7 * u, 15 * u, 7 * u, 9 * u); close() }, c, style = stroke(u))
+        drawLine(c, Offset(12 * u, 15 * u), Offset(12 * u, 19.5f * u), 2 * u)
+        drawLine(c, Offset(8 * u, 20 * u), Offset(16 * u, 20 * u), 2 * u, StrokeCap.Round)
+        drawPath(Path().apply { moveTo(7 * u, 6 * u); quadraticTo(3 * u, 6 * u, 4 * u, 9 * u); quadraticTo(5 * u, 11 * u, 7.5f * u, 11 * u) }, c, style = stroke(u, 1.6f))
+        drawPath(Path().apply { moveTo(17 * u, 6 * u); quadraticTo(21 * u, 6 * u, 20 * u, 9 * u); quadraticTo(19 * u, 11 * u, 16.5f * u, 11 * u) }, c, style = stroke(u, 1.6f))
+    }),
+
+    /** Course names: a tag. */
+    Tag({ c ->
+        val u = size.width / 24f
+        drawPath(Path().apply { moveTo(3 * u, 12 * u); lineTo(11 * u, 4 * u); lineTo(20 * u, 4 * u); lineTo(20 * u, 13 * u); lineTo(12 * u, 21 * u); close() }, c, style = stroke(u))
+        drawCircle(c, 1.7f * u, Offset(15.5f * u, 8.5f * u))
+    }),
+
+    /** Downloads: an arrow into a tray. */
+    Download({ c ->
+        val u = size.width / 24f
+        drawLine(c, Offset(12 * u, 3 * u), Offset(12 * u, 15 * u), 2 * u, StrokeCap.Round)
+        drawPath(Path().apply { moveTo(7 * u, 10 * u); lineTo(12 * u, 15 * u); lineTo(17 * u, 10 * u) }, c, style = stroke(u))
+        drawPath(Path().apply { moveTo(4 * u, 15 * u); lineTo(4 * u, 20 * u); lineTo(20 * u, 20 * u); lineTo(20 * u, 15 * u) }, c, style = stroke(u))
+    }),
+
+    /** Display card: a framed picture. */
+    Picture({ c ->
+        val u = size.width / 24f
+        drawRoundRect(c, Offset(3 * u, 5 * u), Size(18 * u, 14 * u), CornerRadius(1.6f * u), style = stroke(u))
+        drawPath(Path().apply { moveTo(3.5f * u, 17 * u); lineTo(9 * u, 11.5f * u); lineTo(13.5f * u, 16 * u); lineTo(16 * u, 13.5f * u); lineTo(20.5f * u, 17.5f * u) }, c, style = stroke(u))
+        drawCircle(c, 1.7f * u, Offset(16 * u, 9 * u))
+    }),
 }
 
 private fun stroke(u: Float, w: Float = 2f) = Stroke(w * u, cap = StrokeCap.Round, join = StrokeJoin.Round)
@@ -223,7 +363,11 @@ fun RisoNavBar(items: List<NavItem>, selected: Int, onSelect: (Int) -> Unit, mod
     val inks = LocalInks.current
     val crowded = items.size > 4
     val pillWidth = if (crowded) 54.dp else 64.dp
-    Column(modifier.fillMaxWidth().background(inks.paper)) {
+    if (inks.editorial) {
+        EditorialNavBar(items, selected, onSelect, modifier)
+        return
+    }
+    Column(modifier.fillMaxWidth().background(if (inks.soft) inks.surface else inks.paper)) {
         Rule()
         Row(
             Modifier.fillMaxWidth().padding(horizontal = if (crowded) 2.dp else 4.dp, vertical = 6.dp),
@@ -245,10 +389,10 @@ fun RisoNavBar(items: List<NavItem>, selected: Int, onSelect: (Int) -> Unit, mod
                     Box(contentAlignment = Alignment.Center) {
                         if (on) {
                             Box(
-                                Modifier.size(pillWidth, 34.dp).offset(3.dp, 3.dp).clip(pill).background(if (inks.glass) inks.glassShadow else if (inks.sticker) inks.text else inks.a),
+                                Modifier.size(pillWidth, 34.dp).offset(3.dp, 3.dp).clip(pill).background(if (inks.soft) androidx.compose.ui.graphics.Color.Transparent else if (inks.glass) inks.glassShadow else if (inks.sticker) inks.text else inks.a),
                             )
                             Box(
-                                Modifier.size(pillWidth, 34.dp).clip(pill).background(if (inks.sticker || inks.glass) inks.a else inks.b)
+                                Modifier.size(pillWidth, 34.dp).clip(pill).background(if (inks.soft) inks.text else if (inks.sticker || inks.glass) inks.a else inks.b)
                                     .then(if (inks.sticker) Modifier.border(1.5.dp, inks.text, pill) else Modifier),
                             )
                         } else {
@@ -267,6 +411,55 @@ fun RisoNavBar(items: List<NavItem>, selected: Int, onSelect: (Int) -> Unit, mod
                             textAlign = TextAlign.Center,
                             letterSpacing = if (crowded) (-0.3).sp else (-0.2).sp,
                         ),
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Editorial tabs: a firm rule along the top with a red bar that slides to the open tab;
+ * the open tab's name in bold, the rest quiet. No pills, nothing that isn't needed.
+ */
+@Composable
+private fun EditorialNavBar(items: List<NavItem>, selected: Int, onSelect: (Int) -> Unit, modifier: Modifier) {
+    val inks = LocalInks.current
+    val slide by androidx.compose.animation.core.animateFloatAsState(
+        selected.toFloat(),
+        androidx.compose.animation.core.spring(dampingRatio = 0.8f, stiffness = 420f),
+        label = "tab",
+    )
+    Column(modifier.fillMaxWidth().background(inks.paper)) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(3.dp)
+                .drawBehind {
+                    drawRect(inks.text, size = androidx.compose.ui.geometry.Size(size.width, 1.dp.toPx()))
+                    val w = size.width / items.size
+                    drawRect(inks.a, topLeft = Offset(w * slide + w * 0.22f, 0f), size = androidx.compose.ui.geometry.Size(w * 0.56f, size.height))
+                },
+        )
+        Row(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+            items.forEachIndexed { i, item ->
+                val on = i == selected
+                val tint by animateColorAsState(if (on) inks.text else inks.muted, label = "tabInk")
+                Column(
+                    Modifier
+                        .weight(1f)
+                        .height(64.dp)
+                        .clickable(role = Role.Tab, onClick = { onSelect(i) })
+                        .semantics { this.selected = on },
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    IconGlyph(item.icon, tint, Modifier.size(22.dp))
+                    Spacer(Modifier.height(5.dp))
+                    BasicText(
+                        item.label.uppercase(),
+                        maxLines = 1,
+                        style = RisoType.label.copy(fontSize = 9.5.sp, letterSpacing = 0.08.em, color = tint, fontWeight = if (on) FontWeight.Black else FontWeight.Medium),
                     )
                 }
             }

@@ -71,7 +71,29 @@ data class Inks(
      * fine light edge and a soft shadow) over a soft grey sheet.
      */
     val glass: Boolean = false,
+    /**
+     * Soft: a calm app look rather than print. Sans-serif type, white rounded sheets with
+     * no borders or shadows, pastel cards, pill buttons and chips, on a warm grey ground.
+     */
+    val soft: Boolean = false,
+    /**
+     * Editorial: Swiss modernism. A strict grid of flat, square tiles on newsprint, heavy
+     * grotesk type, hairline rules, black, off-white and one red. Colour is for meaning only.
+     */
+    val editorial: Boolean = false,
 ) {
+    /** A card or tile with no kind: white by day, one grey step up from the ground at night. */
+    val surface: Color get() = when {
+        editorial -> if (dark) Color(0xFF1B1B1D) else Color(0xFFF8F3EA)
+        dark -> Color(0xFF242424)
+        else -> Color.White
+    }
+
+    /** Editorial's second step: a tile that stands out from the others without colour. */
+    val raised: Color get() = if (dark) Color(0xFF26262A) else Color(0xFFE4DCCB)
+
+    /** Quiet text: captions, and numbers that support the big one. */
+    val muted: Color get() = text.copy(alpha = if (dark) 0.58f else 0.6f)
     /** Frosted glass: the card's see-through fill, its fine edge, and the soft shadow under it. */
     val glassFill: Color get() = if (dark) Color.White.copy(alpha = 0.07f) else Color.White.copy(alpha = 0.55f)
     val glassEdge: Color get() = if (dark) Color.White.copy(alpha = 0.16f) else Color.White.copy(alpha = 0.95f)
@@ -108,6 +130,7 @@ data class Inks(
 
     /** The plate behind a card of [kind]: a black shadow in sticker print, else its ink (ink A for none). */
     fun plate(kind: Kind?): Color = when {
+        soft || editorial -> Color.Transparent
         glass -> glassShadow
         sticker -> text
         kind == null -> a
@@ -115,14 +138,30 @@ data class Inks(
     }
 
     /** The paper of a card of [kind]: a wash of its colour when [tinted], else plain paper. */
-    fun fill(kind: Kind?): Color = if (glass) glassFill else if (kind == null || !tinted) paper else washes[kind.ordinal]
+    fun fill(kind: Kind?): Color = when {
+        // Editorial: every card the same surface; colour is kept for meaning (the accent), not for kinds.
+        editorial -> surface
+        soft -> {
+            val yours = kind?.let { kinds?.getOrNull(it.ordinal) }
+            val pastel = yours?.let { lerp(Color.White, it, 0.4f) } ?: kind?.pastel
+            when {
+                pastel == null || !tinted -> surface
+                dark -> lerp(surface, pastel, 0.22f)
+                else -> pastel
+            }
+        }
+        glass -> glassFill
+        kind == null || !tinted -> paper
+        else -> washes[kind.ordinal]
+    }
 
     /** The ink a kind is marked in (icons, a stripe): its plate, which in sticker print is black, so its own colour. Grey in glass. */
-    fun mark(kind: Kind): Color = if (glass) b else plates[kind.ordinal]
+    fun mark(kind: Kind): Color = if (glass || editorial) b else plates[kind.ordinal]
 }
 
 object InkPairs {
-    val Paper = Color(0xFFF4F2EC)
+    // A warm cream, not white: the paper every light look prints on.
+    val Paper = Color(0xFFF1E9DA)
 
     val ScarletTeal = Inks("Scarlet + Teal", Paper, Color(0xFFF65058), Color(0xFF00838A), Color(0xFF00585D))
     val SunflowerFederal = Inks("Sunflower + Federal Blue", Paper, Color(0xFFFFB511), Color(0xFF3D5588), Color(0xFF2C3F6B))
@@ -134,6 +173,16 @@ object InkPairs {
 
     // Monochrome glass: black, white and greys only; the cards are frosted glass.
     val MonoGlass = Inks("Monochrome glass", Color(0xFFE5E5E5), Color(0xFF141414), Color(0xFF3A3A3A), Color(0xFF111111), ruleAlpha = 0.22f, glass = true)
+    // Soft: warm grey ground, white sheets, pastel cards and one coral for what matters.
+    val Soft = Inks("Soft", Color(0xFFECE9E2), Color(0xFFF2735F), Color(0xFF2A2A2A), Color(0xFF1A1A1A), ruleAlpha = 0.18f, soft = true)
+    private val SoftNight = Inks("Soft", Color(0xFF141414), Color(0xFFEA8571), Color(0xFFE6E6E6), Color(0xFFF1F1F1), ruleAlpha = 0.2f, dark = true, soft = true)
+
+    // Editorial. By day: newsprint, ink black, Swiss red. At night, after the dark themes that
+    // work (near-black ground, a couple of grey steps up for surfaces, warm off-white text, the
+    // red toned down so it doesn't glow): never pure black or white, never a neon accent.
+    val Editorial = Inks("Editorial", Color(0xFFEFE8DA), Color(0xFFD7261E), Color(0xFF4A4945), Color(0xFF111111), ruleAlpha = 0.16f, editorial = true)
+    private val EditorialNight = Inks("Editorial", Color(0xFF111112), Color(0xFFD44A3F), Color(0xFFB9B6AF), Color(0xFFECEAE4), ruleAlpha = 0.12f, dark = true, editorial = true)
+
     private val MonoGlassNight = Inks("Monochrome glass", Color(0xFF0D0D0D), Color(0xFFF2F2F2), Color(0xFFCFCFCF), Color(0xFFEDEDED), ruleAlpha = 0.22f, dark = true, glass = true)
 
     // By day: sticker print, pastel cards with black outlines and hard black shadows,
@@ -143,7 +192,7 @@ object InkPairs {
 
     val all: List<Inks> = dayPairs.map {
         it.copy(paper = Paper, text = DayText, a = it.a.toned(Tone(0.9f, 1f)), tone = DayTone, sticker = true, ruleAlpha = 0.3f)
-    } + MonoGlass
+    } + MonoGlass + Editorial
 
     // Night print: warm charcoal stock, every ink toned down so nothing glows, ink B lifted so it reads.
     val NightPaper = Color(0xFF1E1C19)
@@ -153,12 +202,18 @@ object InkPairs {
     val night: List<Inks> = dayPairs.map { p ->
         val b = (if (p === RedBlack || p === LimeInk) Color(0xFFD9D6CF) else p.b.toned(Tone(0.75f, 1f))).liftedFor(NightPaper, 4f)
         Inks(p.name, NightPaper, p.a.toned(NightTone), b, NightText, ruleAlpha = 0.3f, dark = true, tone = NightTone)
-    } + MonoGlassNight
+    } + MonoGlassNight + EditorialNight
 
     /** The paper version of [inks]: for things that should print the same at night (the mascot). */
     fun onPaper(inks: Inks): Inks = if (!inks.dark) inks else inks.dayTwin?.takeIf { !it.dark }
         ?: all.firstOrNull { it.name == inks.name }
         ?: inks.copy(paper = Paper, text = textFor(Paper, inks.b), dark = false, dayTwin = null)
+
+    /** Where Editorial sits in [all]: it's picked as a style of its own, not as a colour pair. */
+    val editorialIndex: Int get() = all.indexOfFirst { it.editorial }
+
+    /** The colour pairs of the Classic style, as indices into [all]. */
+    val classic: List<Int> get() = all.indices.filter { !all[it].editorial }
 
     /** Pair [index], on paper or at night. */
     fun of(index: Int, dark: Boolean): Inks = (if (dark) night else all)[index.coerceIn(0, all.lastIndex)]

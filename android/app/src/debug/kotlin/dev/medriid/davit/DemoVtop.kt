@@ -29,8 +29,11 @@ internal object DemoVtop {
                     return MockResponse().setBody(html).addHeader("Content-Type", "text/html;charset=UTF-8")
                 }
             }
-            server.start()
-            repo.demoClient = VtopClient({ null }, null, server.url("/vtop").toString()).apply { restoreSession("DEMO-CSRF\nDEMO") }
+            // Right after the phone boots the network may not be up yet; then the demo just has no fake VTOP rather than crashing the app.
+            runCatching {
+                server.start()
+                repo.demoClient = VtopClient({ null }, null, server.url("/vtop").toString()).apply { restoreSession("DEMO-CSRF\nDEMO") }
+            }.onFailure { android.util.Log.w("daVIT", "demo VTOP didn't start: ${it.javaClass.simpleName}") }
         }.apply { isDaemon = true }.start()
     }
 

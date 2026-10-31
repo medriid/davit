@@ -36,35 +36,72 @@ object RisoFonts {
 object RisoType {
     private const val Tabular = "tnum"
 
-    fun display(size: TextUnit) = TextStyle(
-        fontFamily = RisoFonts.Display,
-        fontSize = size,
-        lineHeight = 0.9.em,
-        fontFeatureSettings = Tabular,
-    )
+    /**
+     * Soft look: the phone's own sans-serif instead of Plex Mono, numbers in a light weight.
+     * Set by [RisoTheme] from the inks, before anything below it composes.
+     */
+    var soft = false
 
-    val body = TextStyle(
-        fontFamily = RisoFonts.Body,
-        fontSize = 16.sp,
-        lineHeight = 1.45.em,
-        fontFeatureSettings = Tabular,
-    )
+    /** Editorial look: a heavy grotesk set tight for headlines and numbers, plain sans for reading. */
+    var editorial = false
 
-    val small = body.copy(fontSize = 14.sp, lineHeight = 1.4.em)
+    private val sans = FontFamily.SansSerif
+    private val plain get() = soft || editorial
+
+    fun display(size: TextUnit) = when {
+        editorial -> TextStyle(fontFamily = sans, fontWeight = FontWeight.Black, fontSize = size, lineHeight = 0.96.em, letterSpacing = (-0.04).em, fontFeatureSettings = Tabular)
+        soft -> TextStyle(fontFamily = sans, fontWeight = FontWeight.Light, fontSize = size, lineHeight = 1.05.em, letterSpacing = (-0.02).em, fontFeatureSettings = Tabular)
+        else -> TextStyle(
+            fontFamily = RisoFonts.Display,
+            fontSize = size,
+            lineHeight = 0.9.em,
+            fontFeatureSettings = Tabular,
+        )
+    }
+
+    val body: TextStyle
+        get() = if (plain) TextStyle(fontFamily = sans, fontSize = 16.sp, lineHeight = 1.4.em, fontFeatureSettings = Tabular)
+        else TextStyle(
+            fontFamily = RisoFonts.Body,
+            fontSize = 16.sp,
+            lineHeight = 1.45.em,
+            fontFeatureSettings = Tabular,
+        )
+
+    val small: TextStyle get() = body.copy(fontSize = 14.sp, lineHeight = 1.4.em)
 
     /** Card titles: course names, assignment names. */
-    val title = body.copy(fontSize = 19.sp, fontWeight = FontWeight.SemiBold, lineHeight = 1.25.em)
+    val title: TextStyle
+        get() = body.copy(
+            fontSize = 19.sp,
+            fontWeight = when {
+                editorial -> FontWeight.Bold
+                soft -> FontWeight.Medium
+                else -> FontWeight.SemiBold
+            },
+            lineHeight = 1.25.em,
+            letterSpacing = if (editorial) (-0.01).em else 0.em,
+        )
 
     /** Uppercase labels and chips. Callers uppercase the string (InkText(label = true) does). */
-    val label = TextStyle(
-        fontFamily = RisoFonts.Body,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 12.sp,
-        letterSpacing = 0.1.em,
-        fontFeatureSettings = Tabular,
-    )
+    val label: TextStyle
+        get() = TextStyle(
+            fontFamily = if (plain) sans else RisoFonts.Body,
+            fontWeight = when {
+                editorial -> FontWeight.Bold
+                soft -> FontWeight.Medium
+                else -> FontWeight.SemiBold
+            },
+            fontSize = if (editorial) 11.sp else 12.sp,
+            letterSpacing = when {
+                editorial -> 0.14.em
+                soft -> 0.08.em
+                else -> 0.1.em
+            },
+            fontFeatureSettings = Tabular,
+        )
 
-    val button = label.copy(fontSize = 15.sp, letterSpacing = 0.06.em)
+    val button: TextStyle get() = label.copy(fontSize = if (editorial) 14.sp else 15.sp, letterSpacing = if (soft) 0.02.em else 0.06.em)
 }
 
 /**
