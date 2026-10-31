@@ -2,6 +2,11 @@
 
 Downloads are on the [releases page](https://github.com/medriid/davit/releases). daVIT updates itself after the first install.
 
+## 0.13.0 — 2026-10-31
+
+- **Settings, sorted**: six groups on one screen, each showing how it's set, each with its own short page, and **Find a setting** to jump straight to anything.
+- **The daVIT logo takes you Home** from any page.
+
 ## 0.12.0 — 2026-10-31
 
 - **FFCS** (was Timetable planner) has a smart mode: pick your subjects, the faculty you'd take and how you like your days (8:00 starts, start and end times, short lunches, days off, gaps), and get the best clash-free timetables.
