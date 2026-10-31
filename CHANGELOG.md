@@ -2,6 +2,11 @@
 
 Downloads are on the [releases page](https://github.com/medriid/davit/releases). daVIT updates itself after the first install.
 
+## 0.10.1 — 2026-10-31
+
+- **Assignment uploads work**: files go to VTOP the way its own page sends them, with real progress. If VTOP signed you out meanwhile, daVIT signs in again instead of failing.
+- **Labs count sessions**: a lab that met 28 times shows 28, not VTOP's 56 (the percentage is unchanged).
+
 ## 0.10.0 — 2026-10-31
 
 - **Two styles**: Classic, the printed cards in your colours, or the new **Editorial**, a Swiss grid of big numbers and live tiles on cream (near-black at night). Pick one when you first open daVIT, or in Settings → Look.
