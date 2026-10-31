@@ -23,6 +23,9 @@ import dev.medriid.davit.design.rememberMotionEnabled
 sealed class Route(val id: String) {
     data class Assignment(val classId: String, val code: String) : Route("a|$classId|$code")
     data class Course(val key: String) : Route("c|$key")
+
+    /** One group of Settings (look, sync, this phone…), by [SettingsGroup] id. */
+    data class SettingsPage(val group: String) : Route("set|$group")
     data object Search : Route("search")
     data object Campus : Route("campus")
     data object Messages : Route("messages")
@@ -63,6 +66,7 @@ sealed class Route(val id: String) {
             return when (p.firstOrNull()) {
                 "a" -> if (p.size >= 3) Assignment(p[1], p[2]) else null
                 "c" -> if (p.size >= 2) Course(id.removePrefix("c|")) else null
+                "set" -> if (p.size >= 2) SettingsPage(p[1]) else null
                 else -> null
             }
         }

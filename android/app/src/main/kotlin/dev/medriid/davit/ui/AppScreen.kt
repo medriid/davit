@@ -191,7 +191,7 @@ private fun Main(state: UiState, repo: Repo, tabState: MutableIntState, stack: S
                 // The display card on Home only; every other tab and screen gets the plain bar.
                 // Soft Home draws its own hello in place of the bar.
                 if ((LocalInks.current.soft || LocalInks.current.editorial) && tab == 0 && stack.isEmpty()) Spacer(Modifier.windowInsetsPadding(WindowInsets.statusBars))
-                else TopBar(state, mascot, repo.bannerPhoto, card = tab == 0 && stack.isEmpty(), onSync = repo::sync, onProfile = { nav.go(Route.Settings) }, onMore = { nav.go(Route.Campus) }, modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars))
+                else TopBar(state, mascot, repo.bannerPhoto, card = tab == 0 && stack.isEmpty(), onSync = repo::sync, onProfile = { nav.go(Route.Settings) }, onMore = { nav.go(Route.Campus) }, modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars), onHome = { nav.tab(0) })
                 AnimatedVisibility(state.error != null) {
                     ErrorBanner(state.error.orEmpty(), onRetry = repo::sync, onDismiss = repo::dismissError)
                 }
@@ -293,6 +293,7 @@ private fun TabHost(
 private fun RouteHost(route: Route) = when (route) {
     is Route.Assignment -> AssignmentScreen(route)
     is Route.Course -> CourseScreen(route)
+    is Route.SettingsPage -> SettingsPageScreen(route)
     Route.Search -> SearchScreen(route)
     Route.Campus -> CampusHub(route)
     Route.Messages -> MessagesScreen(route)
@@ -323,7 +324,7 @@ private fun RouteHost(route: Route) = when (route) {
 }
 
 @Composable
-internal fun TopBar(state: UiState, mascot: Mascot, photo: java.io.File, card: Boolean, onSync: () -> Unit, onProfile: () -> Unit, onMore: () -> Unit, modifier: Modifier = Modifier, gutter: Dp = Gutter) {
+internal fun TopBar(state: UiState, mascot: Mascot, photo: java.io.File, card: Boolean, onSync: () -> Unit, onProfile: () -> Unit, onMore: () -> Unit, modifier: Modifier = Modifier, gutter: Dp = Gutter, onHome: () -> Unit = {}) {
     if (card && !state.banner.hidden) {
         CardBar(state, mascot, photo, onSync, onProfile, onMore, modifier, gutter)
         return
@@ -332,9 +333,15 @@ internal fun TopBar(state: UiState, mascot: Mascot, photo: java.io.File, card: B
         modifier.fillMaxWidth().padding(start = Gutter, end = Gutter - 4.dp, top = 8.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Seal(size = 36.dp)
-        Spacer(Modifier.width(12.dp))
-        Heading("daVIT", 24.sp, uppercase = false)
+        // The logo goes Home, as in most apps: whatever tab or page you're on.
+        Row(
+            Modifier.clickable(role = Role.Button, onClick = onHome).semantics { contentDescription = "daVIT. Go to Home" },
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Seal(size = 36.dp)
+            Spacer(Modifier.width(12.dp))
+            Heading("daVIT", 24.sp, uppercase = false)
+        }
         Spacer(Modifier.width(10.dp))
         // The status takes whatever room is left (and clips), so a long "Fetching
         // attendance" can never squeeze the avatar out of round.
