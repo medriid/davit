@@ -15,8 +15,6 @@ import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import okio.BufferedSink
-import okio.ForwardingSink
-import okio.buffer
 import java.io.IOException
 import java.io.OutputStream
 import java.text.SimpleDateFormat
@@ -40,6 +38,8 @@ class VtopClient(
     baseUrl: String = DEFAULT_BASE,
     /** How [login] waits between reCAPTCHA dodges; tests pass a no-op. */
     private val pause: (Long) -> Unit = Thread::sleep,
+    /** Debug builds: each request's stages with timings (paths and byte counts only, never values). */
+    private val netLog: ((String) -> Unit)? = null,
 ) {
     private val solver: CaptchaSolver by lazy { solver ?: CaptchaSolver.load() }
     private val base: HttpUrl = baseUrl.trimEnd('/').toHttpUrl()
@@ -47,6 +47,7 @@ class VtopClient(
     private val http = OkHttpClient.Builder()
         .cookieJar(cookies)
         .addInterceptor(ReadOnlyGuard(base.host))
+        .apply { netLog?.let { eventListenerFactory { call -> NetLog(call.request().url.encodedPath, it) } } }
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(25, TimeUnit.SECONDS)
         .writeTimeout(60, TimeUnit.SECONDS)
@@ -526,7 +527,7 @@ class VtopClient(
         val path = "/examinations/doDAssignmentUploadMethod"
         val body = MultipartBody.Builder().setType(MultipartBody.FORM).apply {
             form.fields.forEach { (k, v) -> addFormDataPart(k, if (k == "_csrf") s.csrf else v) }
-            addFormDataPart(form.fileField, fileName, Counting(bytes.toRequestBody(mimeType.toMediaTypeOrNull()), onProgress))
+            addFormDataPart(form.fileField, fileName, Counting(bytes, mimeType.toMediaTypeOrNull(), onProgress))
         }.build()
         val (html, headers) = multipart(path, body, WritePermit(path, consent))
         CoursePages.uploadOutcome(html, form.code, headers["error"], headers["message"])
@@ -827,7 +828,7 @@ class VtopClient(
             .header("X-Requested-With", "XMLHttpRequest")
             .apply { if (permit != null) tag(WritePermit::class.java, permit) }
             .build()
-        return call(req).use { resp ->
+        return call(req, slow).use { resp ->
             val html = resp.body?.string().orEmpty()
             if (Parsers.isLoggedOutPage(html, resp.request.url.toString())) throw SessionExpired()
             Parsers.csrfOf(org.jsoup.Jsoup.parse(html))?.let { t -> session?.let { if (it.csrf != t) session = it.copy(csrf = t) } }
@@ -852,8 +853,11 @@ class VtopClient(
         return call(req).use { (it.body?.string().orEmpty()) to it.request.url.toString() }
     }
 
-    private fun call(req: Request): Response = try {
-        http.newCall(req.newBuilder().header("User-Agent", USER_AGENT).build()).execute()
+    /** Uploads: VTOP can take a while to answer once a file is in. */
+    private val slow by lazy { http.newBuilder().readTimeout(90, TimeUnit.SECONDS).build() }
+
+    private fun call(req: Request, client: OkHttpClient = http): Response = try {
+        client.newCall(req.newBuilder().header("User-Agent", USER_AGENT).build()).execute()
     } catch (e: IOException) {
         throw Offline(e)
     }
@@ -951,21 +955,25 @@ internal fun fileNameOf(disposition: String?): String? {
 }
 
 /** Reports bytes as they're written, for the upload progress bar. */
-private class Counting(private val inner: RequestBody, private val onProgress: (Long, Long) -> Unit) : RequestBody() {
-    override fun contentType(): MediaType? = inner.contentType()
-    override fun contentLength(): Long = inner.contentLength()
+private class Counting(private val bytes: ByteArray, private val type: MediaType?, private val onProgress: (Long, Long) -> Unit) : RequestBody() {
+    override fun contentType(): MediaType? = type
+    override fun contentLength(): Long = bytes.size.toLong()
+
+    // In pieces, each flushed to the network: the write timeout then measures a stall, not
+    // how long the whole file takes (2 MB on a slow uplink ran past it), and progress moves.
     override fun writeTo(sink: BufferedSink) {
-        val total = contentLength()
-        var sent = 0L
-        val counting = object : ForwardingSink(sink) {
-            override fun write(source: okio.Buffer, byteCount: Long) {
-                super.write(source, byteCount)
-                sent += byteCount
-                onProgress(sent, total)
-            }
-        }.buffer()
-        inner.writeTo(counting)
-        counting.flush()
+        var sent = 0
+        while (sent < bytes.size) {
+            val n = minOf(PIECE, bytes.size - sent)
+            sink.write(bytes, sent, n)
+            sink.flush()
+            sent += n
+            onProgress(sent.toLong(), bytes.size.toLong())
+        }
+    }
+
+    private companion object {
+        const val PIECE = 16 * 1024
     }
 }
 
@@ -996,4 +1004,19 @@ private class MemoryCookieJar : CookieJar {
 
     @Synchronized
     fun clear() = store.clear()
+}
+
+/** Where a request spends its time, for [VtopClient]'s debug log: stage, milliseconds since the call began, bytes. */
+private class NetLog(private val path: String, private val log: (String) -> Unit) : okhttp3.EventListener() {
+    private val t0 = System.nanoTime()
+    private fun at(stage: String) = log("$path $stage +${(System.nanoTime() - t0) / 1_000_000}ms")
+    override fun connectionAcquired(call: okhttp3.Call, connection: okhttp3.Connection) = at("connection ${connection.protocol()}")
+    override fun connectStart(call: okhttp3.Call, inetSocketAddress: java.net.InetSocketAddress, proxy: java.net.Proxy) = at("connect")
+    override fun requestHeadersEnd(call: okhttp3.Call, request: Request) = at("headers sent")
+    override fun requestBodyStart(call: okhttp3.Call) = at("body start")
+    override fun requestBodyEnd(call: okhttp3.Call, byteCount: Long) = at("body end $byteCount bytes")
+    override fun requestFailed(call: okhttp3.Call, ioe: IOException) = at("request failed ${ioe.javaClass.simpleName}: ${ioe.message}")
+    override fun responseHeadersEnd(call: okhttp3.Call, response: Response) = at("response ${response.code}")
+    override fun responseFailed(call: okhttp3.Call, ioe: IOException) = at("response failed ${ioe.javaClass.simpleName}: ${ioe.message}")
+    override fun callFailed(call: okhttp3.Call, ioe: IOException) = at("call failed ${ioe.javaClass.simpleName}: ${ioe.message}")
 }

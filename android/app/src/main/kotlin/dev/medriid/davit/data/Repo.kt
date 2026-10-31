@@ -74,12 +74,12 @@ class Repo(private val context: Context) {
     private val prefs = context.getSharedPreferences("davit", Context.MODE_PRIVATE)
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val lock = Mutex()
-    private val client = VtopClient(BitmapDecoder)
+    private val client = VtopClient(BitmapDecoder, netLog = if (context.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0) { s -> android.util.Log.i("daVIT-net", s) } else null)
 
     private val _state = MutableStateFlow(UiState())
 
     /**
-     * What everything outside reads: the state with your course names put in place of VTOP's.
+     * What everything outside reads: labs counted in sessions and your course names in place of VTOP's.
      * Inside, [_state] keeps VTOP's own, which is what gets saved.
      */
     @OptIn(kotlinx.coroutines.ExperimentalForInheritanceCoroutinesApi::class)
@@ -91,7 +91,16 @@ class Repo(private val context: Context) {
             _state.collect { collector.emit(it.withNames()) }
     }
 
-    private fun UiState.withNames(): UiState = if (aliases.isEmpty()) this else copy(snapshot = snapshot?.withAliases(aliases))
+    // The last state worked out, and what it became: reads between changes cost nothing.
+    @Volatile private var shown: Pair<UiState, UiState>? = null
+
+    /** Labs in sessions where VTOP counted both periods, then your names for courses. */
+    private fun UiState.withNames(): UiState {
+        shown?.let { (from, to) -> if (from === this) return to }
+        val out = copy(snapshot = snapshot?.withLabSessions()?.let { if (aliases.isEmpty()) it else it.withAliases(aliases) })
+        shown = this to out
+        return out
+    }
 
     /** Downloaded files, kept for offline. */
     val files by lazy { FileStore(context) }
@@ -736,6 +745,9 @@ class Repo(private val context: Context) {
      * parser can be fixed against the real markup. Username and CSRF tokens are
      * replaced before writing; the page may still show your name and courses.
      */
+    /** [dump] for pages opened outside a sync (the upload form). */
+    internal fun dumpLast(name: String) = _state.value.regNo?.let { dump(name, it) }
+
     private fun dump(name: String, regNo: String) {
         if (!_state.value.dumpPages) return
         val html = client.lastPage?.second ?: return

@@ -1,5 +1,7 @@
 package dev.medriid.davit.data
 
+import dev.medriid.davit.vtop.Offline
+import android.util.Log
 import dev.medriid.davit.vtop.SessionExpired
 import dev.medriid.davit.vtop.UploadOutcome
 import dev.medriid.davit.vtop.UserConsent
@@ -76,16 +78,40 @@ class Uploads(private val repo: Repo) {
         val ready = _state.value[key] as? UploadState.Ready ?: return
         set(key, UploadState.Sending("Opening VTOP's upload form", null))
         repo.scope.launch {
+            var sent = 0L
             val outcome = try {
                 repo.onVtop { c ->
                     val form = c.openUpload(consent, semesterId, classId, code)
+                    repo.dumpLast("upload_form")
+                    // Field names and sizes only, never values: enough to see where an upload stalls.
+                    Log.i("daVIT", "upload form: fields=${form.fields.map { it.first }} file=${form.fileField} bytes=${ready.file.bytes.size} mime=${ready.file.mime}")
                     set(key, UploadState.Sending("Uploading ${ready.file.name}", 0f))
-                    c.upload(consent, form, ready.file.name, ready.file.mime, ready.file.bytes) { sent, total ->
-                        set(key, UploadState.Sending("Uploading ${ready.file.name}", if (total > 0) sent.toFloat() / total else null))
+                    var logged = -1
+                    val t0 = System.currentTimeMillis()
+                    c.upload(consent, form, ready.file.name, ready.file.mime, ready.file.bytes) { done, total ->
+                        sent = done
+                        val tenth = if (total > 0) (done * 10 / total).toInt() else -1
+                        if (tenth != logged) {
+                            logged = tenth
+                            Log.i("daVIT", "upload sent $done of $total after ${System.currentTimeMillis() - t0} ms")
+                        }
+                        set(key, UploadState.Sending("Uploading ${ready.file.name}", if (total > 0) done.toFloat() / total else null))
+                    }.also {
+                        Log.i("daVIT", "upload answered after ${System.currentTimeMillis() - t0} ms: ${it.javaClass.simpleName}")
+                        repo.dumpLast("upload_reply")
                     }
                 }
             } catch (e: Exception) {
-                set(key, UploadState.Failed(repo.explain(e)))
+                // What actually went wrong, for adb logcat; the screen gets the plain version.
+                Log.w("daVIT", "upload failed: " + generateSequence<Throwable>(e) { it.cause }.joinToString(" <- ") { "${it.javaClass.simpleName}: ${it.message}" })
+                set(
+                    key,
+                    UploadState.Failed(
+                        // Part of the file went and then VTOP stopped taking it: not your connection.
+                        if (e is Offline && sent > 0) "VTOP stopped taking the file partway through, so nothing was uploaded. Try again in a while, or upload it on the VTOP website."
+                        else repo.explain(e),
+                    ),
+                )
                 return@launch
             }
             land(key, classId, ready.file.name, outcome, replacing)

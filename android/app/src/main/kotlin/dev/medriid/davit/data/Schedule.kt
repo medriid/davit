@@ -216,6 +216,7 @@ fun AttendanceRow.hint(remaining: Int?): String {
     if (remaining == null) return hint()
     val k = skipTillEnd(remaining)
     return when {
+        remaining == 0 -> if (atRisk) "no classes left to reach 75%" else "no classes left"
         k < 0 -> "75% can't be reached with $remaining classes left"
         atRisk -> "attend the next $mustAttend to reach 75% ($remaining left)"
         k >= remaining -> if (remaining == 1) "can skip the last one" else "can skip all $remaining left"
