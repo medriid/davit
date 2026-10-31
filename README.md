@@ -34,11 +34,14 @@ Attendance, classes, marks and the campus map for VIT students, printed in two i
 
 * **Two styles**: Classic printed cards in the colours you pick, or Editorial, a Swiss grid of big numbers and live tiles. Light or dark, either way.
 * **Home**: the class on now and next with its room, what's due, and what changed since you last looked.
-* **Attendance** sorted by risk: how many you can skip or must attend to stay at 75%, and **Plan a leave** to see what days away will cost.
+* **Attendance** sorted by risk: how many you can skip or must attend to stay at 75%, **Plan a leave** to see what days away will cost, and **corrections** for days VTOP marked you absent by mistake.
+* **Exam board**: every paper's time, room, seat and countdown, the free days between, and the course's materials a tap away.
 * **Academics**: marks, assignments, exams, grades and CGPA, with a planner for this semester.
 * **Assignments end to end**: download the question paper, scan pages into a PDF compressed under 4 MB, and upload it from the scanner.
 * **Course materials** by module, kept offline, with a search that forgives typos.
 * **Your week** as a list, a grid or the academic calendar, swapped days and holidays included, and in your phone's calendar if you like.
+* **Free time with friends**: swap weeks by QR code, phone to phone, and see when you're all out of class.
+* **Timetable planner** for next semester, from VTOP's course allocation, with clashes shown before registration.
 * **Campus map**: find a block, a mess or a room (PRP 327), and walk there from where you are.
 * **The rest of VTOP**: hostel leave, club events, messages, receipts, curriculum, feedback and more.
 * **Alerts you set up**: low attendance, a reminder before class, new marks and deadlines; plus two home-screen widgets.

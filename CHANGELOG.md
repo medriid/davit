@@ -2,6 +2,13 @@
 
 Downloads are on the [releases page](https://github.com/medriid/davit/releases). daVIT updates itself after the first install.
 
+## 0.11.0 — 2026-10-31
+
+- **Exam board**: every paper's time, room, seat and countdown, the free days between, and the course's materials a tap away.
+- **Attendance corrections**: mark days VTOP has you absent by mistake, send the list to your faculty, and get told when they're fixed.
+- **Free time with friends**: swap weeks by QR code, phone to phone, and see when you're all out of class.
+- **Timetable planner** for next semester, from VTOP's course allocation, with clashes shown as you pick.
+
 ## 0.10.1 — 2026-10-31
 
 - **Assignment uploads work**: files go to VTOP the way its own page sends them, with real progress. If VTOP signed you out meanwhile, daVIT signs in again instead of failing.
