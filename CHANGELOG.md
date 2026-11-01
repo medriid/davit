@@ -2,6 +2,11 @@
 
 Downloads are on the [releases page](https://github.com/medriid/davit/releases). daVIT updates itself after the first install.
 
+## 0.15.0 — 2026-11-01
+
+- **FFCS result**: see the classes you registered for next semester, with your week and any clashes, as soon as VTOP has them. Find it next to FFCS.
+- **Check for updates** is now a button at the end of Settings, and daVIT looks for new versions every three hours instead of once a day.
+
 ## 0.14.1 — 2026-11-01
 
 - **A cleaner display card on Home**: no overall chip or More button, since both are right below it.
