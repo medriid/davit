@@ -56,12 +56,18 @@ internal object DemoVtop {
             listOf("BXYZ201 - Data Structures", "Embedded Lab", "0 0 2 0 1.0", "VL2026270500102", "L23+L24 - SJT210", "ASHA RAMAN - SCOPE"),
             listOf("BXYZ202 - Discrete Mathematics", "Theory Only", "3 1 0 0 4.0", "VL2026270500103", "A2+TA2+TAA2 - MB210", "MEERA NAIR - SAS"),
             listOf("BXYZ203 - Operating Systems", "Embedded Theory", "3 0 0 0 3.0", "VL2026270500104", "B2+TB2 - SMV102", "VIKRAM SETH - SCOPE"),
+            listOf("BXYZ203 - Operating Systems", "Embedded Lab", "0 0 2 0 1.0", "VL2026270500106", "L21+L22 - SJT318", "VIKRAM SETH - SCOPE"),
             listOf("BXYZ204 - India Studies", "Online Course", "0 0 0 0 1.0", "VL2026270500105", "NIL - NIL", "RAHUL IYER - SSL"),
+            listOf("BXYZ205 - Structured and Object-Oriented Programming", "Embedded Theory", "2 0 0 0 2.0", "VL2026270500107", "F2 - SJT402", "ASHA RAMAN - SCOPE"),
+            listOf("BXYZ205 - Structured and Object-Oriented Programming", "Embedded Lab", "0 0 4 0 2.0", "VL2026270500108", "L15+L16+L29+L30 - SJT121", "ASHA RAMAN - SCOPE"),
+            listOf("BXYZ206 - Engineering Physics", "Embedded Theory", "3 0 0 0 3.0", "VL2026270500109", "G2+TG2 - PRP120", "MEERA NAIR - SAS"),
+            listOf("BXYZ206 - Engineering Physics", "Embedded Lab", "0 0 2 0 1.0", "VL2026270500110", "L27+L28 - PRPG17", "MEERA NAIR - SAS"),
+            listOf("BXYZ207 - Data Science", "Embedded Theory", "3 0 0 0 3.0", "VL2026270500111", "E2+TE2 - PRPG06", "RAHUL IYER - SSL"),
         )
         return "<table><tr><th>Class Group</th><th>Course Option</th></tr>" + rows.mapIndexed { i, r ->
             "<tr><td>${i + 1}</td><td>General (Semester)</td><td><p>${r[0]}</p><p>( ${r[1]} )</p></td><td>${r[2]}</td><td>Programme Core</td><td>Regular</td>" +
                 "<td>${r[3]}</td><td>${r[4]}</td><td>${r[5]}</td><td>01-Nov-2026 17:00</td><td>02-Nov-2026 - Manual</td><td>Registered</td></tr>"
-        }.joinToString("") + "<tr><td>Total Number Of Credits: 12.0</td></tr></table>"
+        }.joinToString("") + "<tr><td>Total Number Of Credits: 24.0</td></tr></table>"
     }
 
     private fun page(path: String, p: Map<String, String>): String? = when (path) {

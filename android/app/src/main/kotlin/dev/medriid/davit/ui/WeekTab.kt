@@ -224,7 +224,7 @@ private fun WeekGrid(
                                 .padding(3.dp),
                         ) {
                             Column {
-                                BasicText(initials(slot.course.courseName), style = RisoType.small.copy(color = inks.paper, fontSize = 11.sp, fontWeight = FontWeight.SemiBold), maxLines = 1)
+                                BasicText(courseInitials(slot.course.courseName), style = RisoType.small.copy(color = inks.paper, fontSize = 11.sp, fontWeight = FontWeight.SemiBold), maxLines = 1)
                                 BasicText(slot.course.venue, style = RisoType.small.copy(color = inks.paper, fontSize = 9.sp), maxLines = 1)
                             }
                         }
@@ -236,7 +236,7 @@ private fun WeekGrid(
 }
 
 /** "Problem Solving using Python" → "PSP"; short names stay as they are. */
-private fun initials(name: String): String {
+internal fun courseInitials(name: String): String {
     val words = name.split(' ', '-').filter { it.isNotBlank() && it.lowercase() !in setOf("using", "and", "of", "the", "for", "in", "to", "with") }
     return if (words.size <= 1) name.take(6) else words.take(4).joinToString("") { it.first().uppercase() }
 }
