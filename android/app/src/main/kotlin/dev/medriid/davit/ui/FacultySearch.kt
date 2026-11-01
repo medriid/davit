@@ -110,6 +110,7 @@ private fun FacultyHitCard(hit: FacultyHit) {
             Spacer(Modifier.width(8.dp))
             InkChip(if (open) "Less" else "Cabin")
         }
+        FacultyRatingLink(hit.empId, hit.name, Modifier.padding(top = 8.dp))
         if (!open) return@InkCard
         Spacer(Modifier.height(8.dp))
         when {

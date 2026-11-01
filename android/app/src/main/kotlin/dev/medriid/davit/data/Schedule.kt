@@ -245,6 +245,10 @@ fun AttendanceRow.hint(remaining: Int?): String {
 
 fun clock(minutes: Int) = "%02d:%02d".format(minutes / 60, minutes % 60)
 
+private val FacultyTitle = Regex("""^(DR|PROF|MR|MRS|MS)\.?\s+""")
+private val NotALetter = Regex("[^A-Z ]")
+private val Spaces = Regex("\\s+")
+
 /** "Dr. Asha  Raman" and "ASHA RAMAN" match: uppercase, titles and punctuation dropped. */
 fun facultyKey(name: String): String =
-    name.uppercase().replace(Regex("""^(DR|PROF|MR|MRS|MS)\.?\s+"""), "").replace(Regex("[^A-Z ]"), " ").trim().replace(Regex("\\s+"), " ")
+    name.uppercase().replace(FacultyTitle, "").replace(NotALetter, " ").trim().replace(Spaces, " ")

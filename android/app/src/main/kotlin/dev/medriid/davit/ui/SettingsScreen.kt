@@ -534,11 +534,8 @@ private fun AboutSettings() {
     // The people whose work this stands on.
     SettingsCard("Credits") {
         val open = { url: String -> runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }; Unit }
-        SettingRow(
-            "Campus map by Jeman",
-            "The buildings, rooms, PRP floors, mess menus and walking routes in Navigation are his work, shared under the MIT licence. Thank you, Jeman.",
-            "Jeman",
-        ) { open("https://www.linkedin.com/in/jemankalita/") }
+        SettingRow("Campus map by Jeman", "Shared under the MIT licence.", "Jeman") { open("https://www.linkedin.com/in/jemankalita/") }
+        SettingRow("Faculty reviews by No8AM", "Student ratings and reviews, as of 1 November 2026.", "No8AM") { open("https://no8am.site/") }
         SettingRow("Map data", "© OpenStreetMap contributors, under the Open Database Licence.", "OSM") { open("https://www.openstreetmap.org/copyright") }
         InkText("Fonts: Bagel Fat One and IBM Plex Mono, under the SIL Open Font Licence.", style = RisoType.small, modifier = Modifier.padding(top = 6.dp))
     }

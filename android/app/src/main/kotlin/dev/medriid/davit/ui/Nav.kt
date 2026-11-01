@@ -55,12 +55,16 @@ sealed class Route(val id: String) {
     data object Friends : Route("friends")
     data object Planner : Route("planner")
     data object MessMenu : Route("messmenu")
+    data object FacultyReviews : Route("facultyreviews")
+
+    /** One teacher's reviews, by No8AM's id. */
+    data class FacultyReview(val facultyId: String) : Route("fr|$facultyId")
 
     /** The shared-element key this route's screen grows out of. */
     val sharedKey: String get() = "route:$id"
 
     companion object {
-        private val plain = listOf(Search, Campus, Messages, Spotlight, Events, People, Money, Gate, Curriculum, SemesterGrades, Hostel, Downloads, Settings, Notifications, Bonafide, CourseFeedback, PaperSeeing, Activities, Allocation, FfcsResult, Colours, LeavePlanner, DisplayCard, CourseNames, Corrections, ExamBoard, Friends, Planner, MessMenu)
+        private val plain = listOf(Search, Campus, Messages, Spotlight, Events, People, Money, Gate, Curriculum, SemesterGrades, Hostel, Downloads, Settings, Notifications, Bonafide, CourseFeedback, PaperSeeing, Activities, Allocation, FfcsResult, Colours, LeavePlanner, DisplayCard, CourseNames, Corrections, ExamBoard, Friends, Planner, MessMenu, FacultyReviews)
 
         fun parse(id: String): Route? {
             plain.firstOrNull { it.id == id }?.let { return it }
@@ -69,6 +73,7 @@ sealed class Route(val id: String) {
                 "a" -> if (p.size >= 3) Assignment(p[1], p[2]) else null
                 "c" -> if (p.size >= 2) Course(id.removePrefix("c|")) else null
                 "set" -> if (p.size >= 2) SettingsPage(p[1]) else null
+                "fr" -> if (p.size >= 2) FacultyReview(p[1]) else null
                 else -> null
             }
         }

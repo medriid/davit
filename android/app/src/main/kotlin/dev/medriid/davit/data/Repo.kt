@@ -131,6 +131,9 @@ class Repo(private val context: Context) {
     /** The campus map: buildings, paths, places and PRP rooms, cached on the phone. */
     val maps by lazy { MapStore(context, scope) }
 
+    /** No8AM's faculty ratings and reviews, shipped in the app. */
+    val facultyReviews by lazy { FacultyReviewStore(context) }
+
     /** A venue another screen asked the map to show ("SJT-401", a cabin); the map clears it. */
     val mapFocus = MutableStateFlow<String?>(null)
 

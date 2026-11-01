@@ -324,6 +324,7 @@ private fun Hub(snapshot: Snapshot, onOpen: (Route) -> Unit, onOpenWeek: () -> U
             HubItem("Club events", RisoIcon.Flag) { onOpen(Route.Events) },
             HubItem("Messages", RisoIcon.Bubble) { onOpen(Route.Messages) },
             HubItem("Spot-light", RisoIcon.Megaphone) { onOpen(Route.Spotlight) },
+            HubItem("Faculty reviews", RisoIcon.People) { onOpen(Route.FacultyReviews) },
             HubItem("Proctor & HOD", RisoIcon.People) { onOpen(Route.People) },
         ),
         "Requests & records" to listOf(

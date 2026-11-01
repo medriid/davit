@@ -419,6 +419,7 @@ private fun FacultySegment(snapshot: Snapshot) {
                             listOfNotNull(f.designation.ifBlank { null }, listOf(f.department, f.school).filter { it.isNotBlank() }.joinToString(" · ").ifBlank { null })
                                 .forEach { InkText(it, style = RisoType.small, maxLines = 2) }
                         }
+                        if (who.isNotBlank()) FacultyRatingLink(f?.empId, who, Modifier.padding(top = 8.dp))
                         if (f?.cabin?.isNotBlank() == true || f?.email?.isNotBlank() == true) {
                             Spacer(Modifier.height(8.dp))
                             androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {

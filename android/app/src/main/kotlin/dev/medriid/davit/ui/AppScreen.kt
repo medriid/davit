@@ -323,6 +323,8 @@ private fun RouteHost(route: Route) = when (route) {
     Route.Friends -> FriendsScreen(route)
     Route.Planner -> PlannerScreen(route)
     Route.MessMenu -> MessMenuScreen(route)
+    Route.FacultyReviews -> FacultyReviewsScreen(route)
+    is Route.FacultyReview -> FacultyReviewScreen(route)
 }
 
 @Composable

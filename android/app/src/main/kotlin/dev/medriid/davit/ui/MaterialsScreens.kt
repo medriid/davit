@@ -681,10 +681,10 @@ private fun sheetShape(inks: Inks): Shape = when {
 }
 
 @Composable
-private fun SearchField(value: String, onChange: (String) -> Unit, onDone: () -> Unit) {
+internal fun SearchField(value: String, onChange: (String) -> Unit, onDone: () -> Unit, autoFocus: Boolean = true) {
     val inks = LocalInks.current
     val focus = remember { FocusRequester() }
-    LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
+    LaunchedEffect(Unit) { if (autoFocus) runCatching { focus.requestFocus() } }
     Row(
         Modifier
             .fillMaxWidth()

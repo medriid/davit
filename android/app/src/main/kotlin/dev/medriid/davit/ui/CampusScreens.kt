@@ -83,6 +83,7 @@ internal fun CampusHub(route: Route) {
             Tile(Route.Messages, "Messages", (campus.classMessages.size + campus.proctorMessages.size).let { if (it > 0) "$it from class and proctor" else "Class and proctor" }, dev.medriid.davit.design.Kind.People),
             Tile(Route.Spotlight, "Spot-light", if (campus.spotlight.isNotEmpty()) "${campus.spotlight.size} notices" else "VTOP's notices and files", dev.medriid.davit.design.Kind.People),
             Tile(Route.Events, "Club events", "Register, certificates", dev.medriid.davit.design.Kind.Events),
+            Tile(Route.FacultyReviews, "Faculty reviews", "Ratings and reviews, offline", dev.medriid.davit.design.Kind.People),
             Tile(Route.People, "Proctor, HOD, dean", campus.proctor?.name?.let(::titleCase) ?: "Who to ask", dev.medriid.davit.design.Kind.People),
         ),
         "Requests" to listOfNotNull(
