@@ -2,6 +2,14 @@
 
 Downloads are on the [releases page](https://github.com/medriid/davit/releases). daVIT updates itself after the first install.
 
+## 0.14.0 — 2026-11-01
+
+- **Mess menu**: November's Special Mess for the men's hostel, day by day, with meal reminders. Times are borrowed from the Non-Veg Mess for now, and 10-14 and 24-28 November aren't on the sheet yet.
+- **Search materials** has a filter for subject code, faculty and module.
+- **Your course names** now show on the screens that still used VTOP's.
+- **A shorter Home in Classic**: quick buttons near the top and fewer long lists.
+- **Overall attendance** on Classic's Home now matches the top bar.
+
 ## 0.13.1 — 2026-10-31
 
 - **Overall attendance** is the average of your subjects' percentages, so a subject with many classes no longer outweighs the rest.
