@@ -321,6 +321,7 @@ private fun RouteHost(route: Route) = when (route) {
     Route.ExamBoard -> ExamBoardScreen(route)
     Route.Friends -> FriendsScreen(route)
     Route.Planner -> PlannerScreen(route)
+    Route.MessMenu -> MessMenuScreen(route)
 }
 
 @Composable

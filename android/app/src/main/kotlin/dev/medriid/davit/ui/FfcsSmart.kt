@@ -30,6 +30,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import dev.medriid.davit.data.PlanPick
+import dev.medriid.davit.data.courseName
 import dev.medriid.davit.data.SmartResult
 import dev.medriid.davit.data.SmartRules
 import dev.medriid.davit.data.SmartSubject
@@ -87,7 +88,7 @@ internal fun ColumnScope.SmartFfcs(semester: String, categories: List<Pair<Strin
         InkCard(Modifier.fillMaxWidth().padding(bottom = 10.dp), kind = Kind.Classes, plateOffset = 3.dp) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    InkText("${s.code} ${s.title}", style = RisoType.body.copy(fontWeight = FontWeight.SemiBold), maxLines = 2)
+                    InkText("${s.code} ${state.aliases.courseName(s.code, s.title)}", style = RisoType.body.copy(fontWeight = FontWeight.SemiBold), maxLines = 2)
                     InkText(
                         if (classes == null) "Reading its classes…"
                         else classes.groupBy { it.type }.entries.joinToString(" · ") { (type, list) ->
@@ -265,6 +266,7 @@ private fun RuleRow(title: String, options: List<String>, selected: Int, onPick:
 @Composable
 private fun AddSubjects(categories: List<Pair<String, String>>, have: List<SmartSubject>, onAdd: (SmartSubject) -> Unit) {
     val repo = LocalRepo.current
+    val aliases = repo.state.collectAsState().value.aliases
     val scope = rememberCoroutineScope()
     var category by remember { mutableStateOf("") }
     val courses = remember { mutableStateMapOf<String, List<Pair<String, String>>>() }
@@ -295,7 +297,7 @@ private fun AddSubjects(categories: List<Pair<String, String>>, have: List<Smart
         val title = label.substringAfter(" - ", label)
         val added = have.any { it.code == code }
         Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-            InkText("$code $title", style = RisoType.small.copy(fontWeight = FontWeight.SemiBold), modifier = Modifier.weight(1f), maxLines = 2)
+            InkText("$code ${aliases.courseName(code, title)}", style = RisoType.small.copy(fontWeight = FontWeight.SemiBold), modifier = Modifier.weight(1f), maxLines = 2)
             Spacer(Modifier.width(8.dp))
             Box(Modifier.clickable(enabled = !added, role = Role.Button) { onAdd(SmartSubject(code, title)) }) { InkChip(if (added) "Added" else "Add", solid = !added) }
         }

@@ -1,5 +1,7 @@
 package dev.medriid.davit.ui
 
+import dev.medriid.davit.data.courseName
+import androidx.compose.runtime.collectAsState
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -192,13 +194,14 @@ internal fun CourseFeedbackScreen(route: Route) {
 @Composable
 private fun ClassFeedbackCard(cls: dev.medriid.davit.vtop.ClassFeedback, semesterId: String, onReply: (Reply) -> Unit) {
     val repo = LocalRepo.current
+    val aliases = repo.state.collectAsState().value.aliases
     val scope = rememberCoroutineScope()
     val haptics = rememberHaptics()
     var text by remember(cls.classId) { mutableStateOf("") }
     var reviewing by remember(cls.classId) { mutableStateOf(false) }
     var sending by remember(cls.classId) { mutableStateOf(false) }
     InkCard(Modifier.fillMaxWidth(), kind = dev.medriid.davit.design.Kind.Classes, plateOffset = 3.dp) {
-        InkText(cls.title.ifBlank { cls.code }, style = RisoType.body.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold), maxLines = 2)
+        InkText(aliases.courseName(cls.code, cls.title).ifBlank { cls.code }, style = RisoType.body.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold), maxLines = 2)
         InkText(listOf(cls.code, cls.type, cls.slot).filter { it.isNotBlank() }.joinToString(" · "), style = RisoType.small)
         if (cls.faculty.isNotBlank()) InkText(personName(cls.faculty.substringBefore(" - ")), style = RisoType.small)
         Spacer(Modifier.height(10.dp))
@@ -245,6 +248,7 @@ private fun ClassFeedbackCard(cls: dev.medriid.davit.vtop.ClassFeedback, semeste
 @Composable
 internal fun PaperSeeingScreen(route: Route) {
     val repo = LocalRepo.current
+    val aliases = repo.state.collectAsState().value.aliases
     val scope = rememberCoroutineScope()
     val haptics = rememberHaptics()
     var form by remember { mutableStateOf<FormPage?>(null) }
@@ -317,7 +321,7 @@ internal fun PaperSeeingScreen(route: Route) {
                 InkCard(Modifier.fillMaxWidth(), onClick = { if (on) chosen.remove(c.value) else chosen.add(c.value); reviewing = false }, kind = dev.medriid.davit.design.Kind.Exams, plateOffset = 3.dp) {
                     androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                         androidx.compose.foundation.layout.Column(Modifier.weight(1f)) {
-                            InkText(c.title.ifBlank { c.code.ifBlank { c.value } }, style = RisoType.body.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold), maxLines = 2)
+                            InkText(aliases.courseName(c.code, c.title).ifBlank { c.code.ifBlank { c.value } }, style = RisoType.body.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold), maxLines = 2)
                             InkText(c.details.filter { (h, v) -> v != c.title && !h.contains("Title", true) }.joinToString(" · ") { (h, v) -> if (h.contains("Code", true)) v else "${h.removePrefix("Course ")} $v" }, style = RisoType.small, maxLines = 3)
                         }
                         androidx.compose.foundation.layout.Spacer(Modifier.width(8.dp))

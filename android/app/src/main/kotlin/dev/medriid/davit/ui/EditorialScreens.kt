@@ -318,6 +318,7 @@ private fun Hub(snapshot: Snapshot, onOpen: (Route) -> Unit, onOpenWeek: () -> U
         ),
         "Campus" to listOfNotNull(
             HubItem("Hostel", RisoIcon.Home) { onOpen(Route.Hostel) }.takeIf { snapshot.profile?.hostel != null },
+            HubItem("Mess menu", RisoIcon.Today) { onOpen(Route.MessMenu) },
             HubItem("Map", RisoIcon.Map) { nav.tab(4) },
             HubItem("Club events", RisoIcon.Flag) { onOpen(Route.Events) },
             HubItem("Messages", RisoIcon.Bubble) { onOpen(Route.Messages) },

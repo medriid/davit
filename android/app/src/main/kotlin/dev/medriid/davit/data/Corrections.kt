@@ -41,9 +41,10 @@ fun fixedBetween(old: Snapshot?, new: Snapshot, list: List<Correction>): List<Co
 
 /**
  * The still-open ones as a message for your faculty: course, date, slot and what you were,
- * course by course, ready to paste into an email.
+ * course by course, ready to paste into an email. Faculty know a course by VTOP's name, so
+ * [vtopNames] (by code) goes in rather than the name you gave it.
  */
-fun correctionsMessage(list: List<Correction>, s: Snapshot): String {
+fun correctionsMessage(list: List<Correction>, s: Snapshot, vtopNames: Map<String, String> = emptyMap()): String {
     val open = list.filter { it.stateIn(s) == CorrectionState.Waiting }
     if (open.isEmpty()) return ""
     val byCourse = open.groupBy { it.course }
@@ -51,7 +52,7 @@ fun correctionsMessage(list: List<Correction>, s: Snapshot): String {
         append("VTOP shows me absent for these classes, but I was there:\n")
         byCourse.forEach { (key, days) ->
             val row = s.attendance.firstOrNull { it.key == key }
-            append("\n").append(row?.let { "${it.courseCode} ${it.courseName} (${it.classType})" } ?: key).append("\n")
+            append("\n").append(row?.let { "${it.courseCode} ${vtopNames[it.courseCode] ?: it.courseName} (${it.classType})" } ?: key).append("\n")
             days.sortedBy { vtopDate(it.date) }.forEach { c ->
                 append("  ").append(c.date).append(" · ").append(c.slot).append(if (c.onDuty) " · on duty" else " · present").append("\n")
             }

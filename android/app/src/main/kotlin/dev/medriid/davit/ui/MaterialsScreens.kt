@@ -1,21 +1,37 @@
 package dev.medriid.davit.ui
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -35,9 +51,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -48,20 +71,29 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.medriid.davit.data.CachedCourse
+import dev.medriid.davit.data.courseName
+import dev.medriid.davit.data.FilterOption
+import dev.medriid.davit.data.MaterialFilter
+import dev.medriid.davit.data.MaterialResults
 import dev.medriid.davit.data.MaterialRow
 import dev.medriid.davit.data.MaterialsStore
 import dev.medriid.davit.data.Section
 import dev.medriid.davit.data.Snapshot
+import dev.medriid.davit.data.searchMaterials
 import dev.medriid.davit.design.CardShape
+import dev.medriid.davit.design.EditorialShape
 import dev.medriid.davit.design.Heading
+import dev.medriid.davit.design.InkButton
 import dev.medriid.davit.design.InkCard
 import dev.medriid.davit.design.InkChip
 import dev.medriid.davit.design.InkText
+import dev.medriid.davit.design.Inks
 import dev.medriid.davit.design.LocalInks
 import dev.medriid.davit.design.RisoType
 import dev.medriid.davit.design.Rule
 import dev.medriid.davit.design.printIn
 import dev.medriid.davit.design.rememberHaptics
+import dev.medriid.davit.design.rememberMotionEnabled
 import dev.medriid.davit.search.Fuzzy
 import dev.medriid.davit.vtop.CourseOption
 import kotlinx.coroutines.Dispatchers
@@ -81,6 +113,7 @@ internal fun MaterialsSegment(snapshot: Snapshot) {
     val errors by repo.campus.errors.collectAsState()
     val pages by repo.materials.pages.collectAsState()
     val saved by repo.files.saved.collectAsState()
+    val aliases = repo.state.collectAsState().value.aliases
     LaunchedEffect(Unit) { repo.campus.refresh(Section.Courses) }
 
     SearchLauncher(Modifier.sharedCard(Route.Search.sharedKey)) { nav.go(Route.Search) }
@@ -99,7 +132,7 @@ internal fun MaterialsSegment(snapshot: Snapshot) {
             list.forEach { c ->
                 val cached = pages[c.key]
                 val rows = remember(cached, snapshot) { cached?.let { repo.materials.rows(it, snapshot) }.orEmpty() }
-                CourseCard(c, cached, rows.count { it.mine }, rows.count { it.key in saved }, Modifier.printIn(i++)) { nav.go(Route.Course(c.key)) }
+                CourseCard(c, aliases.courseName(c.code, c.name), cached, rows.count { it.mine }, rows.count { it.key in saved }, Modifier.printIn(i++)) { nav.go(Route.Course(c.key)) }
             }
         }
     }
@@ -108,11 +141,11 @@ internal fun MaterialsSegment(snapshot: Snapshot) {
 }
 
 @Composable
-private fun CourseCard(c: CourseOption, cached: CachedCourse?, mine: Int, saved: Int, modifier: Modifier, onOpen: () -> Unit) {
+private fun CourseCard(c: CourseOption, name: String, cached: CachedCourse?, mine: Int, saved: Int, modifier: Modifier, onOpen: () -> Unit) {
     InkCard(modifier.fillMaxWidth().sharedCard(Route.Course(c.key).sharedKey), onClick = onOpen, kind = dev.medriid.davit.design.Kind.Assignments, plateOffset = 4.dp) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                InkText(c.name.ifBlank { c.code }, style = RisoType.title, maxLines = 2)
+                InkText(name.ifBlank { c.code }, style = RisoType.title, maxLines = 2)
                 InkText("${c.code} · ${c.typeName.ifBlank { c.type }}", style = RisoType.small, maxLines = 1)
             }
             if (cached != null) {
@@ -200,7 +233,7 @@ internal fun CourseScreen(route: Route.Course) {
     val others = shown.filterNot { it.mine }
 
     RouteLazyScreen(
-        route, course.code, "${course.name} · ${course.typeName.ifBlank { course.type }}",
+        route, course.code, "${state.aliases.courseName(course.code, course.name)} · ${course.typeName.ifBlank { course.type }}",
         refreshing = route.key in loading && cached != null,
         onRefresh = { repo.materials.load(course, force = true) },
     ) {
@@ -309,8 +342,9 @@ internal fun titleCase(s: String) = s.split(' ').filter { it.isNotBlank() }.join
 
 /**
  * Search across every course's materials: typo-tolerant, by title, module, faculty or
- * course, with filter chips and highlighted matches. The index and every search run on a
- * background thread, so typing never waits on it.
+ * course, with highlighted matches. The Filter button narrows by subject code, module and
+ * faculty, from what the query leaves; what's set shows under it, each a tap from gone. The
+ * index and every search run on a background thread, so typing never waits on it.
  */
 @Composable
 internal fun SearchScreen(route: Route) {
@@ -331,32 +365,30 @@ internal fun SearchScreen(route: Route) {
     }
 
     var query by rememberSaveable { mutableStateOf("") }
-    var course by rememberSaveable { mutableStateOf<String?>(null) }
+    var subject by rememberSaveable { mutableStateOf<String?>(null) }
+    var faculty by rememberSaveable { mutableStateOf<String?>(null) }
+    var module by rememberSaveable { mutableStateOf<String?>(null) }
     var mineOnly by rememberSaveable { mutableStateOf(false) }
     var savedOnly by rememberSaveable { mutableStateOf(false) }
-    var module by rememberSaveable { mutableStateOf<String?>(null) }
+    var filtersOpen by rememberSaveable { mutableStateOf(false) }
 
     val rows = remember(pages, snapshot) { repo.materials.allRows(snapshot) }
     val index by produceState<Fuzzy.Index<MaterialRow>?>(null, rows) {
         value = withContext(Dispatchers.Default) { repo.materials.index(rows) }
     }
-    val filtered = course != null || mineOnly || savedOnly || module != null
-    val hits by produceState(emptyList<Fuzzy.Hit<MaterialRow>>(), index, query, course, mineOnly, savedOnly, module, saved) {
+    val filter = MaterialFilter(subject, faculty, module, mineOnly, savedOnly)
+    val filtered = filter != MaterialFilter()
+    // Runs even with nothing typed: the Filter button's options come from it.
+    val results by produceState(MaterialResults(), index, query, filter, saved) {
         val idx = index ?: return@produceState
-        value = if (query.isBlank() && !filtered) emptyList() else withContext(Dispatchers.Default) {
-            idx.search(query, limit = 150) { r ->
-                (course == null || r.course.key == course) && (!mineOnly || r.mine) && (!savedOnly || r.key in saved) &&
-                    (module == null || r.material.module == module)
-            }
-        }
+        value = withContext(Dispatchers.Default) { searchMaterials(idx, query, filter, saved.keys) }
     }
-    val modules = remember(rows, course) {
-        rows.filter { course == null || it.course.key == course }.map { it.material.module }.filter { it.isNotBlank() }.distinct()
-            .sortedBy { it.toIntOrNull() ?: Int.MAX_VALUE }
-    }
+    val hits = results.hits
     val keyboard = LocalSoftwareKeyboardController.current
+    val focus = LocalFocusManager.current
     val haptics = rememberHaptics()
 
+    Box(Modifier.fillMaxSize()) {
     RouteLazyScreen(route, "Search materials", "${rows.size} files across ${pages.size} course${if (pages.size == 1) "" else "s"}" +
         (loading.size.takeIf { it > 0 }?.let { " · fetching $it more" } ?: "")) {
         item(key = "field") {
@@ -366,22 +398,29 @@ internal fun SearchScreen(route: Route) {
                     keyboard?.hide()
                 })
                 Spacer(Modifier.height(10.dp))
-                // Course chips scroll sideways: there can be a dozen.
-                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Your faculty and Saved are one tap away; the rest lives behind the button.
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    FilterButton(listOfNotNull(subject, faculty, module).size) {
+                        keyboard?.hide()
+                        focus.clearFocus()
+                        filtersOpen = true
+                        haptics.tick()
+                    }
                     Chip("Your faculty", mineOnly) { mineOnly = !mineOnly; haptics.tick() }
                     Chip("Saved", savedOnly) { savedOnly = !savedOnly; haptics.tick() }
-                    campus.courses.filter { pages.containsKey(it.key) }.forEach { c ->
-                        Chip(c.code + if (dev.medriid.davit.data.isLabCode(c.type)) " lab" else "", course == c.key) {
-                            course = if (course == c.key) null else c.key
-                            module = null
-                            haptics.tick()
-                        }
-                    }
                 }
-                if (modules.isNotEmpty()) {
-                    Spacer(Modifier.height(8.dp))
-                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        modules.forEach { m -> Chip("Module $m", module == m) { module = if (module == m) null else m; haptics.tick() } }
+                if (subject != null || faculty != null || module != null) {
+                    Spacer(Modifier.height(4.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            subject?.let { ActiveFilter(it) { subject = null; module = null; haptics.tick() } }
+                            module?.let { ActiveFilter("Module $it") { module = null; haptics.tick() } }
+                            faculty?.let { ActiveFilter(titleCase(it)) { faculty = null; haptics.tick() } }
+                        }
+                        Box(Modifier.clickable(role = Role.Button) {
+                            subject = null; faculty = null; module = null; mineOnly = false; savedOnly = false
+                            haptics.tick()
+                        }.padding(start = 12.dp, top = 10.dp, bottom = 10.dp)) { InkText("Clear all", style = RisoType.small) }
                     }
                 }
                 Spacer(Modifier.height(6.dp))
@@ -410,8 +449,8 @@ internal fun SearchScreen(route: Route) {
             return@RouteLazyScreen
         }
         if (index == null) item(key = "indexing") { Loading("Getting the index ready") }
-        else if (hits.isEmpty()) item(key = "nothing") { InkText("Nothing matches. Check the filters, or try fewer words.", modifier = Modifier.padding(top = 12.dp)) }
-        else item(key = "count") { InkText("${hits.size}${if (hits.size == 150) "+" else ""} result${if (hits.size == 1) "" else "s"}", label = true, modifier = Modifier.padding(top = 10.dp)) }
+        else if (results.total == 0) item(key = "nothing") { InkText("Nothing matches. Check the filters, or try fewer words.", modifier = Modifier.padding(top = 12.dp)) }
+        else item(key = "count") { InkText("${results.total} result${if (results.total == 1) "" else "s"}" + if (results.total > hits.size) " · best ${hits.size} shown" else "", label = true, modifier = Modifier.padding(top = 10.dp)) }
         hits.forEachIndexed { i, h ->
             item(key = "hit-${h.item.course.key}-${h.item.material.fileId}") {
                 val r = h.item
@@ -453,6 +492,192 @@ internal fun SearchScreen(route: Route) {
             repo.materials.remember(query)
         }
     }
+    FilterSheet(
+        filtersOpen, results, filter,
+        label = when {
+            query.isBlank() && !filtered -> "Done"
+            results.total == 0 -> "Close"
+            else -> "Show ${results.total} result${if (results.total == 1) "" else "s"}"
+        },
+        onSubject = { subject = if (subject == it) null else it; module = null; haptics.tick() },
+        onModule = { module = if (module == it) null else it; haptics.tick() },
+        onFaculty = { faculty = if (faculty == it) null else it; haptics.tick() },
+        onClear = { subject = null; faculty = null; module = null; haptics.tick() },
+        onClose = { filtersOpen = false },
+    )
+    }
+}
+
+/** Slides up over the results, with its own scroll: a big course page can have dozens of faculty. */
+@Composable
+private fun FilterSheet(
+    open: Boolean,
+    results: MaterialResults,
+    filter: MaterialFilter,
+    label: String,
+    onSubject: (String) -> Unit,
+    onModule: (String) -> Unit,
+    onFaculty: (String) -> Unit,
+    onClear: () -> Unit,
+    onClose: () -> Unit,
+) {
+    val inks = LocalInks.current
+    val ms = if (rememberMotionEnabled()) 220 else 0
+    if (open) BackHandler(onBack = onClose)
+    AnimatedVisibility(open, enter = fadeIn(tween(ms)), exit = fadeOut(tween(ms))) {
+        Box(
+            Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.45f)).clickable(
+                remember { MutableInteractionSource() }, indication = null, onClick = onClose,
+            ),
+        )
+    }
+    AnimatedVisibility(open, enter = slideInVertically(tween(ms)) { it }, exit = slideOutVertically(tween(ms)) { it }) {
+        BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
+            val shape = sheetShape(inks)
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = maxHeight * 0.86f)
+                    .clip(shape)
+                    .background(inks.paper)
+                    .border(
+                        if (inks.soft || inks.editorial || inks.glass) 1.dp else 2.dp,
+                        if (inks.soft) inks.text.copy(alpha = 0.15f) else if (inks.editorial || inks.glass) inks.rule else inks.text,
+                        shape,
+                    )
+                    // Taps on the sheet's own gaps mustn't reach the scrim under it.
+                    .pointerInput(Unit) { detectTapGestures { } }
+                    .padding(start = Gutter, end = Gutter, top = 16.dp, bottom = 14.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.weight(1f)) { Heading("Filter", 24.sp) }
+                    if (filter.subject != null || filter.faculty != null || filter.module != null) {
+                        Box(Modifier.clickable(role = Role.Button, onClick = onClear).padding(start = 12.dp, top = 10.dp, bottom = 10.dp)) { InkText("Clear", style = RisoType.small) }
+                    }
+                }
+                LazyColumn(Modifier.weight(1f, fill = false).padding(bottom = 12.dp)) {
+                    if (results.subjects.isEmpty() && results.faculties.isEmpty()) {
+                        item(key = "none") {
+                            InkText("Nothing to filter by. Your course pages may still be coming, or the search left no files.", style = RisoType.small, modifier = Modifier.padding(top = 10.dp))
+                        }
+                    }
+                    if (results.subjects.isNotEmpty()) {
+                        item(key = "subject-head") { GroupLabel("Subject code") }
+                        results.subjects.forEach { o ->
+                            item(key = "subject-${o.id}") { OptionRow(o.id, o.detail, o.count, o.id == filter.subject) { onSubject(o.id) } }
+                        }
+                    }
+                    // A module only means something inside one course.
+                    if (filter.subject != null && results.modules.isNotEmpty()) {
+                        item(key = "module") {
+                            Column {
+                                GroupLabel("Module")
+                                ModuleChips(results.modules, filter.module, onModule)
+                            }
+                        }
+                    }
+                    if (results.faculties.isNotEmpty()) {
+                        item(key = "faculty-head") { GroupLabel("Faculty") }
+                        results.faculties.forEach { o ->
+                            item(key = "faculty-${o.id}") { OptionRow(titleCase(o.id), if (o.mine) "Your faculty" else "", o.count, o.id == filter.faculty) { onFaculty(o.id) } }
+                        }
+                    }
+                }
+                InkButton(label, onClose, fillWidth = true)
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ModuleChips(options: List<FilterOption>, selected: String?, onPick: (String) -> Unit) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        options.forEach { o -> Chip("Module ${o.id}", o.id == selected) { onPick(o.id) } }
+    }
+}
+
+/** One value in the sheet: picked, it reverses out just as a solid chip does. */
+@Composable
+private fun OptionRow(title: String, detail: String, count: Int, on: Boolean, onClick: () -> Unit) {
+    val inks = LocalInks.current
+    val ink = if (on && !inks.sticker) inks.paper else inks.text
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .defaultMinSize(minHeight = 48.dp)
+            .clip(chipShape(inks))
+            .background(if (on) solidInk(inks) else Color.Transparent)
+            .clickable(role = Role.RadioButton, onClick = onClick)
+            .semantics { selected = on }
+            .padding(horizontal = 12.dp, vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            BasicText(title, style = RisoType.body.copy(fontWeight = FontWeight.SemiBold, color = ink), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (detail.isNotBlank()) BasicText(detail, style = RisoType.small.copy(color = if (on) ink else ink.copy(alpha = 0.7f)), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        Spacer(Modifier.width(12.dp))
+        BasicText("$count", style = RisoType.small.copy(color = ink))
+    }
+}
+
+/** Opens the sheet. Solid, with how many are set, while any filter in it is on. */
+@Composable
+private fun FilterButton(active: Int, onClick: () -> Unit) {
+    val inks = LocalInks.current
+    val shape = chipShape(inks)
+    val on = active > 0
+    val ink = if (on && !inks.sticker) inks.paper else inks.text
+    Row(
+        Modifier
+            .clip(shape)
+            .background(if (on) solidInk(inks) else Color.Transparent)
+            .border(if (inks.soft || inks.editorial) 1.dp else 1.5.dp, if (on) solidInk(inks) else if (inks.glass) inks.rule else inks.text, shape)
+            .clickable(role = Role.Button, onClick = onClick)
+            .semantics { contentDescription = if (on) "Filter, $active set" else "Filter" }
+            .defaultMinSize(minHeight = 40.dp)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        FilterGlyph(ink)
+        Spacer(Modifier.width(8.dp))
+        BasicText(if (on) "Filter · $active" else "Filter", style = RisoType.label.copy(color = ink, letterSpacing = RisoType.label.letterSpacing * 0.5f))
+    }
+}
+
+/** A set filter: tapping it takes it off. */
+@Composable
+private fun ActiveFilter(text: String, onRemove: () -> Unit) {
+    Box(
+        Modifier
+            .clickable(role = Role.Button, onClick = onRemove)
+            .semantics { contentDescription = "Remove filter $text" }
+            .padding(vertical = 4.dp),
+    ) { InkChip("$text  ×", solid = true) }
+}
+
+@Composable
+private fun FilterGlyph(ink: Color) {
+    androidx.compose.foundation.Canvas(Modifier.width(16.dp).height(16.dp)) {
+        val w = 2.dp.toPx()
+        listOf(0.2f to 1f, 0.5f to 0.64f, 0.8f to 0.28f).forEach { (y, across) ->
+            val inset = size.width * (1 - across) / 2
+            drawLine(ink, androidx.compose.ui.geometry.Offset(inset, size.height * y), androidx.compose.ui.geometry.Offset(size.width - inset, size.height * y), w, androidx.compose.ui.graphics.StrokeCap.Round)
+        }
+    }
+}
+
+/** The same shape and ink InkChip takes in each style, for the controls that sit beside chips. */
+private fun chipShape(inks: Inks): Shape = if (inks.soft) RoundedCornerShape(50) else if (inks.editorial) EditorialShape else RoundedCornerShape(6.dp)
+
+private fun solidInk(inks: Inks): Color = if (inks.soft || inks.editorial) inks.text else if (inks.sticker || inks.glass) inks.a else inks.b
+
+private fun sheetShape(inks: Inks): Shape = when {
+    inks.editorial -> EditorialShape
+    inks.soft -> RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+    inks.glass -> RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp)
+    else -> RoundedCornerShape(topStart = 10.dp, topEnd = 10.dp)
 }
 
 @Composable

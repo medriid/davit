@@ -204,6 +204,8 @@ private fun MessCard() {
             ?: InkText("VTOP's mess page said nothing.", style = RisoType.small)
     }
     if (m?.open == true) InkText("Changing your mess happens on VTOP.", style = RisoType.small.copy(color = LocalInks.current.rule), modifier = Modifier.padding(top = 6.dp))
+    val nav = LocalNav.current
+    dev.medriid.davit.design.InkButton("Mess menu", { nav.go(Route.MessMenu) }, quiet = true, fillWidth = true, modifier = Modifier.fillMaxWidth().padding(top = 10.dp))
 }
 
 @Composable

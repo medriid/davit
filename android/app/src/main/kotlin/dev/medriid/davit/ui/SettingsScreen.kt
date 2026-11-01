@@ -102,6 +102,7 @@ private val SettingsIndex: List<Triple<String, String, SettingsGroup>> = listOf(
     Triple("Notifications", "alerts", SettingsGroup.Alerts),
     Triple("Attendance warnings", "75 percent line alert", SettingsGroup.Alerts),
     Triple("Reminders before class", "before class reminder", SettingsGroup.Alerts),
+    Triple("Meal reminders", "mess menu food breakfast lunch snacks dinner", SettingsGroup.Alerts),
     Triple("New marks, deadlines, exams, registration", "alerts marks deadline exam registration remarks", SettingsGroup.Alerts),
     Triple("Sync now", "refresh update data", SettingsGroup.Sync),
     Triple("Sync in the background", "background refresh battery", SettingsGroup.Sync),
@@ -641,6 +642,11 @@ internal fun NotificationsScreen(route: Route) {
                     style = RisoType.small,
                 )
             }
+        }
+
+        SettingsCard("Meals") {
+            val nav = LocalNav.current
+            SettingRow("Meal reminders", if (p.meals.isEmpty()) "Off. Set them from the bell on the mess menu." else "${p.meals.size} of 4 meals, set from the bell on the mess menu.", "Open") { nav.go(Route.MessMenu) }
         }
 
         SettingsCard("Also tell me about") {

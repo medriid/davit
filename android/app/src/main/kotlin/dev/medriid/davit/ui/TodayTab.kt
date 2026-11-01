@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -38,6 +39,8 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dev.medriid.davit.design.IconGlyph
+import dev.medriid.davit.design.RisoIcon
 import dev.medriid.davit.data.ClassSlot
 import dev.medriid.davit.data.Snapshot
 import dev.medriid.davit.data.TodayPlan
@@ -46,6 +49,7 @@ import dev.medriid.davit.data.canSkipNow
 import dev.medriid.davit.data.clock
 import dev.medriid.davit.data.hint
 import dev.medriid.davit.data.mustAttend
+import dev.medriid.davit.data.overallPercent
 import dev.medriid.davit.data.percent
 import dev.medriid.davit.data.planFor
 import dev.medriid.davit.data.remainingFor
@@ -106,8 +110,7 @@ internal fun TodayTab(
     val calDay = plan.calendarDay
     val att = snapshot.attendance
     val risky = att.count { it.atRisk }
-    val attended = att.sumOf { it.attended }
-    val total = att.sumOf { it.total }
+    val overall = overallPercent(att)
 
     TabColumn {
         InkText(now.format(DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.ENGLISH)), style = RisoType.title)
@@ -159,7 +162,7 @@ internal fun TodayTab(
         Spacer(Modifier.height(16.dp))
         Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             StatTile(
-                if (total == 0) "–" else "${attended * 100 / total}%",
+                overall?.let { "$it%" } ?: "–",
                 "overall",
                 Modifier.weight(1f).fillMaxHeight(),
                 onOpenAttendance,
@@ -174,6 +177,9 @@ internal fun TodayTab(
             Spacer(Modifier.height(14.dp))
             RegistrationCard(reg, now, Modifier.printIn(2))
         }
+
+        Spacer(Modifier.height(16.dp))
+        QuickButtons(onOpenAcademics, onOpen)
 
         val today = now.toLocalDate()
         val nextExam = snapshot.exams
@@ -238,21 +244,28 @@ internal fun TodayTab(
         }
         if (due.isEmpty() && !adding) InkText("Nothing due in the next two weeks.", style = RisoType.small)
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            due.sortedBy { it.first }.take(6).forEach { it.second() }
-            if (due.size > 6) InkText("+ ${due.size - 6} more", style = RisoType.small)
+            var allDue by rememberSaveable { mutableStateOf(false) }
+            due.sortedBy { it.first }.take(if (allDue) due.size else 3).forEach { it.second() }
+            if (due.size > 3) ShowMore(allDue, due.size - 3) { allDue = !allDue }
         }
 
         if (snapshot.changes.isNotEmpty()) {
             SectionTitle("Since you last looked")
+            var allChanges by rememberSaveable { mutableStateOf(false) }
             InkCard(Modifier.fillMaxWidth(), kind = dev.medriid.davit.design.Kind.Vtop, plateOffset = 4.dp) {
-                snapshot.changes.take(8).forEachIndexed { i, change ->
+                snapshot.changes.take(if (allChanges) 8 else 2).forEachIndexed { i, change ->
                     if (i > 0) Spacer(Modifier.height(8.dp))
                     InkText(change)
+                }
+                val more = snapshot.changes.take(8).size - 2
+                if (more > 0) {
+                    Spacer(Modifier.height(8.dp))
+                    ShowMore(allChanges, more) { allChanges = !allChanges }
                 }
             }
         }
 
-        if (reg?.start != null && !regSoon && java.time.Duration.between(now, reg.start).toDays() <= 14) {
+        if (reg?.start != null && !regSoon && java.time.Duration.between(now, reg.start).toDays() <= 3) {
             Spacer(Modifier.height(22.dp))
             RegistrationCard(reg, now)
         }
@@ -261,18 +274,18 @@ internal fun TodayTab(
         if (events.isNotEmpty()) {
             SectionTitle("Club events")
             InkCard(Modifier.fillMaxWidth().sharedCard(Route.Events.sharedKey), onClick = { onOpen(Route.Events) }, kind = dev.medriid.davit.design.Kind.Events, plateOffset = 4.dp) {
-                events.take(4).forEachIndexed { i, e ->
+                events.take(2).forEachIndexed { i, e ->
                     if (i > 0) Spacer(Modifier.height(8.dp))
                     InkText(e.title, style = RisoType.body.copy(fontWeight = FontWeight.SemiBold), maxLines = 2)
                     InkText((if (e.date == today) "Today" else "Tomorrow") + " · " + listOf(e.category, e.club).filter { it.isNotBlank() }.joinToString(" · "), style = RisoType.small, maxLines = 1)
                 }
-                if (events.size > 4) InkText("+ ${events.size - 4} more", style = RisoType.small, modifier = Modifier.padding(top = 6.dp))
+                if (events.size > 2) InkText("+ ${events.size - 2} more", style = RisoType.small, modifier = Modifier.padding(top = 6.dp))
             }
         }
 
         snapshot.feeds.proctorNote?.let { note ->
             SectionTitle("From your proctor")
-            InkCard(Modifier.fillMaxWidth(), onClick = { onOpen(Route.Messages) }, kind = dev.medriid.davit.design.Kind.People, plateOffset = 4.dp) { InkText(note, maxLines = 6) }
+            InkCard(Modifier.fillMaxWidth(), onClick = { onOpen(Route.Messages) }, kind = dev.medriid.davit.design.Kind.People, plateOffset = 4.dp) { InkText(note, maxLines = 2) }
         }
 
         // VTOP's own remarks (debarment, revoked exams) and pending feedback: worth knowing,
@@ -297,23 +310,51 @@ internal fun TodayTab(
             InkCard(Modifier.fillMaxWidth(), kind = dev.medriid.davit.design.Kind.Vtop, plateOffset = 4.dp) {
                 InkText("${pending.size} feedback form${if (pending.size > 1) "s" else ""} pending", label = true)
                 Spacer(Modifier.height(6.dp))
-                pending.take(3).forEach { InkText(it.title, style = RisoType.small.copy(fontWeight = FontWeight.SemiBold), maxLines = 2) }
-                Spacer(Modifier.height(6.dp))
                 InkText("Fill them on VTOP: a pending mandatory one can lock VTOP's menus.", style = RisoType.small)
             }
         }
+    }
+}
 
-        SectionTitle("More from VTOP")
-        InkCard(Modifier.fillMaxWidth().sharedCard(Route.Campus.sharedKey), onClick = { onOpen(Route.Campus) }, kind = dev.medriid.davit.design.Kind.Vtop, plateOffset = 4.dp) {
-            InkText("Messages, Spot-light, proctor and HOD, hostel leave, gate log, receipts, curriculum, semester GPA", style = RisoType.body)
-            Spacer(Modifier.height(10.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                InkChip("Open", solid = true)
-                if (snapshot.profile?.hostel != null) {
-                    Box(Modifier.sharedCard(Route.Hostel.sharedKey).clickable(role = Role.Button) { onOpen(Route.Hostel) }) { InkChip("Hostel leave") }
+/** The ways in you use most, two short rows, so nothing needs a long scroll. */
+@Composable
+private fun QuickButtons(onOpenAcademics: () -> Unit, onOpen: (Route) -> Unit) {
+    val repo = LocalRepo.current
+    fun academics(section: Int): () -> Unit = {
+        repo.academicsFocus.value = section
+        onOpenAcademics()
+    }
+    val rows = listOf(
+        listOf(
+            Triple("Marks", RisoIcon.Marks, academics(0)),
+            Triple("Assignments", RisoIcon.Assignments, academics(1)),
+            Triple("Materials", RisoIcon.Materials, academics(4)),
+        ),
+        listOf(
+            Triple("Exam board", RisoIcon.Exams) { onOpen(Route.ExamBoard) },
+            Triple("Mess menu", RisoIcon.Today) { onOpen(Route.MessMenu) },
+            Triple("More", RisoIcon.More) { onOpen(Route.Campus) },
+        ),
+    )
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        rows.forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                row.forEach { (label, icon, go) ->
+                    InkCard(Modifier.weight(1f).height(72.dp), onClick = go, plateOffset = 3.dp, contentPadding = PaddingValues(10.dp)) {
+                        IconGlyph(icon, LocalInks.current.text, Modifier.size(20.dp))
+                        Spacer(Modifier.height(6.dp))
+                        InkText(label, style = RisoType.small.copy(fontWeight = FontWeight.SemiBold), maxLines = 1)
+                    }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ShowMore(open: Boolean, more: Int, onClick: () -> Unit) {
+    Box(Modifier.clickable(role = Role.Button, onClick = onClick).padding(vertical = 4.dp)) {
+        InkChip(if (open) "Show less" else "$more more")
     }
 }
 

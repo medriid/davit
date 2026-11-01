@@ -5,6 +5,7 @@ import dev.medriid.davit.data.Repo
 import dev.medriid.davit.sync.AutoUpdate
 import dev.medriid.davit.sync.BackgroundSync
 import dev.medriid.davit.sync.ClassAlarms
+import dev.medriid.davit.sync.MealAlarms
 import dev.medriid.davit.sync.Notifier
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -28,6 +29,13 @@ class DavitApp : Application() {
                 .map { s -> listOf(s.signedIn && s.alerts, s.alertPrefs, s.snapshot?.timetable, s.snapshot?.attendance, s.snapshot?.calendar) }
                 .distinctUntilChanged()
                 .collect { ClassAlarms.reschedule(this@DavitApp) }
+        }
+        // Meal reminders follow the bell on the mess menu.
+        repo.scope.launch {
+            repo.state
+                .map { s -> listOf(s.signedIn && s.alerts, s.alertPrefs.meals, s.alertPrefs.beforeMeal, s.alertPrefs.mess) }
+                .distinctUntilChanged()
+                .collect { MealAlarms.reschedule(this@DavitApp) }
         }
     }
 }

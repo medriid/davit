@@ -77,7 +77,7 @@ internal fun CorrectionsScreen(route: Route) {
                     }
                 }
             }
-            InkButton("Send the list to your faculty", { shareText(context, "Attendance corrections", correctionsMessage(flagged, s)) }, fillWidth = true, modifier = Modifier.fillMaxWidth())
+            InkButton("Send the list to your faculty", { shareText(context, "Attendance corrections", correctionsMessage(flagged, s, repo.vtopCourses().toMap())) }, fillWidth = true, modifier = Modifier.fillMaxWidth())
             Spacer(Modifier.height(6.dp))
             InkText("Opens your share menu with the list written out: course, date and slot. Pick email or WhatsApp.", style = RisoType.small)
             Spacer(Modifier.height(18.dp))

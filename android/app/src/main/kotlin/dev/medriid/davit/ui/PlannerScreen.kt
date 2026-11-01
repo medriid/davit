@@ -1,6 +1,7 @@
 package dev.medriid.davit.ui
 
 import dev.medriid.davit.data.summary
+import dev.medriid.davit.data.courseName
 import dev.medriid.davit.design.InkField
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -176,7 +177,7 @@ internal fun PlannerScreen(route: Route) {
             picks.sortedBy { it.code }.forEach { p ->
                 Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        InkText("${p.code} ${p.title}", style = RisoType.body.copy(fontWeight = FontWeight.SemiBold), maxLines = 2)
+                        InkText("${p.code} ${state.aliases.courseName(p.code, p.title)}", style = RisoType.body.copy(fontWeight = FontWeight.SemiBold), maxLines = 2)
                         InkText(listOf(p.type, p.slot, p.venue, p.faculty).filter { it.isNotBlank() }.joinToString(" · "), style = RisoType.small, maxLines = 2)
                     }
                     Spacer(Modifier.width(8.dp))
@@ -254,7 +255,7 @@ internal fun PlannerScreen(route: Route) {
                 kind = Kind.Classes,
                 plateOffset = 3.dp,
             ) {
-                InkText("$code $title", style = RisoType.body.copy(fontWeight = FontWeight.SemiBold), maxLines = 2)
+                InkText("$code ${state.aliases.courseName(code, title)}", style = RisoType.body.copy(fontWeight = FontWeight.SemiBold), maxLines = 2)
                 InkText(if (chosen.isEmpty()) "Not in your plan · tap for its classes" else "In your plan: " + chosen.joinToString(", ") { it.slot }, style = RisoType.small)
                 if (isOpen) {
                     val opts = options

@@ -24,6 +24,61 @@ data class CachedCourse(val course: CourseOption, val page: CourseMaterials, val
 data class MaterialRow(val course: CourseOption, val material: Material, val moduleTitle: String, val mine: Boolean) {
     val key: String get() = "mat:" + material.fileId
     val day: LocalDate? get() = runCatching { LocalDate.parse(material.date, DateTimeFormatter.ofPattern("dd-MM-yyyy")) }.getOrNull()
+
+    /** The subject code, with embedded courses' labs told apart: "BCSE101E", "BCSE101E lab". */
+    val subject: String get() = course.code + if (isLabCode(course.type)) " lab" else ""
+
+    /** The uploader as a comparable name, so "Dr. Asha Raman" and "ASHA RAMAN" are one person. */
+    val faculty: String = facultyKey(material.uploader)
+}
+
+/** What search narrows by on top of the typed query. Null means any. */
+data class MaterialFilter(
+    val subject: String? = null,
+    val faculty: String? = null,
+    val module: String? = null,
+    val mineOnly: Boolean = false,
+    val savedOnly: Boolean = false,
+)
+
+/** A value to filter by and how many files it would leave. [detail] is the course name, [mine] your own faculty. */
+data class FilterOption(val id: String, val count: Int, val detail: String = "", val mine: Boolean = false)
+
+/** The best [hits] of [total], and what each filter could still be set to. */
+class MaterialResults(
+    val hits: List<Fuzzy.Hit<MaterialRow>> = emptyList(),
+    val total: Int = 0,
+    val subjects: List<FilterOption> = emptyList(),
+    val faculties: List<FilterOption> = emptyList(),
+    val modules: List<FilterOption> = emptyList(),
+)
+
+/**
+ * [query] and [filter] together. Each filter's options count what the query and the other
+ * filters leave, so no option is a dead end; the one that's set stays listed even at zero.
+ */
+fun searchMaterials(index: Fuzzy.Index<MaterialRow>, query: String, filter: MaterialFilter, saved: Set<String>, limit: Int = 150): MaterialResults {
+    val all = index.search(query, limit = Int.MAX_VALUE) { r -> (!filter.mineOnly || r.mine) && (!filter.savedOnly || r.key in saved) }
+    fun subjectFits(r: MaterialRow) = filter.subject == null || r.subject == filter.subject
+    fun facultyFits(r: MaterialRow) = filter.faculty == null || r.faculty == filter.faculty
+    fun moduleFits(r: MaterialRow) = filter.module == null || r.material.module == filter.module
+    fun List<FilterOption>.keeping(id: String?) = if (id == null || any { it.id == id }) this else this + FilterOption(id, 0)
+
+    val rows = all.map { it.item }
+    val hits = all.filter { subjectFits(it.item) && facultyFits(it.item) && moduleFits(it.item) }
+    return MaterialResults(
+        hits.take(limit),
+        hits.size,
+        subjects = rows.filter { facultyFits(it) && moduleFits(it) }.groupBy { it.subject }
+            .map { (id, list) -> FilterOption(id, list.size, detail = list.first().course.name) }
+            .keeping(filter.subject).sortedBy { it.id },
+        faculties = rows.filter { subjectFits(it) && moduleFits(it) && it.faculty.isNotEmpty() }.groupBy { it.faculty }
+            .map { (id, list) -> FilterOption(id, list.size, mine = list.any { it.mine }) }
+            .keeping(filter.faculty).sortedWith(compareByDescending<FilterOption> { it.mine }.thenBy { it.id }),
+        modules = rows.filter { subjectFits(it) && facultyFits(it) && it.material.module.isNotBlank() }.groupBy { it.material.module }
+            .map { (id, list) -> FilterOption(id, list.size) }
+            .keeping(filter.module).sortedBy { it.id.toIntOrNull() ?: Int.MAX_VALUE },
+    )
 }
 
 /**
@@ -90,9 +145,10 @@ class MaterialsStore(private val context: Context, private val repo: Repo, val f
     /** Rows for one course, your faculty's first, then newest first. */
     fun rows(cached: CachedCourse, snapshot: Snapshot?): List<MaterialRow> {
         val (names, ids) = myFaculty(cached.course, snapshot)
+        val course = cached.course.let { it.copy(name = repo.state.value.aliases.courseName(it.code, it.name)) }
         return cached.page.materials.map { m ->
             val mine = (m.uploaderId.isNotEmpty() && m.uploaderId in ids) || facultyKey(m.uploader) in names
-            MaterialRow(cached.course, m, cached.page.modules[m.module].orEmpty(), mine)
+            MaterialRow(course, m, cached.page.modules[m.module].orEmpty(), mine)
         }.sortedWith(compareByDescending<MaterialRow> { it.mine }.thenByDescending { it.day })
     }
 

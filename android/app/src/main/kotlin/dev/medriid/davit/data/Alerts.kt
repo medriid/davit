@@ -11,6 +11,7 @@ enum class AlertChannel(val id: String, val title: String) {
     Deadlines("deadlines", "Deadlines and exams"),
     Notices("notices", "Registration and VTOP notices"),
     Classes("classes", "Before class"),
+    Meals("meals", "Meals"),
 }
 
 /** One notification. [key] identifies the event, so it's only ever posted once. */

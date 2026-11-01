@@ -29,6 +29,12 @@ data class AlertPrefs(
     val exams: Boolean = true,
     /** Registration windows and VTOP notices. */
     val notices: Boolean = true,
+    /** Which meals to remind you of, by [Meal] name; none is off. */
+    val meals: Set<String> = emptySet(),
+    /** Minutes before a meal starts. */
+    val beforeMeal: Int = 15,
+    /** The [Mess] the menu screen and meal reminders read. */
+    val mess: String = "",
 ) {
     fun toJson(): String = JSONObject()
         .put("attendance", attendance)
@@ -42,6 +48,9 @@ data class AlertPrefs(
         .put("deadlines", deadlines)
         .put("exams", exams)
         .put("notices", notices)
+        .put("meals", JSONArray(meals.sorted()))
+        .put("beforeMeal", beforeMeal)
+        .put("mess", mess)
         .toString()
 
     /** Is this row muted? */
@@ -57,6 +66,7 @@ data class AlertPrefs(
         val WarnLines = listOf(75, 80, 85)
         val SkipOptions = listOf(-1, 0, 1, 2, 3)
         val BeforeClassOptions = listOf(0, 5, 10, 15, 20)
+        val BeforeMealOptions = listOf(0, 10, 15, 30)
 
         fun fromJson(text: String?): AlertPrefs {
             if (text.isNullOrBlank()) return AlertPrefs()
@@ -75,6 +85,9 @@ data class AlertPrefs(
                     deadlines = o.optBoolean("deadlines", d.deadlines),
                     exams = o.optBoolean("exams", d.exams),
                     notices = o.optBoolean("notices", d.notices),
+                    meals = o.optJSONArray("meals")?.let { a -> (0 until a.length()).map { a.getString(it) }.toSet() }.orEmpty(),
+                    beforeMeal = o.optInt("beforeMeal", d.beforeMeal).coerceIn(0, 60),
+                    mess = o.optString("mess", d.mess),
                 )
             }.getOrDefault(AlertPrefs())
         }

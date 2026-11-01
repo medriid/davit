@@ -263,12 +263,20 @@ class Repo(private val context: Context) {
     /** Every course this semester by code, with VTOP's own name (not yours): for the names screen. */
     fun vtopCourses(): List<Pair<String, String>> = _state.value.snapshot?.coursesForAliases().orEmpty()
 
+    private var renaming: kotlinx.coroutines.Job? = null
+
     /** Your name for the course [code]; blank brings back VTOP's. */
     fun setAlias(code: String, name: String) {
         val next = (_state.value.aliases + (code to name.trim())).filterValues { it.isNotBlank() }
         prefs.edit().putString(K_ALIASES, aliasesToJson(next)).apply()
         _state.update { it.copy(aliases = next) }
         DavitWidget.refresh(context)
+        // This runs on every keystroke; the phone's calendar waits for the typing to stop.
+        renaming?.cancel()
+        renaming = scope.launch {
+            kotlinx.coroutines.delay(2_000)
+            state.value.snapshot?.let { PhoneCalendar.refresh(context, it.classEvents(java.time.LocalDate.now()), _state.value.palette.inks(false).a.toArgb()) }
+        }
     }
 
     fun setBanner(b: Banner) {
@@ -704,7 +712,7 @@ class Repo(private val context: Context) {
             _state.update { it.copy(snapshot = full, busy = null, timings = client.timings.toList()) }
             DavitWidget.refresh(context)
             // Your classes in the phone's calendar, when that's on: rewritten from now with the latest timetable and calendar.
-            PhoneCalendar.refresh(context, full.classEvents(java.time.LocalDate.now()), _state.value.palette.inks(false).a.toArgb())
+            PhoneCalendar.refresh(context, full.withAliases(_state.value.aliases).classEvents(java.time.LocalDate.now()), _state.value.palette.inks(false).a.toArgb())
             return null
         } catch (e: Exception) {
             Log.w(TAG, "sync failed: ${e.javaClass.simpleName}")

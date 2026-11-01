@@ -34,6 +34,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.medriid.davit.data.Section
+import dev.medriid.davit.data.courseName
+import dev.medriid.davit.data.courseIn
 import dev.medriid.davit.data.sessionGpas
 import dev.medriid.davit.data.sizeText
 import dev.medriid.davit.design.HalftoneBar
@@ -72,6 +74,9 @@ internal fun CampusHub(route: Route) {
             Tile(Route.Planner, "FFCS", "Next semester's timetable, smart or by hand", dev.medriid.davit.design.Kind.Classes),
             Tile(Route.Friends, "Free with friends", "Swap weeks by QR code", dev.medriid.davit.design.Kind.People),
             Tile(Route.Corrections, "Attendance corrections", "Absent by mistake? Keep track", dev.medriid.davit.design.Kind.Attendance),
+        ),
+        "Every day" to listOf(
+            Tile(Route.MessMenu, "Mess menu", "Today's meals, with reminders", dev.medriid.davit.design.Kind.Events),
         ),
         "News and people" to listOf(
             Tile(Route.Messages, "Messages", (campus.classMessages.size + campus.proctorMessages.size).let { if (it > 0) "$it from class and proctor" else "Class and proctor" }, dev.medriid.davit.design.Kind.People),
@@ -154,6 +159,9 @@ internal fun MessagesScreen(route: Route) {
 
 @Composable
 private fun MessageList(list: List<VtopMessage>, empty: String) {
+    val repo = LocalRepo.current
+    val aliases = repo.state.collectAsState().value.aliases
+    val courses = remember(aliases) { repo.vtopCourses() }
     if (list.isEmpty()) {
         InkText(empty, style = RisoType.small)
         return
@@ -161,7 +169,7 @@ private fun MessageList(list: List<VtopMessage>, empty: String) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         list.forEachIndexed { i, m ->
             InkCard(Modifier.fillMaxWidth().printIn(i), kind = dev.medriid.davit.design.Kind.People, plateOffset = 3.dp) {
-                val head = listOf(titleCase(m.from), m.course).filter { it.isNotBlank() }.joinToString(" · ")
+                val head = listOf(titleCase(m.from), aliases.courseIn(m.course, courses)).filter { it.isNotBlank() }.joinToString(" · ")
                 if (head.isNotEmpty()) InkText(head, style = RisoType.small.copy(fontWeight = FontWeight.SemiBold))
                 InkText(m.text)
                 if (m.date.isNotBlank()) InkText(m.date, style = RisoType.small)
@@ -377,6 +385,7 @@ internal fun CurriculumScreen(route: Route) {
     val loading by repo.campus.loading.collectAsState()
     val errors by repo.campus.errors.collectAsState()
     var open by rememberSaveable { mutableStateOf<String?>(null) }
+    val aliases = repo.state.collectAsState().value.aliases
     LaunchedEffect(Unit) { repo.campus.refresh(Section.Curriculum) }
     RouteScreen(route, "Curriculum", "Credits by category, and each course's syllabus.", Section.Curriculum in loading && campus.curriculumAt > 0, { repo.campus.refresh(Section.Curriculum, true) }) {
         Freshness(campus.curriculumAt)
@@ -416,7 +425,7 @@ internal fun CurriculumScreen(route: Route) {
                     list.forEachIndexed { i, c ->
                         if (i > 0) Rule()
                         FileRow(
-                            "syl:${c.code}", c.title.ifBlank { c.code },
+                            "syl:${c.code}", aliases.courseName(c.code, c.title).ifBlank { c.code },
                             listOfNotNull(c.code, c.type.ifBlank { null }, c.credits?.let { "${fmtNum(it)} credits" }, c.ltpj.ifBlank { null }?.let { "L-T-P-J $it" }).joinToString(" · "),
                             fetch = { cl, out, p -> cl.downloadSyllabus(c.code, out, p) },
                         )
@@ -489,7 +498,7 @@ internal fun SemesterGradesScreen(route: Route) {
                         if (i > 0) Spacer(Modifier.height(8.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
-                                InkText(e.courseTitle.ifBlank { e.courseCode }, style = RisoType.body.copy(fontWeight = FontWeight.SemiBold), maxLines = 2)
+                                InkText(state.aliases.courseName(e.courseCode, e.courseTitle).ifBlank { e.courseCode }, style = RisoType.body.copy(fontWeight = FontWeight.SemiBold), maxLines = 2)
                                 InkText("${e.courseCode} · ${fmtNum(e.credits)} credits", style = RisoType.small)
                             }
                             InkChip(e.grade ?: "–", solid = e.grade != null)
