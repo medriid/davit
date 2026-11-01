@@ -2,6 +2,10 @@
 
 Downloads are on the [releases page](https://github.com/medriid/davit/releases). daVIT updates itself after the first install.
 
+## 0.14.1 — 2026-11-01
+
+- **A cleaner display card on Home**: no overall chip or More button, since both are right below it.
+
 ## 0.14.0 — 2026-11-01
 
 - **Mess menu**: November's Special Mess for the men's hostel, day by day, with meal reminders. Times are borrowed from the Non-Veg Mess for now, and 10-14 and 24-28 November aren't on the sheet yet.
