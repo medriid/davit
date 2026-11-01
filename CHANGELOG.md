@@ -2,6 +2,12 @@
 
 Downloads are on the [releases page](https://github.com/medriid/davit/releases). daVIT updates itself after the first install.
 
+## 0.16.0 — 2026-11-01
+
+- **Faculty reviews**: student ratings and reviews from No8AM for 3,116 teachers at Vellore and Chennai. Search by name, department or course. They're built into the app, so they work offline, and they stop at 1 November 2026.
+- **Ratings on teacher cards**: teachers on VTOP's search and your courses show their rating when they can be matched, and a tap opens their reviews.
+- **Shorter credits** in Settings, with one for No8AM.
+
 ## 0.15.1 — 2026-11-01
 
 - **FFCS result, redone**: a real timetable grid with a colour for each course, and a table of your courses with slot, room and credits.

@@ -43,6 +43,7 @@ Attendance, classes, marks and the campus map for VIT students, printed in two i
 * **Free time with friends**: swap weeks by QR code, phone to phone, and see when you're all out of class.
 * **FFCS**: pick your subjects and rules (no 8:00 starts, a proper lunch, days off) and get the best clash-free timetables from VTOP's course allocation; save the ones you like.
 * **Campus map**: find a block, a mess or a room (PRP 327), and walk there from where you are. Works on a first open even when the map site is down.
+* **Faculty reviews**: student ratings and reviews from No8AM, searchable and offline.
 * **The rest of VTOP**: hostel leave, club events, messages, receipts, curriculum, feedback and more.
 * **Alerts you set up**: low attendance, a reminder before class, new marks and deadlines; plus two home-screen widgets.
 * **Your own course names**: rename any course and the new name shows everywhere.
@@ -95,7 +96,7 @@ The captcha model and slot timetable aren't in this repository, so a build from 
 
 ### Credits
 
-Campus map by [Jeman](https://www.linkedin.com/in/jemankalita/) (MIT) · map data © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors · fonts Bagel Fat One and IBM Plex Mono (OFL)
+Campus map by [Jeman](https://www.linkedin.com/in/jemankalita/) (MIT) · map data © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors · faculty reviews from [No8AM](https://no8am.site) · fonts Bagel Fat One and IBM Plex Mono (OFL)
 
 ### License
 
