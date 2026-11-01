@@ -72,6 +72,7 @@ internal fun CampusHub(route: Route) {
         "Plan" to listOf(
             Tile(Route.ExamBoard, "Exam board", "Every paper, room and seat", dev.medriid.davit.design.Kind.Exams),
             Tile(Route.Planner, "FFCS", "Next semester's timetable, smart or by hand", dev.medriid.davit.design.Kind.Classes),
+            Tile(Route.FfcsResult, "FFCS result", "What you registered for", dev.medriid.davit.design.Kind.Classes),
             Tile(Route.Friends, "Free with friends", "Swap weeks by QR code", dev.medriid.davit.design.Kind.People),
             Tile(Route.Corrections, "Attendance corrections", "Absent by mistake? Keep track", dev.medriid.davit.design.Kind.Attendance),
         ),

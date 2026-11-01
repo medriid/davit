@@ -120,7 +120,8 @@ object Parsers {
 
     /**
      * `POST /processViewTimeTable`: the course table (the one mentioning "Class Group" and
-     * "Course Option"). Only rows that are registered and approved count.
+     * "Course Option"). Rows count if "Registered", as next semester's are until they're
+     * approved, or "Registered and Approved"; "Dropped" and the like don't.
      */
     fun timetable(html: String): List<TimetableCourse> {
         val doc = Jsoup.parse(html)
@@ -134,7 +135,8 @@ object Parsers {
             val cells = row.select("td")
             if (cells.size < 12) return@mapNotNull null
             val status = clean(cells[11].text()).lowercase()
-            if ("registered" !in status || "approved" !in status) return@mapNotNull null
+            val approved = "approved" in status
+            if (!status.startsWith("registered") || (!approved && " and " in status)) return@mapNotNull null
             val slotVenue = clean(cells[7].text())
             val nil = "NIL" in slotVenue.uppercase()
             val ps = cells[2].select("p")
@@ -152,6 +154,7 @@ object Parsers {
                 slot = if (nil) "" else slotVenue.substringBefore(" - ").trim(),
                 venue = if (nil) "" else slotVenue.substringAfter(" - ", "").trim(),
                 faculty = clean(cells[8].text()).substringBefore(" - ").trim(),
+                approved = approved,
             )
         }
     }

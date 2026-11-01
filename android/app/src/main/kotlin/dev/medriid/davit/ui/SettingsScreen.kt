@@ -203,6 +203,10 @@ internal fun SettingsScreen(route: Route) {
         }
 
         Spacer(Modifier.height(24.dp))
+        val updates = rememberUpdateAction()
+        InkButton(updates.button, updates.onTap, enabled = !updates.busy, quiet = !updates.ready, fillWidth = true, modifier = Modifier.fillMaxWidth())
+        updates.message?.let { InkText(it, style = RisoType.small, modifier = Modifier.padding(top = 6.dp)) }
+        Spacer(Modifier.height(10.dp))
         var confirm by remember { mutableStateOf(false) }
         if (confirm) {
             InkText("Signs out of VTOP and erases your password, session and cached data from this phone.", style = RisoType.small)
@@ -212,6 +216,67 @@ internal fun SettingsScreen(route: Route) {
             InkButton("Keep me signed in", { confirm = false }, quiet = true, fillWidth = true, modifier = Modifier.fillMaxWidth())
         } else {
             InkButton("Sign out", { confirm = true }, quiet = true, fillWidth = true, modifier = Modifier.fillMaxWidth())
+        }
+    }
+}
+
+/** What tapping "update" does now, for the index's button and the Updates row. */
+private class UpdateAction(val label: String, val button: String, val message: String?, val busy: Boolean, val ready: Boolean, val onTap: () -> Unit)
+
+/** Checks GitHub on a tap, then offers the install. Dev builds are a different app; they only point at the release page. */
+@Composable
+private fun rememberUpdateAction(): UpdateAction {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val version = remember { AutoUpdate.current(context) }
+    var update by remember { mutableStateOf<String?>(null) }
+    var checking by remember { mutableStateOf(false) }
+    if (AutoUpdate.supported(context)) {
+        val ready by AutoUpdate.ready.collectAsState()
+        val r = ready
+        if (r != null) {
+            return UpdateAction("Install", "Install ${r.version}", "${r.version} is downloaded. Install keeps your data and sign-in.", false, true) { AutoUpdate.install(context) }
+        }
+        return UpdateAction(if (checking) "Checking" else "Check", if (checking) "Checking…" else "Check for updates", update, checking, false) {
+            if (!checking) {
+                checking = true
+                update = "Checking GitHub…"
+                scope.launch {
+                    update = try {
+                        if (AutoUpdate.check(context) == null) "You're on the latest version." else null
+                    } catch (e: Exception) {
+                        "Couldn't download the update. Try again later."
+                    }
+                    checking = false
+                }
+            }
+        }
+    }
+    var release by remember { mutableStateOf<Updates.Release?>(null) }
+    val rel = release
+    if (rel != null) {
+        return UpdateAction("Get", "Get ${rel.version}", update, false, true) {
+            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(rel.url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        }
+    }
+    return UpdateAction(if (checking) "Checking" else "Check", if (checking) "Checking…" else "Check for updates", update, checking, false) {
+        if (!checking) {
+            checking = true
+            update = "Checking…"
+            scope.launch {
+                update = try {
+                    val latest = withContext(Dispatchers.IO) { Updates.latest() }
+                    if (Updates.isNewer(latest.version, version)) {
+                        release = latest
+                        "${latest.version} is out. Tap Get to see it."
+                    } else {
+                        "You're on the latest version."
+                    }
+                } catch (e: Exception) {
+                    "Couldn't reach GitHub. Try again later."
+                }
+                checking = false
+            }
         }
     }
 }
@@ -451,72 +516,17 @@ private fun AboutSettings() {
     val context = LocalContext.current
     SettingsCard("Updates") {
         val version = remember { AutoUpdate.current(context) }
-        val scope = rememberCoroutineScope()
-        var update by remember { mutableStateOf<String?>(null) }
+        val updates = rememberUpdateAction()
+        SettingRow("daVIT $version", updates.message ?: "Check GitHub for a newer release.", updates.label, updates.onTap)
         if (AutoUpdate.supported(context)) {
-            val ready by AutoUpdate.ready.collectAsState()
-            var checking by remember { mutableStateOf(false) }
-            val r = ready
-            SettingRow(
-                "daVIT $version",
-                when {
-                    r != null -> "${r.version} is downloaded. Install keeps your data and sign-in."
-                    else -> update ?: "Check GitHub for a newer release."
-                },
-                when {
-                    r != null -> "Install"
-                    checking -> "Checking"
-                    else -> "Check"
-                },
-            ) {
-                when {
-                    r != null -> AutoUpdate.install(context)
-                    !checking -> {
-                        checking = true
-                        update = "Checking GitHub…"
-                        scope.launch {
-                            update = try {
-                                if (AutoUpdate.check(context) == null) "You're on the latest version." else null
-                            } catch (e: Exception) {
-                                "Couldn't download the update. Try again later."
-                            }
-                            checking = false
-                        }
-                    }
-                }
-            }
             var auto by remember { mutableStateOf(AutoUpdate.enabled(context)) }
             ToggleRow(
                 "Update by itself",
-                "Once a day, asks GitHub for a new release and downloads it. Installing is always your tap.",
+                "Every three hours, asks GitHub for a new release and downloads it. Installing is always your tap.",
                 auto,
             ) {
                 auto = !auto
                 AutoUpdate.setEnabled(context, auto)
-            }
-        } else {
-            // Dev builds are a different app; they only point at the release page.
-            var release by remember { mutableStateOf<Updates.Release?>(null) }
-            SettingRow("daVIT $version", update ?: "Check GitHub for a newer release.", if (release != null) "Get" else "Check") {
-                val rel = release
-                if (rel != null) {
-                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(rel.url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                } else {
-                    update = "Checking…"
-                    scope.launch {
-                        update = try {
-                            val latest = withContext(Dispatchers.IO) { Updates.latest() }
-                            if (Updates.isNewer(latest.version, version)) {
-                                release = latest
-                                "${latest.version} is out. Tap Get to see it."
-                            } else {
-                                "You're on the latest version."
-                            }
-                        } catch (e: Exception) {
-                            "Couldn't reach GitHub. Try again later."
-                        }
-                    }
-                }
             }
         }
     }

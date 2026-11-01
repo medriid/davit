@@ -214,8 +214,22 @@ class VtopClient(
         )
     }
 
+    /** Every semester [timetable] can be asked for, ids and names: Time Table's dropdown, plus next semester from the course page. */
+    fun timetableSemesters(): List<Semester> = timed("timetable semesters") {
+        Records.withCourseSemesters(
+            Records.semesters(authed("/academics/common/StudentTimeTable", mapOf("verifyMenu" to "true"))),
+            courseOptions(),
+        )
+    }
+
     fun timetable(semesterId: String): List<TimetableCourse> = timed("timetable") {
         Parsers.timetable(authed("/processViewTimeTable", mapOf("semesterSubId" to semesterId)))
+    }
+
+    /** What you've registered for in the semester after [currentId]; null if VTOP shows no such semester. */
+    fun registeredClasses(currentId: String): RegisteredClasses? {
+        val next = Records.upcomingSemester(timetableSemesters(), currentId) ?: return null
+        return RegisteredClasses(next, timetable(next.id))
     }
 
     fun marks(semesterId: String): List<CourseMarks> = timed("marks") {

@@ -54,6 +54,16 @@ class ParsersTest {
     }
 
     @Test
+    fun timetableKeepsNextSemestersRegisteredRows() {
+        val courses = Parsers.timetable(html("timetable_registered.html"))
+        assertEquals(listOf("BXYZ201", "BXYZ202", "BXYZ205"), courses.map { it.courseCode })
+        assertEquals(listOf(false, false, true), courses.map { it.approved })
+        // An online course: no slot.
+        assertEquals("", courses[1].slot)
+        assertTrue(Parsers.timetable(html("timetable.html")).all { it.approved })
+    }
+
+    @Test
     fun loginOutcomes() {
         val wrongCaptcha = """<div class="alert alert-danger">Invalid Captcha</div><form id="vtopLoginForm"></form>"""
         val badCreds = """<div class="alert alert-danger">Invalid User Id / Password</div>"""

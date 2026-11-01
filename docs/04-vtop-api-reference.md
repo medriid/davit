@@ -99,6 +99,11 @@ attendance landing page carries a `select#semesterSubId` dropdown of all
 available terms, newest first. A term can be listed before it starts, so daVIT
 defaults to the newest one with attendance rows.
 
+During registration, next semester can be missing from these dropdowns while
+`/processViewTimeTable` already answers for it. Its id is then on
+`CoursePageConsolidated`, as `data-semestr` on the course options, and its rows'
+status reads `Registered` rather than `Registered and Approved`.
+
 ## Read-only stance
 Never call write/upload endpoints. daVIT blocks
 `/examinations/processDigitalAssignmentUpload` and

@@ -313,6 +313,7 @@ private fun Hub(snapshot: Snapshot, onOpen: (Route) -> Unit, onOpenWeek: () -> U
             HubItem("Week", RisoIcon.Week, onOpenWeek),
             HubItem("Curriculum", RisoIcon.Book) { onOpen(Route.Curriculum) },
             HubItem("FFCS", RisoIcon.Today) { onOpen(Route.Planner) },
+            HubItem("FFCS result", RisoIcon.Next) { onOpen(Route.FfcsResult) },
             HubItem("Free with friends", RisoIcon.People) { onOpen(Route.Friends) },
             HubItem("Allocation", RisoIcon.Next) { onOpen(Route.Allocation) },
         ),

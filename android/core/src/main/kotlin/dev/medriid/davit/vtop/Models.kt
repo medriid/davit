@@ -1,6 +1,7 @@
 package dev.medriid.davit.vtop
 
 /** A term in VTOP's dropdown, e.g. id "VL20262701", name "Fall Semester 2026-27". */
+@kotlinx.serialization.Serializable
 data class Semester(val id: String, val name: String)
 
 /** Logged-in session: the tokens every authenticated POST carries. */
@@ -35,6 +36,7 @@ data class AttendanceDay(val date: String, val slot: String, val status: Status,
     enum class Status { Present, Absent, OnDuty, Other }
 }
 
+@kotlinx.serialization.Serializable
 data class TimetableCourse(
     val classId: String,
     val courseCode: String,
@@ -45,6 +47,8 @@ data class TimetableCourse(
     val slot: String,
     val venue: String,
     val faculty: String,
+    /** VTOP's status says "Registered and Approved"; right after registration it's only "Registered". */
+    val approved: Boolean = true,
 )
 
 /** One class meeting in the week. day: 1 = Monday. Times are minutes since midnight. */

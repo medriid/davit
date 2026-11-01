@@ -313,6 +313,7 @@ private fun RouteHost(route: Route) = when (route) {
     Route.PaperSeeing -> PaperSeeingScreen(route)
     Route.Activities -> ActivitiesScreen(route)
     Route.Allocation -> AllocationScreen(route)
+    Route.FfcsResult -> FfcsResultScreen(route)
     Route.Colours -> ColoursScreen(route)
     Route.LeavePlanner -> LeavePlannerScreen(route)
     Route.DisplayCard -> DisplayCardScreen(route)

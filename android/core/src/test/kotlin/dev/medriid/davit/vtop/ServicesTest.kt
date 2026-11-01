@@ -131,6 +131,30 @@ class ServicesTest {
     }
 
     @Test
+    fun timetableSemestersAddNextSemesterFromTheCoursePage() {
+        val listed = Records.semesters(res("timetable_page.html"))
+        assertEquals(listOf(Semester("VL20262701", "Fall Semester 2026-27")), listed)
+        val courses = CoursePages.courses(res("course_pages.html"))
+        val both = listOf(Semester("VL20262705", "Winter Semester 2026-27"), Semester("VL20262701", "Fall Semester 2026-27"))
+        assertEquals(both, Records.withCourseSemesters(listed, courses))
+        // Once VTOP lists it, it isn't added twice; and with no courses the dropdown stands alone.
+        assertEquals(both, Records.withCourseSemesters(both, courses))
+        assertEquals(listed, Records.withCourseSemesters(listed, emptyList()))
+    }
+
+    @Test
+    fun upcomingSemesterIsOnlyEverAfterTheCurrentOne() {
+        val fall = Semester("VL20262701", "Fall Semester 2026-27")
+        val winter = Semester("VL20262705", "Winter Semester 2026-27")
+        val summer = Semester("VL20262707", "Summer Semester 2026-27")
+        val old = Semester("VL2019207", "Summer Semester Special 2019-20")
+        assertEquals(winter, Records.upcomingSemester(listOf(winter, fall, old), "VL20262701"))
+        assertEquals(summer, Records.upcomingSemester(listOf(winter, summer, fall), "VL20262701"))
+        // Once winter starts it's current, and nothing is next.
+        assertEquals(null, Records.upcomingSemester(listOf(winter, fall, old), "VL20262705"))
+    }
+
+    @Test
     fun courseAllocationGoesCategoryCourseClasses() {
         val a = Records.allocation(res("allocation.html"))
         assertEquals("Winter Semester 2026-27", a.semester)

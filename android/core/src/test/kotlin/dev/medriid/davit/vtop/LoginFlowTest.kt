@@ -34,6 +34,8 @@ class LoginFlowTest {
         "/vtop/processViewTimeTable" to res("timetable.html"),
         "/vtop/processViewStudentAttendance" to res("attendance.html"),
         "/vtop/academics/common/StudentAttendance" to res("attendance.html"),
+        "/vtop/academics/common/StudentTimeTable" to res("timetable_page.html"),
+        "/vtop/academics/common/CoursePageConsolidated" to res("course_pages.html"),
     )
 
     private fun res(name: String) = javaClass.getResource("/html/$name")!!.readText()
@@ -108,6 +110,26 @@ class LoginFlowTest {
         assertEquals(VtopSession("content-csrf", "REGNO"), s)
         assertEquals(3, loginPosts)
         assertEquals(3, c.timetable("VL1").size)
+    }
+
+    @Test
+    fun timetableSemestersReadsBothPages() {
+        script = ArrayDeque(listOf("ok"))
+        val c = client()
+        c.login("REGNO", "pw")
+        assertEquals(
+            listOf(Semester("VL20262705", "Winter Semester 2026-27"), Semester("VL20262701", "Fall Semester 2026-27")),
+            c.timetableSemesters(),
+        )
+    }
+
+    @Test
+    fun registeredClassesAreNextSemestersOrNone() {
+        script = ArrayDeque(listOf("ok"))
+        val c = client()
+        c.login("REGNO", "pw")
+        assertEquals("VL20262705", c.registeredClasses("VL20262701")?.semester?.id)
+        assertEquals(null, c.registeredClasses("VL20262705"))
     }
 
     @Test

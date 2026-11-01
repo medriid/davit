@@ -147,31 +147,11 @@ internal fun PlannerScreen(route: Route) {
             }
             Spacer(Modifier.height(10.dp))
             if (clashes.isNotEmpty()) {
-                InkCard(Modifier.fillMaxWidth().padding(bottom = 12.dp), kind = Kind.Exams, plate = inks.a, plateOffset = 3.dp) {
-                    InkText("Clashes", label = true)
-                    clashes.forEach { c ->
-                        InkText("${dayName(c.day)} ${clock(c.start)}: ${c.a.code} ${c.a.slot} and ${c.b.code} ${c.b.slot}", style = RisoType.small.copy(fontWeight = FontWeight.SemiBold), modifier = Modifier.padding(top = 4.dp))
-                    }
-                }
+                ClashCard(clashes)
             }
 
             GroupLabel("Your week")
-            val clashing = clashes.flatMap { listOf(it.a, it.b) }.toSet()
-            picks.week().entries.forEachIndexed { i, (day, list) ->
-                InkCard(Modifier.fillMaxWidth().padding(bottom = 10.dp).printIn(i), kind = Kind.Classes, plateOffset = 3.dp) {
-                    InkText(dayName(day, full = true), style = RisoType.title)
-                    list.forEach { (m, p) ->
-                        Row(Modifier.padding(top = 6.dp)) {
-                            InkText("${clock(m.start)}–${clock(m.end)}", style = RisoType.small.copy(fontWeight = FontWeight.SemiBold), modifier = Modifier.width(96.dp))
-                            InkText(
-                                "${p.code} · ${p.venue.ifBlank { m.slot }}" + if (p in clashing) "  ✕ clash" else "",
-                                style = RisoType.small.copy(fontWeight = if (p in clashing) FontWeight.Bold else FontWeight.Normal),
-                                modifier = Modifier.weight(1f),
-                            )
-                        }
-                    }
-                }
-            }
+            PlanWeek(picks)
 
             GroupLabel("Your classes")
             picks.sortedBy { it.code }.forEach { p ->
@@ -298,3 +278,35 @@ private fun times(meetings: List<Meeting>): String =
 
 private fun dayName(day: Int, full: Boolean = false): String =
     runCatching { DayOfWeek.of(day).getDisplayName(if (full) TextStyle.FULL else TextStyle.SHORT, Locale.ENGLISH) }.getOrDefault("Day $day")
+
+/** The clashes among some classes, each with its day and time. */
+@Composable
+internal fun ClashCard(clashes: List<dev.medriid.davit.data.Clash>) {
+    InkCard(Modifier.fillMaxWidth().padding(bottom = 12.dp), kind = Kind.Exams, plate = LocalInks.current.a, plateOffset = 3.dp) {
+        InkText("Clashes", label = true)
+        clashes.forEach { c ->
+            InkText("${dayName(c.day)} ${clock(c.start)}: ${c.a.code} ${c.a.slot} and ${c.b.code} ${c.b.slot}", style = RisoType.small.copy(fontWeight = FontWeight.SemiBold), modifier = Modifier.padding(top = 4.dp))
+        }
+    }
+}
+
+/** The week [picks] give, a card a day, with any clash marked. */
+@Composable
+internal fun PlanWeek(picks: List<PlanPick>) {
+    val clashing = picks.clashes().flatMap { listOf(it.a, it.b) }.toSet()
+    picks.week().entries.forEachIndexed { i, (day, list) ->
+        InkCard(Modifier.fillMaxWidth().padding(bottom = 10.dp).printIn(i), kind = Kind.Classes, plateOffset = 3.dp) {
+            InkText(dayName(day, full = true), style = RisoType.title)
+            list.forEach { (m, p) ->
+                Row(Modifier.padding(top = 6.dp)) {
+                    InkText("${clock(m.start)}–${clock(m.end)}", style = RisoType.small.copy(fontWeight = FontWeight.SemiBold), modifier = Modifier.width(96.dp))
+                    InkText(
+                        "${p.code} · ${p.venue.ifBlank { m.slot }}" + if (p in clashing) "  ✕ clash" else "",
+                        style = RisoType.small.copy(fontWeight = if (p in clashing) FontWeight.Bold else FontWeight.Normal),
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+        }
+    }
+}

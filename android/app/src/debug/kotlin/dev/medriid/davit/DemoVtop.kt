@@ -49,6 +49,21 @@ internal object DemoVtop {
         }
     }
 
+    /** Next semester's rows as VTOP shows them after registration: "Registered", not yet approved. */
+    private fun registeredTimetable(semester: String): String {
+        val rows = if (semester != "VL20262705") emptyList() else listOf(
+            listOf("BXYZ201 - Data Structures", "Embedded Theory", "3 0 0 0 3.0", "VL2026270500101", "C2+TC2 - SJT401", "ASHA RAMAN - SCOPE"),
+            listOf("BXYZ201 - Data Structures", "Embedded Lab", "0 0 2 0 1.0", "VL2026270500102", "L23+L24 - SJT210", "ASHA RAMAN - SCOPE"),
+            listOf("BXYZ202 - Discrete Mathematics", "Theory Only", "3 1 0 0 4.0", "VL2026270500103", "A2+TA2+TAA2 - MB210", "MEERA NAIR - SAS"),
+            listOf("BXYZ203 - Operating Systems", "Embedded Theory", "3 0 0 0 3.0", "VL2026270500104", "B2+TB2 - SMV102", "VIKRAM SETH - SCOPE"),
+            listOf("BXYZ204 - India Studies", "Online Course", "0 0 0 0 1.0", "VL2026270500105", "NIL - NIL", "RAHUL IYER - SSL"),
+        )
+        return "<table><tr><th>Class Group</th><th>Course Option</th></tr>" + rows.mapIndexed { i, r ->
+            "<tr><td>${i + 1}</td><td>General (Semester)</td><td><p>${r[0]}</p><p>( ${r[1]} )</p></td><td>${r[2]}</td><td>Programme Core</td><td>Regular</td>" +
+                "<td>${r[3]}</td><td>${r[4]}</td><td>${r[5]}</td><td>01-Nov-2026 17:00</td><td>02-Nov-2026 - Manual</td><td>Registered</td></tr>"
+        }.joinToString("") + "<tr><td>Total Number Of Credits: 12.0</td></tr></table>"
+    }
+
     private fun page(path: String, p: Map<String, String>): String? = when (path) {
         "hrms/employeeSearchForStudent" -> "<div><strong>Faculty Information</strong></div>"
         "hrms/EmployeeSearchForStudent" -> facultySearch(p["empId"].orEmpty())
@@ -73,6 +88,11 @@ internal object DemoVtop {
                 "<tr><td>FALLSEM2026-27</td><td>BXYZ103</td><td>Calculus</td><td>ETH</td><td>VL2026270100104</td><td>MEERA NAIR</td><td>1</td><td>Faculty and HOD</td>" +
                 "<td>More worked examples in class, please</td><td>From next week each class ends with two solved problems.</td><td></td></tr></table>"
         } else "<table><tr><td>Sem Code</td><td>Course Code</td></tr></table>"
+        "academics/common/StudentTimeTable" -> """<select name="semesterSubId" id="semesterSubId"><option value="">--Choose Semester--</option><option value="VL20262701">Fall Semester 2026-27</option></select>"""
+        "academics/common/CoursePageConsolidated" -> """<select name="courseId" id="courseId"><option value="">-- Registered Courses --</option>
+            <option value="VL_BXYZ201_00100" data-courseid="VL_BXYZ201_00100" data-crstype="ETH" data-semestr="VL20262705">Winter Semester 2026-27 - BXYZ201 - Data Structures - ETH - Embedded Theory - 4.0</option>
+            <option value="VL_BXYZ101_00100" data-courseid="VL_BXYZ101_00100" data-crstype="ETH" data-semestr="VL20262701">Fall Semester 2026-27 - BXYZ101 - Applied Science - ETH - Embedded Theory - 4.0</option></select>"""
+        "processViewTimeTable" -> registeredTimetable(p["semesterSubId"].orEmpty())
         "academics/common/StudentRegistrationScheduleAllocation" -> """<div>Course Allocation Details</div><div><label>Semester</label><span>Winter Semester 2026-27</span></div>
             <select name="curriculumCategory" id="curriculumCategory"><option value="">-- Choose --</option><option value="UCC">UCC - University Core Courses</option>
             <option value="PCC">PCC - Programme Core Courses</option><option value="OEC">OEC - Open Elective Courses</option></select>"""

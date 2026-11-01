@@ -31,7 +31,7 @@ import java.util.concurrent.TimeUnit
 import kotlin.random.Random
 
 /**
- * Keeps daVIT up to date: once a day it asks GitHub for the latest release, downloads a
+ * Keeps daVIT up to date: every three hours it asks GitHub for the latest release, downloads a
  * newer APK in the background and says so; installing is always your tap, through
  * Android's own installer. Dev builds (a different app id) never update themselves.
  */
@@ -58,7 +58,7 @@ object AutoUpdate {
 
     private fun dir(context: Context) = File(context.filesDir, "updates")
 
-    /** At app start: pick up a download from before, drop ones already installed, and schedule the daily check. */
+    /** At app start: pick up a download from before, drop ones already installed, and schedule the regular check. */
     fun start(context: Context) {
         if (!supported(context)) return
         val current = current(context)
@@ -85,12 +85,13 @@ object AutoUpdate {
             wm.cancelUniqueWork(WORK)
             return
         }
-        val request = PeriodicWorkRequestBuilder<UpdateWorker>(1, TimeUnit.DAYS, 6, TimeUnit.HOURS)
+        val request = PeriodicWorkRequestBuilder<UpdateWorker>(3, TimeUnit.HOURS, 1, TimeUnit.HOURS)
             .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
-            .setInitialDelay(Random.nextLong(10, 120), TimeUnit.MINUTES)
+            .setInitialDelay(Random.nextLong(10, 60), TimeUnit.MINUTES)
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 1, TimeUnit.HOURS)
             .build()
-        wm.enqueueUniquePeriodicWork(WORK, ExistingPeriodicWorkPolicy.KEEP, request)
+        // UPDATE, not KEEP: a phone already scheduled on an older interval moves to this one.
+        wm.enqueueUniquePeriodicWork(WORK, ExistingPeriodicWorkPolicy.UPDATE, request)
     }
 
     /**

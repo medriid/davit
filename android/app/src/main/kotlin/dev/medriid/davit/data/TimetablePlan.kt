@@ -14,6 +14,10 @@ data class PlanPick(val code: String, val title: String, val slot: String, val v
     val meetings: List<Meeting> get() = SlotTimes.meetings(slot)
 }
 
+/** Registered classes as picks, for the same week and clash check as a plan. */
+fun List<dev.medriid.davit.vtop.TimetableCourse>.asPicks(): List<PlanPick> =
+    map { PlanPick(it.courseCode, it.courseName, it.slot, it.venue, it.faculty, it.courseType) }
+
 /** Two picks that meet at the same time on [day]. */
 data class Clash(val a: PlanPick, val b: PlanPick, val day: Int, val start: Int)
 

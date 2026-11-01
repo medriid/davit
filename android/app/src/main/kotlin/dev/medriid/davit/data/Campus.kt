@@ -54,6 +54,9 @@ data class Campus(
     val clubs: dev.medriid.davit.vtop.ClubEvents? = null,
     val generalCertificates: List<dev.medriid.davit.vtop.GeneralCertificate> = emptyList(),
     val clubsAt: Long = 0,
+    /** Next semester's registered classes; null when VTOP shows none. */
+    val registered: dev.medriid.davit.vtop.RegisteredClasses? = null,
+    val registeredAt: Long = 0,
 )
 
 @Serializable
@@ -69,7 +72,8 @@ enum class Section(val title: String, private val freshFor: Long) {
     Grades("Semester grades", DAY),
     Courses("Course pages", DAY),
     Mess("Mess", DAY),
-    Clubs("Club events", 20 * MIN);
+    Clubs("Club events", 20 * MIN),
+    Registered("FFCS result", 20 * MIN);
 
     fun fresh(at: Long) = System.currentTimeMillis() - at < freshFor
 }
@@ -112,6 +116,7 @@ class CampusStore(private val context: Context, private val repo: Repo) {
         Section.Courses -> c.coursesAt
         Section.Mess -> c.messAt
         Section.Clubs -> c.clubsAt
+        Section.Registered -> c.registeredAt
     }
 
     /** Fetches [section] unless it's fresh (or [force]). Errors land in [errors], the old data stays. */
@@ -168,6 +173,7 @@ class CampusStore(private val context: Context, private val repo: Repo) {
         Section.Grades -> { it -> it }
         Section.Courses -> c.courseOptions().let { o -> { it.copy(courses = o, coursesAt = now) } }
         Section.Mess -> c.messChange().let { m -> { it.copy(mess = m, messAt = now) } }
+        Section.Registered -> repo.state.value.snapshot?.semester?.id?.let(c::registeredClasses).let { r -> { it.copy(registered = r, registeredAt = now) } }
         Section.Clubs -> {
             val e = c.clubEvents()
             val g = runCatching { c.generalCertificates() }.getOrDefault(emptyList())
