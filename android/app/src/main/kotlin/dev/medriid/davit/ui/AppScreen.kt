@@ -327,7 +327,7 @@ private fun RouteHost(route: Route) = when (route) {
 @Composable
 internal fun TopBar(state: UiState, mascot: Mascot, photo: java.io.File, card: Boolean, onSync: () -> Unit, onProfile: () -> Unit, onMore: () -> Unit, modifier: Modifier = Modifier, gutter: Dp = Gutter, onHome: () -> Unit = {}) {
     if (card && !state.banner.hidden) {
-        CardBar(state, mascot, photo, onSync, onProfile, onMore, modifier, gutter)
+        CardBar(state, mascot, photo, onSync, onProfile, modifier, gutter)
         return
     }
     Row(
@@ -384,18 +384,20 @@ internal fun TopBar(state: UiState, mascot: Mascot, photo: java.io.File, card: B
 }
 
 /**
- * The top bar as your display card: the logo, More and your mascot on your background (a
+ * The top bar as your display card: the logo and your mascot on your background (a
  * built-in print or your photo), and under them the two stats you picked and the sync
  * status. Everything that sits on the picture gets a paper pill, so it reads on any photo.
  */
 @Composable
-private fun CardBar(state: UiState, mascot: Mascot, photo: java.io.File, onSync: () -> Unit, onProfile: () -> Unit, onMore: () -> Unit, modifier: Modifier, gutter: Dp) {
+private fun CardBar(state: UiState, mascot: Mascot, photo: java.io.File, onSync: () -> Unit, onProfile: () -> Unit, modifier: Modifier, gutter: Dp) {
     val inks = LocalInks.current
     val banner = state.banner
     val shape = RoundedCornerShape(16.dp)
     val now = remember { java.time.LocalDateTime.now() }
-    val left = state.snapshot?.bannerText(BannerStat.of(banner.left), state.reminders, now)
-    val right = state.snapshot?.bannerText(BannerStat.of(banner.right), state.reminders, now)
+    // Home's tile already says the overall figure; a chip that repeats it is left off.
+    fun chip(id: String) = BannerStat.of(id).takeIf { it != BannerStat.Attendance }?.let { state.snapshot?.bannerText(it, state.reminders, now) }
+    val left = chip(banner.left)
+    val right = chip(banner.right)
     Box(modifier.fillMaxWidth().padding(start = gutter, end = (gutter - 4.dp).coerceAtLeast(0.dp), top = 6.dp, bottom = 8.dp)) {
         Box(Modifier.padding(end = 4.dp, bottom = 4.dp)) {
             Box(Modifier.matchParentSize().offset(4.dp, 4.dp).clip(shape).background(inks.plate(null)))
@@ -418,10 +420,6 @@ private fun CardBar(state: UiState, mascot: Mascot, photo: java.io.File, onSync:
                             }
                         }
                         Spacer(Modifier.weight(1f))
-                        Spacer(Modifier.width(6.dp))
-                        Box(Modifier.clip(CircleShape).background(inks.paper).border(1.5.dp, inks.text, CircleShape)) {
-                            TopIcon(RisoIcon.More, "More from VTOP", onMore)
-                        }
                         Spacer(Modifier.width(8.dp))
                         Box(
                             Modifier

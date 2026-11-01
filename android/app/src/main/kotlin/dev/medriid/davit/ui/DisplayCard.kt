@@ -267,10 +267,12 @@ internal fun DisplayCardScreen(route: Route) {
 
         // Editorial's picture carries the attendance figure, not these.
         if (editorial) return@RouteScreen
+        // Attendance isn't offered: Home already says it big.
+        val stats = BannerStat.entries - BannerStat.Attendance
         GroupLabel("First stat", Modifier.padding(top = 18.dp, bottom = 8.dp))
-        ChoiceRow(BannerStat.entries.map { it.title }, BannerStat.of(b.left).ordinal) { repo.setBanner(b.copy(left = BannerStat.entries[it].id)) }
+        ChoiceRow(stats.map { it.title }, stats.indexOf(BannerStat.of(b.left)).coerceAtLeast(0)) { repo.setBanner(b.copy(left = stats[it].id)) }
         GroupLabel("Second stat", Modifier.padding(top = 16.dp, bottom = 8.dp))
-        ChoiceRow(BannerStat.entries.map { it.title }, BannerStat.of(b.right).ordinal) { repo.setBanner(b.copy(right = BannerStat.entries[it].id)) }
+        ChoiceRow(stats.map { it.title }, stats.indexOf(BannerStat.of(b.right)).coerceAtLeast(0)) { repo.setBanner(b.copy(right = stats[it].id)) }
 
         GroupLabel("In the bar", Modifier.padding(top = 18.dp, bottom = 4.dp))
         ToggleRow("Your name instead of daVIT", "As VTOP has it. Only on your screen.", b.nameInBar) { repo.setBanner(b.copy(nameInBar = !b.nameInBar)) }
