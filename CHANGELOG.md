@@ -2,6 +2,10 @@
 
 Downloads are on the [releases page](https://github.com/medriid/davit/releases). daVIT updates itself after the first install.
 
+## 0.15.1 — 2026-11-01
+
+- **FFCS result, redone**: a real timetable grid with a colour for each course, and a table of your courses with slot, room and credits.
+
 ## 0.15.0 — 2026-11-01
 
 - **FFCS result**: see the classes you registered for next semester, with your week and any clashes, as soon as VTOP has them. Find it next to FFCS.
