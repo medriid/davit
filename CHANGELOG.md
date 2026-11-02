@@ -2,6 +2,11 @@
 
 Downloads are on the [releases page](https://github.com/medriid/davit/releases). daVIT updates itself after the first install.
 
+## 0.17.1 — 2026-11-02
+
+- **Cleaner marks**: spreadsheet formulas that reach VTOP's remarks, like SUM(G48:K48), no longer show. Your marks are unchanged.
+- **A tidier Home**: once today's classes are over, the last class doesn't get a second card. Tap it on the path to see it.
+
 ## 0.17.0 — 2026-11-02
 
 - **Circulars**: every official circular in one searchable list, with an alert when a new one lands.
