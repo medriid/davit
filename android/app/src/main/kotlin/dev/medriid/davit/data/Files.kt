@@ -19,6 +19,9 @@ import java.io.File
 class FileStore(private val context: Context) {
     private val root = File(context.filesDir, "vtop-files").apply { mkdirs() }
 
+    /** Files fetched just to read in the app: not in Downloads, and Android may clear them. */
+    private val previews = File(context.cacheDir, "previews")
+
     /** Bytes so far and the total when VTOP says it; null while it hasn't. */
     data class Progress(val done: Long, val total: Long?) {
         val fraction: Float? get() = total?.takeIf { it > 0 }?.let { (done.toFloat() / it).coerceIn(0f, 1f) }
@@ -33,7 +36,39 @@ class FileStore(private val context: Context) {
 
     fun file(key: String): File? = _saved.value[key]?.takeIf { it.exists() }
 
-    private fun dir(key: String) = File(root, key.replace(Regex("[^A-Za-z0-9_.-]"), "_"))
+    private fun dir(key: String) = File(root, folderName(key))
+
+    private fun folderName(key: String) = key.replace(Regex("[^A-Za-z0-9_.-]"), "_")
+
+    /** [key]'s copy fetched just to read, if it's still there. */
+    fun preview(key: String): File? =
+        File(previews, folderName(key)).listFiles().orEmpty().firstOrNull { it.isFile && !it.name.startsWith(".") }
+
+    /** Moves a read-only copy into Downloads, so it stays. */
+    fun keep(key: String): File? {
+        file(key)?.let { return it }
+        val from = preview(key) ?: return null
+        return runCatching {
+            val folder = dir(key)
+            folder.mkdirs()
+            File(folder, KEY).writeText(key)
+            File(from.parentFile, TYPE).takeIf { it.exists() }?.copyTo(File(folder, TYPE), overwrite = true)
+            val target = File(folder, from.name)
+            from.copyTo(target, overwrite = true)
+            _saved.update { it + (key to target) }
+            target
+        }.getOrNull()
+    }
+
+    /** Oldest previews go first once they pass [PreviewBytes]. */
+    private fun trimPreviews() {
+        var total = previews.walkTopDown().filter { it.isFile }.sumOf { it.length() }
+        for (d in previews.listFiles().orEmpty().sortedBy { it.lastModified() }) {
+            if (total <= PreviewBytes) return
+            total -= d.walkTopDown().filter { it.isFile }.sumOf { it.length() }
+            d.deleteRecursively()
+        }
+    }
 
     private fun scan(): Map<String, File> =
         root.listFiles().orEmpty().filter { it.isDirectory }.mapNotNull { d ->
@@ -45,8 +80,9 @@ class FileStore(private val context: Context) {
     /**
      * Downloads into [key]'s folder. [fetch] writes into the temp file it's given (it may
      * be called again after a re-login, so it opens the file itself) and reports progress.
+     * With [preview] the copy is only for reading now, and stays out of Downloads.
      */
-    suspend fun fetch(key: String, fetch: suspend (File, (Long, Long?) -> Unit) -> Download): File {
+    suspend fun fetch(key: String, preview: Boolean = false, fetch: suspend (File, (Long, Long?) -> Unit) -> Download): File {
         if (key in _progress.value) throw IllegalStateException("Already downloading.")
         _progress.update { it + (key to Progress(0, null)) }
         val tmp = File(root, ".part-" + dir(key).name)
@@ -59,7 +95,7 @@ class FileStore(private val context: Context) {
                     _progress.update { it + (key to Progress(done, total)) }
                 }
             }
-            val folder = dir(key)
+            val folder = if (preview) File(previews, folderName(key)) else dir(key)
             folder.deleteRecursively()
             folder.mkdirs()
             File(folder, KEY).writeText(key)
@@ -69,7 +105,7 @@ class FileStore(private val context: Context) {
                 tmp.copyTo(target, overwrite = true)
                 tmp.delete()
             }
-            _saved.update { it + (key to target) }
+            if (preview) trimPreviews() else _saved.update { it + (key to target) }
             return target
         } finally {
             tmp.delete()
@@ -114,6 +150,7 @@ class FileStore(private val context: Context) {
 
     /** Sign-out: nothing of the account stays behind. */
     fun wipe() {
+        previews.deleteRecursively()
         root.deleteRecursively()
         root.mkdirs()
         _saved.value = emptyMap()
@@ -122,6 +159,7 @@ class FileStore(private val context: Context) {
     companion object {
         private const val KEY = ".key"
         private const val TYPE = ".type"
+        private const val PreviewBytes = 200L * 1024 * 1024
 
         /** VTOP's name, made safe for a file system; with an extension from the type when it has none. */
         internal fun cleanName(name: String, mime: String): String {
@@ -142,3 +180,6 @@ fun sizeText(bytes: Long): String = when {
     bytes >= 1024 -> "${bytes / 1024} KB"
     else -> "$bytes B"
 }
+
+/** Can daVIT show this itself? */
+internal fun File.isPdf() = extension.equals("pdf", ignoreCase = true)

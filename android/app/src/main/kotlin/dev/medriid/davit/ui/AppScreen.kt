@@ -334,6 +334,7 @@ private fun RouteHost(route: Route) = when (route) {
     Route.ClubDirectory -> ClubDirectoryScreen(route)
     Route.SignIns -> SignInsScreen(route)
     is Route.FacultyReview -> FacultyReviewScreen(route)
+    is Route.PdfView -> PdfScreen(route)
 }
 
 @Composable

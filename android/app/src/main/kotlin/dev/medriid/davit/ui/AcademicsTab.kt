@@ -354,6 +354,13 @@ private fun FacultySegment(snapshot: Snapshot) {
     val campus by repo.campus.state.collectAsState()
     LaunchedEffect(Unit) { repo.campus.refresh(dev.medriid.davit.data.Section.People) }
     var query by rememberSaveable { mutableStateOf("") }
+    val wanted by repo.facultyFocus.collectAsState()
+    LaunchedEffect(wanted) {
+        wanted?.let {
+            query = titleCase(it)
+            repo.facultyFocus.value = null
+        }
+    }
 
     val details = remember(snapshot.faculty) { snapshot.faculty.associateBy { facultyKey(it.name) } }
     // One entry per course, in timetable order, holding each component (theory, lab).

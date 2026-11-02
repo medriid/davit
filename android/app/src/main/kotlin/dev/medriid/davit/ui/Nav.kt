@@ -69,11 +69,16 @@ sealed class Route(val id: String) {
     /** One teacher's reviews, by No8AM's id. */
     data class FacultyReview(val facultyId: String) : Route("fr|$facultyId")
 
+    /** A PDF to read in the app. Each part is encoded, as a key or title can hold anything. */
+    data class PdfView(val key: String, val path: String, val title: String) :
+        Route("pdf|" + listOf(key, path, title).joinToString("|") { java.net.URLEncoder.encode(it, "UTF-8") })
+
     /** The shared-element key this route's screen grows out of. */
     val sharedKey: String get() = "route:$id"
 
     companion object {
-        private val plain = listOf(Search, Campus, Messages, Spotlight, Events, People, Money, Gate, Curriculum, SemesterGrades, Hostel, Downloads, Settings, Notifications, Bonafide, CourseFeedback, PaperSeeing, Activities, Allocation, FfcsResult, Colours, LeavePlanner, DisplayCard, CourseNames, Corrections, ExamBoard, Friends, Planner, MessMenu, FacultyReviews, Circulars, Windows, Projects, Rules, OtherExams, Certificates, Sports, ClubDirectory, SignIns)
+        // Lazy: the first screen object touched starts this class, so eagerly it would see that object as null.
+        private val plain by lazy { listOf(Search, Campus, Messages, Spotlight, Events, People, Money, Gate, Curriculum, SemesterGrades, Hostel, Downloads, Settings, Notifications, Bonafide, CourseFeedback, PaperSeeing, Activities, Allocation, FfcsResult, Colours, LeavePlanner, DisplayCard, CourseNames, Corrections, ExamBoard, Friends, Planner, MessMenu, FacultyReviews, Circulars, Windows, Projects, Rules, OtherExams, Certificates, Sports, ClubDirectory, SignIns) }
 
         fun parse(id: String): Route? {
             plain.firstOrNull { it.id == id }?.let { return it }
@@ -83,6 +88,7 @@ sealed class Route(val id: String) {
                 "c" -> if (p.size >= 2) Course(id.removePrefix("c|")) else null
                 "set" -> if (p.size >= 2) SettingsPage(p[1]) else null
                 "fr" -> if (p.size >= 2) FacultyReview(p[1]) else null
+                "pdf" -> if (p.size == 4) p.drop(1).map { java.net.URLDecoder.decode(it, "UTF-8") }.let { PdfView(it[0], it[1], it[2]) } else null
                 else -> null
             }
         }

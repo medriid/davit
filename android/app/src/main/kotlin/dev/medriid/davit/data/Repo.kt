@@ -140,6 +140,9 @@ class Repo(private val context: Context) {
     /** Asked for from elsewhere (a Home shortcut): which Academics section to open (0 marks … 5 faculty). */
     val academicsFocus = MutableStateFlow<Int?>(null)
 
+    /** A teacher for Academics' Faculty section to find as it opens. */
+    val facultyFocus = MutableStateFlow<String?>(null)
+
     init {
         val creds = credentials()
         _state.value = UiState(
@@ -174,7 +177,7 @@ class Repo(private val context: Context) {
         val s = _state.value
         if (!s.signedIn || s.busy != null) return
         val age = System.currentTimeMillis() - (s.snapshot?.syncedAt ?: 0)
-        if (age > 15 * 60_000) sync()
+        if (age > 15 * 60_000) scope.launch { lock.withLock { syncLocked(everything = false) } }
     }
 
     fun signIn(regNo: String, password: String) {
@@ -353,6 +356,7 @@ class Repo(private val context: Context) {
                 feeds = f.copy(
                     classGroups = it.feeds.classGroups, circulars = it.feeds.circulars, projects = it.feeds.projects, windows = it.feeds.windows,
                     watchAt = it.feeds.watchAt, assignmentSig = it.feeds.assignmentSig, assignmentsAt = it.feeds.assignmentsAt,
+                    timetableAt = it.feeds.timetableAt, gradesAt = it.feeds.gradesAt,
                 ),
             )
         }
@@ -519,7 +523,7 @@ class Repo(private val context: Context) {
     suspend fun syncForBackground(): Triple<Snapshot?, Snapshot?, Exception?> = lock.withLock {
         if (!_state.value.signedIn) return@withLock Triple(null, null, null)
         val before = _state.value.snapshot
-        val error = syncLocked()
+        val error = syncLocked(everything = false)
         val time = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("EEE h:mm a", java.util.Locale.ENGLISH))
         val result = "$time · " + if (error == null) "ok" else message(error).substringBefore('.').lowercase()
         prefs.edit().putString(K_LAST_BG, result).apply()
@@ -569,12 +573,21 @@ class Repo(private val context: Context) {
 
     // ---- sync ----------------------------------------------------------------------
 
-    /** Returns the failure, or null when the sync went through. */
-    private suspend fun syncLocked(): Exception? {
+    /**
+     * Returns the failure, or null when the sync went through. With [everything] off (opening
+     * the app, background sync) what rarely changes is only read every few hours; a pull to
+     * refresh reads it all.
+     */
+    private suspend fun syncLocked(everything: Boolean = true): Exception? {
         val creds = credentials() ?: return null
         client.timings.clear()
         _state.update { it.copy(busy = "Syncing", error = null) }
         try {
+            // VTOP has long since dropped a session this idle, so don't spend a request finding out.
+            if (System.currentTimeMillis() - prefs.getLong(K_SESSION_AT, 0) > 60 * 60_000L) {
+                client.login(creds.first, creds.second, onProgress = ::showLoginProgress)
+                saveSession()
+            }
             var semesters = withSession(creds) {
                 _state.update { it.copy(busy = "Reading semesters") }
                 client.semesters()
@@ -622,11 +635,16 @@ class Repo(private val context: Context) {
                 facultyAt = old?.facultyAt ?: 0,
                 feeds = _state.value.snapshot?.feeds ?: HomeFeeds(),
             )
-            _state.update { it.copy(snapshot = partial, busy = "Fetching timetable") }
-
-            val timetable = withSession(creds) { client.timetable(semester.id) }
-            dump("timetable", creds.first)
-            var full = partial.copy(timetable = timetable)
+            val timetableFresh = !everything && old != null && old.timetable.isNotEmpty() &&
+                System.currentTimeMillis() - partial.feeds.timetableAt < CoolFor
+            var full = if (timetableFresh) {
+                partial
+            } else {
+                _state.update { it.copy(snapshot = partial, busy = "Fetching timetable") }
+                val timetable = withSession(creds) { client.timetable(semester.id) }
+                dump("timetable", creds.first)
+                partial.copy(timetable = timetable, feeds = partial.feeds.copy(timetableAt = System.currentTimeMillis()))
+            }
             _state.update { it.copy(snapshot = full) }
 
             // Day-by-day history, only for courses whose count moved (or that have none yet):
@@ -664,8 +682,14 @@ class Repo(private val context: Context) {
                 )
             }
             // Grade history spans semesters, so keep it even when the semester changed.
-            full = section("Fetching grades", "grades", creds, full) { client.gradeHistory() }
-                ?.let { full.copy(grades = it) } ?: full.copy(grades = _state.value.snapshot?.grades)
+            val knownGrades = _state.value.snapshot?.grades
+            full = if (!everything && knownGrades != null && System.currentTimeMillis() - full.feeds.gradesAt < CoolFor) {
+                full.copy(grades = knownGrades)
+            } else {
+                section("Fetching grades", "grades", creds, full) { client.gradeHistory() }
+                    ?.let { full.copy(grades = it, feeds = full.feeds.copy(gradesAt = System.currentTimeMillis())) }
+                    ?: full.copy(grades = knownGrades)
+            }
             // Cool data: profile at most daily, hostel requests every few hours (hostellers only).
             val now = System.currentTimeMillis()
             if (full.profile == null || now - full.profileAt > 24 * 3_600_000L) {
@@ -844,7 +868,7 @@ class Repo(private val context: Context) {
     }
 
     private fun saveSession() {
-        client.exportSession()?.let { prefs.edit().putString(K_SESSION, Vault.encrypt(it)).apply() }
+        client.exportSession()?.let { prefs.edit().putString(K_SESSION, Vault.encrypt(it)).putLong(K_SESSION_AT, System.currentTimeMillis()).apply() }
     }
 
     private fun credentials(): Pair<String, String>? {
@@ -892,6 +916,8 @@ class Repo(private val context: Context) {
         private const val K_SESSION = "session"
         private const val K_CACHE = "cache"
         private const val K_SEMESTER = "semesterPin"
+        private const val K_SESSION_AT = "sessionAt"
+        private const val CoolFor = 6 * 3_600_000L
         private const val K_INK = "ink"
         private const val K_PALETTE = "palette"
         private const val K_DUMP = "dump"

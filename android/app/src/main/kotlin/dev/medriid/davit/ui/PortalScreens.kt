@@ -44,6 +44,12 @@ import java.util.Locale
 
 private val Dated = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ENGLISH)
 
+/** A club's name in title case, with the short names as VTOP writes them: "Linux User's Group (LUG)". */
+private fun directoryName(name: String): String =
+    titleCase(name.lowercase())
+        .replace(Regex("""\(([^()]+)\)""")) { "(" + it.groupValues[1].uppercase() + ")" }
+        .replace(Regex("""\bVit\b"""), "VIT")
+
 /** yyyy-MM-dd as "7 Sep 2026"; empty stays empty. */
 private fun shown(date: String): String = runCatching { LocalDate.parse(date).format(Dated) }.getOrDefault(date)
 
@@ -384,7 +390,7 @@ internal fun ClubDirectoryScreen(route: Route) {
                 d.mine.forEachIndexed { i, c ->
                     if (i > 0) Rule()
                     Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                        InkText(titleCase(c.name.lowercase()), style = RisoType.body.copy(fontWeight = FontWeight.SemiBold), modifier = Modifier.weight(1f))
+                        InkText(directoryName(c.name), style = RisoType.body.copy(fontWeight = FontWeight.SemiBold), modifier = Modifier.weight(1f))
                         if (c.status.isNotBlank()) InkChip(c.status)
                     }
                 }
@@ -400,7 +406,7 @@ internal fun ClubDirectoryScreen(route: Route) {
             listed.forEachIndexed { i, c ->
                 if (i > 0) Rule()
                 Column(Modifier.padding(vertical = 6.dp)) {
-                    InkText(titleCase(c.name.lowercase()), style = RisoType.body.copy(fontWeight = FontWeight.SemiBold))
+                    InkText(directoryName(c.name), style = RisoType.body.copy(fontWeight = FontWeight.SemiBold))
                     InkText(listOf(titleCase(c.type.lowercase()), c.status).filter { it.isNotBlank() }.joinToString(" · "), style = RisoType.small)
                 }
             }

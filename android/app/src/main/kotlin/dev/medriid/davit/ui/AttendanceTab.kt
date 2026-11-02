@@ -60,7 +60,9 @@ import dev.medriid.davit.design.Overprint
 import dev.medriid.davit.design.printIn
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.ui.draw.clip
@@ -111,6 +113,9 @@ internal fun AttendanceTab(snapshot: Snapshot) {
         }
     }
 }
+
+/** Faculty's place in Academics' icon row. */
+private const val FacultySection = 5
 
 @Composable
 private fun CourseCard(row: AttendanceRow, remaining: Int?, history: List<AttendanceDay>, faculty: String, remark: CourseRemark?, modifier: Modifier = Modifier) {
@@ -197,7 +202,15 @@ private fun CourseCard(row: AttendanceRow, remaining: Int?, history: List<Attend
                 }
                 if (faculty.isNotBlank()) {
                     Spacer(Modifier.height(10.dp))
-                    InkText("Faculty: $faculty", style = RisoType.small)
+                    val repo = LocalRepo.current
+                    val nav = LocalNav.current
+                    Box(
+                        Modifier.clickable(role = Role.Button) {
+                            repo.facultyFocus.value = faculty
+                            repo.academicsFocus.value = FacultySection
+                            nav.tab(2)
+                        },
+                    ) { InkChip("Faculty: ${titleCase(faculty)}") }
                 }
             }
         }

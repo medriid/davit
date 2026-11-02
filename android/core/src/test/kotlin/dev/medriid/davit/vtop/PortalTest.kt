@@ -44,6 +44,12 @@ class PortalTest {
     }
 
     @Test
+    fun aWindowsNoteIsOursNotTheTextAroundIt() {
+        assertEquals("Not open to you", Portal.window("x", "X", "<p>Registration: 10:00 PM Activity Not Permitted</p><noscript>Enable JavaScript</noscript>").note)
+        assertTrue(Portal.window("x", "X", "<p>Pick a course</p><noscript>This page is closed without JavaScript</noscript>").open)
+    }
+
+    @Test
     fun scriptsDoNotCloseAWindow() {
         assertTrue(Portal.window("x", "X", "<script>var m = 'Registration closed';</script><p>Pick a course</p>").open)
     }
@@ -104,6 +110,7 @@ class PortalTest {
         assertEquals("EXAMPLE HACK", c.title)
         assertEquals("/events/Gravitas/downloadParticipantCertificate", c.path)
         assertEquals(mapOf("eventId" to "2026004", "participantId" to "ABC"), c.params)
+        assertEquals(Portal.GravitasMenu, c.menu)
     }
 
     @Test

@@ -449,30 +449,24 @@ class VtopClient(
         Portal.malpractice(authed("/examinations/malpracticePunishmentDetails", mapOf("verifyMenu" to "true")))
     }
 
-    /** VTOP's FAQ, every domain and process. Its list page reads the form as FormData. */
+    /** VTOP's FAQ, every domain and process. The first failure ends it with what was read, as a slow page would hold up every other screen. */
     fun faqs(): List<FaqItem> = timed("faq") {
-        val s = session ?: throw SessionExpired()
-        val domains = Records.options(authed("/academics/common/FaqPreview", mapOf("verifyMenu" to "true")), "domainName").map { it.first }
-        domains.flatMap { domain ->
-            val processes = Records.options(
-                authed("/getFaqProcessSec", mapOf("paramReturnId" to "getFaqProcessSec", "domainName" to domain, "process" to "")), "process",
-            ).map { it.first }
-            processes.flatMap { process ->
-                try {
-                    val body = MultipartBody.Builder().setType(MultipartBody.FORM)
-                        .addFormDataPart("_csrf", s.csrf)
-                        .addFormDataPart("authorizedID", s.authorizedId)
-                        .addFormDataPart("domainName", domain)
-                        .addFormDataPart("process", process)
-                        .build()
-                    Portal.faqs(multipart("/processPreviewFaqList", body, null).first, domain, process)
-                } catch (e: SessionExpired) {
-                    throw e
-                } catch (_: VtopException) {
-                    emptyList()
+        val out = mutableListOf<FaqItem>()
+        try {
+            val domains = Records.options(authed("/academics/common/FaqPreview", mapOf("verifyMenu" to "true")), "domainName").map { it.first }
+            for (domain in domains) {
+                val processes = Records.options(
+                    authed("/getFaqProcessSec", mapOf("paramReturnId" to "getFaqProcessSec", "domainName" to domain, "process" to "")), "process",
+                ).map { it.first }
+                for (process in processes) {
+                    out += Portal.faqs(authed("/processPreviewFaqList", mapOf("domainName" to domain, "process" to process)), domain, process)
                 }
             }
+        } catch (e: SessionExpired) {
+            throw e
+        } catch (_: VtopException) {
         }
+        out
     }
 
     /** Make-up, arrear, English proficiency and comprehensive exams, whichever have anything to show. */
@@ -504,9 +498,9 @@ class VtopClient(
         } catch (_: VtopException) {
             emptyList()
         }
-        read("/events/gravitas/student/viewCertificateDetails", Portal::gravitas) +
-            read("/event/uday/certificates", Portal::universityDay) +
-            read("/events/sixsigma/loadStudentViewPage", Portal::sixSigma)
+        read(Portal.GravitasMenu, Portal::gravitas) +
+            read(Portal.UniversityDayMenu, Portal::universityDay) +
+            read(Portal.SixSigmaMenu, Portal::sixSigma)
     }
 
     /** Course allocation: the semester it's for and the curriculum categories (value → "UCC - University Core Courses"). */
@@ -565,11 +559,16 @@ class VtopClient(
     fun downloadFeeLetter(batchId: String, sink: OutputStream, onProgress: (Long, Long?) -> Unit = { _, _ -> }) =
         download("/finance/downloadStudentFeesIntimationLetter", mapOf("batchId" to batchId, "studentNumber" to ""), sink, onProgress = onProgress)
 
-    fun downloadCircular(id: String, sink: OutputStream, onProgress: (Long, Long?) -> Unit = { _, _ -> }) =
-        download("/admissions/viewStatusWiseCostCentreCircularContent", mapOf("val" to id), sink, onProgress = onProgress)
+    /** VTOP only serves these from a session that has just opened the page listing them. */
+    fun downloadCircular(id: String, sink: OutputStream, onProgress: (Long, Long?) -> Unit = { _, _ -> }): Download {
+        authed("/admissions/costCentreCircularsViewPageController", mapOf("verifyMenu" to "true"))
+        return download("/admissions/viewStatusWiseCostCentreCircularContent", mapOf("val" to id), sink, onProgress = onProgress)
+    }
 
-    fun downloadCertificate(c: Certificate, sink: OutputStream, onProgress: (Long, Long?) -> Unit = { _, _ -> }) =
-        download(c.path, c.params, sink, onProgress = onProgress)
+    fun downloadCertificate(c: Certificate, sink: OutputStream, onProgress: (Long, Long?) -> Unit = { _, _ -> }): Download {
+        if (c.menu.isNotEmpty()) authed(c.menu, mapOf("verifyMenu" to "true"))
+        return download(c.path, c.params, sink, onProgress = onProgress)
+    }
 
     /** The academic regulations: VTOP sends the PDF inside its page, so it's unpacked here. */
     fun downloadRegulations(sink: OutputStream, onProgress: (Long, Long?) -> Unit = { _, _ -> }): Download = timed("regulations") {

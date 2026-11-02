@@ -54,7 +54,7 @@ data class ExamTable(val title: String, val table: SimpleTable)
 
 /** A certificate VTOP's own form would download: [path] takes [params]. */
 @Serializable
-data class Certificate(val source: String, val title: String, val detail: String, val path: String, val params: Map<String, String>) {
+data class Certificate(val source: String, val title: String, val detail: String, val path: String, val params: Map<String, String>, val menu: String = "") {
     val key: String get() = "cert:" + path + params.values.joinToString("|")
 }
 
@@ -72,9 +72,17 @@ object Portal {
         Triple("pat", "PAT registration", "/pat/PatRegistrationProcess"),
     )
 
+    /** What VTOP says on a shut page, and how we say it: the sentences around it can be anything. */
     private val closedWords = listOf(
-        "date is over", "date has been closed", "last date for applying", "no active registration",
-        "not eligible", "not permitted", "not registered", "not enabled", "closed",
+        "date is over" to "Registration is over",
+        "date has been closed" to "Registration is closed",
+        "last date for applying" to "The last date has passed",
+        "no active registration" to "No registration open",
+        "not eligible" to "You're not eligible",
+        "not permitted" to "Not open to you",
+        "not registered" to "Needs registered courses",
+        "not enabled" to "Not open yet",
+        "closed" to "Closed",
     )
 
     private val shortMonth = DateTimeFormatterBuilder().parseCaseInsensitive().appendPattern("dd-MMM-yyyy").toFormatter(Locale.ENGLISH)
@@ -123,13 +131,12 @@ object Portal {
 
     /** Whether a registration page is open: shut if it says one of VTOP's closed lines, with that line as the note. */
     fun window(id: String, title: String, html: String): VtopWindow {
-        val text = clean(Jsoup.parse(html).text())
-        val low = text.lowercase()
-        val at = closedWords.map { low.indexOf(it) }.filter { it >= 0 }.minOrNull()
+        val doc = Jsoup.parse(html)
+        doc.select("noscript").remove()
+        val low = clean(doc.text()).lowercase()
+        val said = closedWords.filter { low.indexOf(it.first) >= 0 }.minByOrNull { low.indexOf(it.first) }
             ?: return VtopWindow(id, title, true, "")
-        val start = text.lastIndexOfAny(charArrayOf('.', '!', ':'), at).let { if (it < 0) (at - 60).coerceAtLeast(0) else it + 1 }
-        val end = text.indexOfAny(charArrayOf('.', '!'), at).let { if (it < 0) (at + 60).coerceAtMost(text.length) else it + 1 }
-        return VtopWindow(id, title, false, text.substring(start, end).trim().take(100))
+        return VtopWindow(id, title, false, said.second)
     }
 
     /** `show/login/history`: `# | Activity Type | Date & Time | Ip Address | App. Name`, newest first. */
@@ -219,6 +226,7 @@ object Portal {
         function: String,
         names: List<String>,
         send: Set<String>,
+        menu: String,
         title: (List<String>) -> Pair<String, String>,
     ): List<Certificate> {
         val doc = Jsoup.parse(html)
@@ -229,19 +237,23 @@ object Portal {
             val args = Regex("""'([^']*)'""").findAll(call).map { it.groupValues[1] }.toList()
             if (args.size != names.size) return@mapNotNull null
             val (name, detail) = title(tr.select("> td").map { clean(it.text()) })
-            Certificate(source, name, detail, "/$path", names.zip(args).filter { it.first in send }.toMap())
+            Certificate(source, name, detail, "/$path", names.zip(args).filter { it.first in send }.toMap(), menu)
         }
     }
 
-    fun gravitas(html: String) = certificates(html, "graVITas", "downloadCertificate", listOf("year", "eventId", "participantId"), setOf("eventId", "participantId")) { c ->
+    const val GravitasMenu = "/events/gravitas/student/viewCertificateDetails"
+    const val UniversityDayMenu = "/event/uday/certificates"
+    const val SixSigmaMenu = "/events/sixsigma/loadStudentViewPage"
+
+    fun gravitas(html: String) = certificates(html, "graVITas", "downloadCertificate", listOf("year", "eventId", "participantId"), setOf("eventId", "participantId"), GravitasMenu) { c ->
         c.getOrElse(2) { "Participant certificate" } to c.getOrElse(1) { "" }
     }
 
-    fun universityDay(html: String) = certificates(html, "University Day", "doDownloadIndividualCertificate", listOf("awardId"), setOf("awardId")) { c ->
+    fun universityDay(html: String) = certificates(html, "University Day", "doDownloadIndividualCertificate", listOf("awardId"), setOf("awardId"), UniversityDayMenu) { c ->
         c.getOrElse(2) { "Certificate" } to c.getOrElse(1) { "" }
     }
 
-    fun sixSigma(html: String) = certificates(html, "Six Sigma", "downloadCertificate", listOf("monthYear", "registerNumber"), setOf("monthYear", "registerNumber")) { _ ->
+    fun sixSigma(html: String) = certificates(html, "Six Sigma", "downloadCertificate", listOf("monthYear", "registerNumber"), setOf("monthYear", "registerNumber"), SixSigmaMenu) { _ ->
         "Six Sigma" to ""
     }
 }

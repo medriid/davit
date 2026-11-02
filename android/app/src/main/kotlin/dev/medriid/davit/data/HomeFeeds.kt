@@ -38,6 +38,9 @@ data class HomeFeeds(
     /** The home page's upcoming-assignments list when assignments were last read in full. */
     val assignmentSig: String = "",
     val assignmentsAt: Long = 0,
+    /** When the timetable and grades were last read: they rarely change, so most syncs skip them. */
+    val timetableAt: Long = 0,
+    val gradesAt: Long = 0,
 ) {
     val pendingFeedback: List<FeedbackItem> get() = feedback.filter { !it.done }
 

@@ -4,80 +4,53 @@
 
 # daVIT
 
-### VTOP, without the waiting
-Attendance, classes, marks and the campus map for VIT students, printed in two inks.
+**VTOP, without the waiting.** Attendance, classes, marks and the campus map for VIT students.
 
 [![Latest release](https://img.shields.io/github/v/release/medriid/davit?label=release&labelColor=00585D&color=F65058)](https://github.com/medriid/davit/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/medriid/davit/total?label=downloads&labelColor=00585D&color=00838A)](https://github.com/medriid/davit/releases)
-[![Build](https://img.shields.io/github/actions/workflow/status/medriid/davit/release.yml?label=build&labelColor=00585D)](https://github.com/medriid/davit/actions/workflows/release.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-00838A?labelColor=00585D)](LICENSE)
-
-## Download
 
 [![Get the APK](https://img.shields.io/github/v/release/medriid/davit?label=get%20the%20APK&labelColor=00585D&color=F65058&style=for-the-badge)](https://github.com/medriid/davit/releases/latest)
 
-**Android** 8+ · updates itself
-
-*Only download daVIT from this repository's [releases](https://github.com/medriid/davit/releases).*
+Android 8+ · updates itself · only download it from [releases](https://github.com/medriid/davit/releases)
 
 <br>
 
-<img src="docs/screenshots/today.jpg" alt="Today" width="160">
+<img src="docs/screenshots/home.jpg" alt="Home" width="160">
 <img src="docs/screenshots/attendance.jpg" alt="Attendance" width="160">
 <img src="docs/screenshots/grades.jpg" alt="Grades and CGPA" width="160">
 <img src="docs/screenshots/grid.jpg" alt="The week as a grid" width="160">
 <img src="docs/screenshots/map.jpg" alt="Campus map" width="160">
 
-## Features
-
-<div align="left">
-
-* **Two styles**: Classic printed cards in the colours you pick, or Editorial, a Swiss grid of big numbers and live tiles. Light or dark, either way.
-* **Home**: the class on now and next with its room, what's due, and what changed since you last looked.
-* **Attendance** sorted by risk: how many you can skip or must attend to stay at 75%, **Plan a leave** to see what days away will cost, and **corrections** for days VTOP marked you absent by mistake.
-* **Exam board**: every paper's time, room, seat and countdown, the free days between, and the course's materials a tap away.
-* **Academics**: marks, assignments, exams, grades and CGPA, with a planner for this semester.
-* **Assignments end to end**: download the question paper, scan pages into a PDF compressed under 4 MB, and upload it from the scanner.
-* **Course materials** by module, kept offline, with a search that forgives typos.
-* **Your week** as a list, a grid or the academic calendar, swapped days and holidays included, and in your phone's calendar if you like.
-* **Free time with friends**: swap weeks by QR code, phone to phone, and see when you're all out of class.
-* **FFCS**: pick your subjects and rules (no 8:00 starts, a proper lunch, days off) and get the best clash-free timetables from VTOP's course allocation; save the ones you like.
-* **Campus map**: find a block, a mess or a room (PRP 327), and walk there from where you are. Works on a first open even when the map site is down.
-* **Faculty reviews**: student ratings and reviews from No8AM, searchable and offline.
-* **Circulars and what's open**: every official circular, searchable, and an alert when a new one lands or a registration opens.
-* **Faculty projects**: research open to students, searchable, with teacher ratings and alerts for the areas you follow.
-* **The rest of VTOP**: hostel leave, club events, messages, receipts, curriculum, feedback, certificates, rules and FAQ, sports seats and more.
-* **Alerts you set up**: low attendance, a reminder before class, new marks and deadlines; plus two home-screen widgets.
-* **Your own course names**: rename any course and the new name shows everywhere.
-* **Signs in by itself.** The captcha is solved on your phone, so a refresh takes seconds.
-
 </div>
+
+## What it does
+
+- **Home**: today's classes, your next one and what's due, all on one screen.
+- **Attendance**: how many you can skip, what a leave will cost, and fixes for wrong absences.
+- **Academics**: marks, grades, CGPA, the exam board and a planner for this semester.
+- **Assignments and materials**: scan and upload assignments; read course PDFs in the app or keep them offline.
+- **Your week**: a list, a grid or the calendar, with free time shared with friends by QR code.
+- **FFCS**: set your rules and get the best clash-free timetables.
+- **Campus map**: find any room and walk there.
+- **Faculty**: student reviews from No8AM, and open research projects.
+- **Alerts**: low attendance, new marks, deadlines, circulars and registrations as they open.
 
 ## Private by design
 
-<div align="left">
-
-* Your password and data stay on your phone, encrypted with a key Android keeps. No server of ours, no accounts, no analytics.
-* It writes to VTOP only after you've confirmed on screen. Payments, registration and password changes are blocked in code.
-* Besides VTOP, it only fetches the campus map and checks GitHub every three hours for a new release. Neither sends anything about you.
-* Signing out erases everything it stored, key included. More in [the security model](docs/06-security-and-encryption.md).
-
-</div>
+Your password and data stay on your phone, encrypted. There's no server, account or analytics. daVIT only changes anything on VTOP after you confirm on screen, and never touches payments or registration. Signing out erases everything. More in [the security model](docs/06-security-and-encryption.md).
 
 <details>
 <summary>Installing</summary>
-<div align="left">
 
-* Open the APK and allow installs from your browser when Android asks.
-* After that, daVIT downloads new releases by itself and asks before installing (Settings → About).
-* On OnePlus, Oppo, Realme and Xiaomi phones, let daVIT run in the background (Settings → Sync) so syncs and alerts arrive.
+Open the APK and allow installs from your browser when Android asks. After that, daVIT offers new versions itself.
 
-</div>
+On OnePlus, Oppo, Realme and Xiaomi phones, let it run in the background (Settings → Sync) so alerts arrive.
+
 </details>
 
 <details>
 <summary>Building from source</summary>
-<div align="left">
 
 Needs JDK 17 and the Android SDK (API 35).
 
@@ -85,23 +58,12 @@ Needs JDK 17 and the Android SDK (API 35).
 cd android && ./gradlew assembleDebug
 ```
 
-The captcha model and slot timetable aren't in this repository, so a build from source runs but can't sign in; see [the captcha solver](docs/05-captcha-solver.md). Releases are built and signed by [GitHub Actions](.github/workflows/release.yml) from the tagged commit.
+The captcha model and slot timetable aren't in this repository, so a build from source runs but can't sign in. See [the captcha solver](docs/05-captcha-solver.md) and [VTOP's endpoints](docs/04-vtop-api-reference.md).
 
-`android/` is the app (Kotlin, Compose; `core` is plain JVM and tests on a laptop) · `web/` a small Flask build of the same engine · `docs/` the [VTOP endpoints](docs/04-vtop-api-reference.md), captcha solver and security model
-
-</div>
 </details>
 
-## Questions and help
-
-[Issues](https://github.com/medriid/davit/issues) for bugs and ideas · [Releases](https://github.com/medriid/davit/releases) for what's new
-
-### Credits
+## Credits
 
 Campus map by [Jeman](https://www.linkedin.com/in/jemankalita/) (MIT) · map data © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors · faculty reviews from [No8AM](https://no8am.site) · fonts Bagel Fat One and IBM Plex Mono (OFL)
 
-### License
-
-[Apache-2.0](LICENSE). daVIT is not affiliated with VIT.
-
-</div>
+[Apache-2.0](LICENSE). Not affiliated with VIT. [Issues](https://github.com/medriid/davit/issues) for bugs and ideas.

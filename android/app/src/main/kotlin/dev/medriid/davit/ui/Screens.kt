@@ -1,5 +1,6 @@
 package dev.medriid.davit.ui
 
+import dev.medriid.davit.data.isPdf
 import dev.medriid.davit.design.EditorialShape
 import dev.medriid.davit.design.Rule
 import androidx.compose.foundation.text.BasicText
@@ -126,7 +127,7 @@ internal fun RouteLazyScreen(
 
 /** The title block of a route screen: back, title and subtitle; in Editorial a big headline over a firm rule. */
 @Composable
-private fun RouteHead(title: String, subtitle: String?) {
+internal fun RouteHead(title: String, subtitle: String?) {
     val inks = LocalInks.current
     val nav = LocalNav.current
     if (inks.editorial) {
@@ -252,17 +253,19 @@ internal fun Freshness(at: Long) {
 internal fun Repo.fetchFile(
     key: String,
     block: (VtopClient, OutputStream, (Long, Long?) -> Unit) -> Download,
+    preview: Boolean = false,
     done: (Result<File>) -> Unit,
 ) {
     scope.launch {
-        val r = runCatching { files.fetch(key) { tmp, progress -> onVtop { c -> tmp.outputStream().buffered().use { block(c, it, progress) } } } }
+        val r = runCatching { files.fetch(key, preview) { tmp, progress -> onVtop { c -> tmp.outputStream().buffered().use { block(c, it, progress) } } } }
         withContext(Dispatchers.Main) { done(r) }
     }
 }
 
 /**
- * A file VTOP serves: tap to download and open (with progress), tap again to open it
- * offline; long-press, or the Delete chip, removes the copy.
+ * A file VTOP serves. Tap to read it: PDFs open inside the app without landing in Downloads,
+ * anything else goes to whichever app opens it. Save keeps a copy for offline; long-press
+ * on a saved one to delete or share it.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -283,20 +286,35 @@ internal fun FileRow(
     val p = progress[key]
     var error by remember(key) { mutableStateOf<String?>(null) }
     var askDelete by remember(key) { mutableStateOf(false) }
+    val nav = LocalNav.current
+    // Only a saved copy can go to another app, so anything but a PDF gets kept.
+    val show: (File) -> Unit = { f ->
+        if (f.isPdf()) {
+            nav.go(Route.PdfView(key, f.path, title))
+        } else {
+            val kept = repo.files.keep(key)
+            if (kept == null || !repo.files.open(kept)) error = "No app on this phone opens .${f.extension} files."
+        }
+    }
+    val failed: (Throwable) -> Unit = {
+        haptics.reject()
+        error = repo.explain(it)
+    }
     val open = {
         error = null
-        if (file != null) {
-            if (!repo.files.open(file)) error = "No app on this phone opens .${file.extension} files."
+        val ready = file ?: repo.files.preview(key)
+        if (ready != null) {
+            show(ready)
         } else if (p == null) {
-            repo.fetchFile(key, fetch) { r ->
-                r.onSuccess {
-                    haptics.confirm()
-                    if (!repo.files.open(it)) error = "Saved, but no app on this phone opens .${it.extension} files."
-                }.onFailure {
-                    haptics.reject()
-                    error = repo.explain(it)
-                }
-            }
+            repo.fetchFile(key, fetch, preview = true) { r -> r.onSuccess(show).onFailure(failed) }
+        }
+    }
+    val save = {
+        error = null
+        if (repo.files.keep(key) != null) {
+            haptics.confirm()
+        } else if (p == null) {
+            repo.fetchFile(key, fetch) { r -> r.onSuccess { haptics.confirm() }.onFailure(failed) }
         }
     }
     Column(modifier.fillMaxWidth()) {
@@ -316,7 +334,10 @@ internal fun FileRow(
             when {
                 p != null -> InkChip(p.fraction?.let { "${(it * 100).toInt()}%" } ?: sizeText(p.done), solid = true)
                 file != null -> InkChip("Open", solid = true)
-                else -> InkChip("Get")
+                else -> Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.clickable(role = Role.Button, onClick = save)) { InkChip("Save") }
+                    InkChip("View", solid = true)
+                }
             }
         }
         if (p != null) {
