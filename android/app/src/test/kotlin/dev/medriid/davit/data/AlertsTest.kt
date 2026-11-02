@@ -14,6 +14,14 @@ import org.junit.Test
 import java.time.LocalDate
 
 class AlertsTest {
+    @Test
+    fun aChangeOfSemesterDoesNotMakeEveryMarkNew() {
+        val before = snap(marks = listOf(course(mark("CAT1", null)))).copy(semester = Semester("VL2", "Winter"))
+        val after = snap(marks = listOf(course(mark("CAT1", 9.0), mark("CAT2", 8.0))))
+        assertTrue(alertsFor(before, after, today).none { it.channel == AlertChannel.Marks })
+        assertEquals(2, alertsFor(snap(marks = listOf(course(mark("CAT1", null)))), after, today).count { it.channel == AlertChannel.Marks })
+    }
+
     private val today = LocalDate.of(2026, 10, 28)
     private val sem = Semester("VL1", "Fall")
 

@@ -226,7 +226,7 @@ private fun ClassStopItem(slot: ClassSlot, minute: Int, nodeY: androidx.compose.
         risk -> "attend ${slot.attendance!!.mustAttend}"
         else -> slot.course.venue.ifBlank { if (slot.isLab) "lab" else "theory" }
     }
-    val said = listOf(slot.course.courseName, "${clock(m.start)} to ${clock(m.end)}", if (live) "on now" else second).joinToString(", ")
+    val said = listOf(slot.course.courseName, if (slot.isLab) "lab" else "theory", "${clock(m.start)} to ${clock(m.end)}", if (live) "on now" else second).joinToString(", ")
 
     Box(
         Modifier
@@ -234,7 +234,7 @@ private fun ClassStopItem(slot: ClassSlot, minute: Int, nodeY: androidx.compose.
             .semantics { contentDescription = said }
             .clickable(role = Role.Button, onClick = onClick),
     ) {
-        StopNode(clock(m.start), done, live, risk, Modifier.align(Alignment.TopCenter).offset(y = nodeY - Node / 2))
+        StopNode(clock(m.start), slot.isLab, done, live, risk, Modifier.align(Alignment.TopCenter).offset(y = nodeY - Node / 2))
         Column(
             Modifier.align(Alignment.TopCenter).padding(top = NodeArea).width(StopWidth).padding(horizontal = 6.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -258,10 +258,11 @@ private fun ClassStopItem(slot: ClassSlot, minute: Int, nodeY: androidx.compose.
     }
 }
 
-/** One stop: a printed button. Pressed flat and dotted when done, solid ink A when live. */
+/** One stop: a printed button, round for theory and square for a lab. Pressed flat and dotted when done, solid ink A when live. */
 @Composable
-private fun StopNode(time: String, done: Boolean, live: Boolean, risk: Boolean, modifier: Modifier) {
+private fun StopNode(time: String, lab: Boolean, done: Boolean, live: Boolean, risk: Boolean, modifier: Modifier) {
     val inks = LocalInks.current
+    val shape = if (lab) androidx.compose.foundation.shape.RoundedCornerShape(9.dp) else CircleShape
     // The time sits on ink A when live: paper or text ink, whichever reads better on it.
     val onA = if (contrast(inks.paper, inks.a) >= contrast(inks.text, inks.a)) inks.paper else inks.text
     val motion = rememberMotionEnabled()
@@ -269,18 +270,18 @@ private fun StopNode(time: String, done: Boolean, live: Boolean, risk: Boolean, 
         if (live && motion) {
             val pulse = rememberInfiniteTransition(label = "live")
             val grow by pulse.animateFloat(1f, 1.32f, infiniteRepeatable(tween(1600), RepeatMode.Restart), label = "grow")
-            Box(Modifier.size(Node).scale(grow).border(2.dp, inks.a.copy(alpha = (1.32f - grow) * 2.4f), CircleShape))
+            Box(Modifier.size(Node).scale(grow).border(2.dp, inks.a.copy(alpha = (1.32f - grow) * 2.4f), shape))
         }
         if (!done) {
-            Box(Modifier.offset(3.dp, 4.dp).size(Node).clip(CircleShape).background(if (live) inks.b else inks.a))
+            Box(Modifier.offset(3.dp, 4.dp).size(Node).clip(shape).background(if (live) inks.b else inks.a))
         }
         Box(
             Modifier
                 .size(Node)
-                .clip(CircleShape)
+                .clip(shape)
                 .background(if (live) inks.a else inks.paper)
                 .then(if (done) Modifier.halftone(inks.b.copy(alpha = 0.45f), 5.dp) else Modifier)
-                .border(2.dp, if (done) inks.rule else inks.text, CircleShape),
+                .border(2.dp, if (done) inks.rule else inks.text, shape),
             contentAlignment = Alignment.Center,
         ) {
             BasicText(

@@ -154,8 +154,9 @@ fun alertsFor(
     // Circulars, projects and registration windows, once there's an earlier reading to compare with.
     if (prefs.notices && old.feeds.watchAt > 0) out += watchAlerts(old.feeds, new.feeds, today, prefs)
 
-    // Marks: an item that has a score now and didn't before. Not on the first marks fetch.
-    if (prefs.marks && old.marks.isNotEmpty()) {
+    // Marks: an item that has a score now and didn't before. Not on the first marks fetch, nor
+    // on a change of semester, where every mark would look new.
+    if (prefs.marks && old.marks.isNotEmpty() && old.semester.id == new.semester.id) {
         val seen = old.marks.flatMap { c -> c.items.filter { it.scored != null }.map { c.classId + "|" + it.title } }.toSet()
         for (c in new.marks) for (m in c.items) {
             val scored = m.scored ?: continue

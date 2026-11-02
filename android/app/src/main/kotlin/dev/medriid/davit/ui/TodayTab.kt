@@ -158,6 +158,7 @@ internal fun TodayTab(
                     },
                 )
                 if (opened) {
+                    Spacer(Modifier.height(12.dp))
                     val slot = plan.today[picked]
                     PickedClass(
                         slot, now, slot == plan.next && plan.nextInDays == 0,
@@ -169,7 +170,7 @@ internal fun TodayTab(
             // Nothing left today: the next class on a later day.
             plan.next?.takeIf { plan.nextInDays > 0 }?.let {
                 if (plan.today.isNotEmpty()) Rule(Modifier.padding(vertical = 8.dp)) else Spacer(Modifier.height(10.dp))
-                NextClass(it, plan, it.attendance?.let { a -> snapshot.remainingFor(a, now) }, onOpenWeek)
+                NextClass(it, plan, it.attendance?.let { a -> snapshot.remainingFor(a, now) }, showEnd = plan.today.isEmpty(), onOpenWeek)
             }
             if (snapshot.timetable.isEmpty()) {
                 InkText("No timetable for ${snapshot.semester.name} yet, so no Now/Next.", style = RisoType.small, modifier = Modifier.padding(top = 8.dp))
@@ -445,7 +446,7 @@ private fun PickedClass(slot: ClassSlot, now: LocalDateTime, isNext: Boolean, re
                 dev.medriid.davit.ui.map.MapChip(slot.course.venue)
             }
         }
-        InkText("$status · ${clock(m.start)} – ${clock(m.end)} · ${if (slot.isLab) "Lab" else "Theory"}", style = RisoType.small, maxLines = 1)
+        InkText("$status · ${if (slot.isLab) "Lab" else "Theory"}", style = RisoType.small, maxLines = 1)
         slot.attendance?.let { a ->
             Spacer(Modifier.height(5.dp))
             HalftoneBar(if (a.total == 0) 1f else a.attended.toFloat() / a.total, threshold = 0.75f, atRisk = a.atRisk, height = 8.dp)
@@ -455,9 +456,9 @@ private fun PickedClass(slot: ClassSlot, now: LocalDateTime, isNext: Boolean, re
     }
 }
 
-/** The next class when none are left today. */
+/** The next class when none are left today. With no path above it ([showEnd]), this is the only place its times show. */
 @Composable
-private fun NextClass(slot: ClassSlot, plan: TodayPlan, remaining: Int?, onClick: () -> Unit) {
+private fun NextClass(slot: ClassSlot, plan: TodayPlan, remaining: Int?, showEnd: Boolean, onClick: () -> Unit) {
     val day = when (plan.nextInDays) {
         1 -> "tomorrow"
         else -> (plan.nextDate?.dayOfWeek ?: DayOfWeek.of(slot.meeting.day)).getDisplayName(TextStyle.FULL, Locale.ENGLISH)
@@ -465,7 +466,7 @@ private fun NextClass(slot: ClassSlot, plan: TodayPlan, remaining: Int?, onClick
     Column(Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = onClick)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                InkText("Next · $day ${clock(slot.meeting.start)}", label = true, maxLines = 1)
+                InkText("Next · $day ${clock(slot.meeting.start)}" + if (showEnd) " – ${clock(slot.meeting.end)}" else "", label = true, maxLines = 1)
                 InkText(slot.course.courseName, style = RisoType.body.copy(fontWeight = FontWeight.SemiBold), maxLines = 1)
             }
             if (slot.course.venue.isNotBlank()) {
