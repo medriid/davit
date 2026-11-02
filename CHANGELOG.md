@@ -2,6 +2,14 @@
 
 Downloads are on the [releases page](https://github.com/medriid/davit/releases). daVIT updates itself after the first install.
 
+## 0.17.0 — 2026-11-02
+
+- **Circulars**: every official circular in one searchable list, with an alert when a new one lands.
+- **What's open**: daVIT checks registrations like transport, MOOC, internship and hostel booking once a day and tells you when one opens.
+- **Faculty projects**: research open to students, searchable by area, with teacher ratings and alerts for the areas you follow.
+- **More from VTOP**: rules and FAQ, make-up and other exams, certificates, sports and gym seats, all clubs, and your sign-in activity.
+- **Faster refreshes**: assignments are only re-read when something has changed.
+
 ## 0.16.0 — 2026-11-01
 
 - **Faculty reviews**: student ratings and reviews from No8AM for 3,116 teachers at Vellore and Chennai. Search by name, department or course. They're built into the app, so they work offline, and they stop at 1 November 2026.
