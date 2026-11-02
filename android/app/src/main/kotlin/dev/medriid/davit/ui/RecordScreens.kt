@@ -85,7 +85,10 @@ internal fun ActivitiesScreen(route: Route) {
         error = null
         scope.launch {
             runCatching { repo.onVtop { c -> c.activitySemesters() } }
-                .onSuccess { s -> semesters = s; s.firstOrNull()?.let { load(it.id) } ?: run { loading = false } }
+                .onSuccess { s ->
+                    semesters = s
+                    (s.firstOrNull { it.id == repo.state.value.snapshot?.semester?.id } ?: s.firstOrNull())?.let { load(it.id) } ?: run { loading = false }
+                }
                 .onFailure { error = repo.explain(it); loading = false }
         }
     }

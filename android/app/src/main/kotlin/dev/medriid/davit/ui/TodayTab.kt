@@ -63,6 +63,7 @@ import dev.medriid.davit.design.InkText
 import dev.medriid.davit.design.LocalInks
 import dev.medriid.davit.design.Overprint
 import dev.medriid.davit.design.RisoType
+import dev.medriid.davit.design.Rule
 import dev.medriid.davit.design.TiltedCard
 import dev.medriid.davit.design.printIn
 import kotlinx.coroutines.delay
@@ -113,67 +114,69 @@ internal fun TodayTab(
     val overall = overallPercent(att)
 
     TabColumn {
-        InkText(now.format(DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.ENGLISH)), style = RisoType.title)
-        InkText(
-            listOfNotNull(
-                when {
-                    calDay != null && !calDay.instructional -> listOfNotNull(calDay.type, calDay.note).joinToString(" · ")
-                    calDay != null && calDay.dayOrder in 1..7 && calDay.dayOrder != now.dayOfWeek.value ->
-                        "Follows ${DayOfWeek.of(calDay.dayOrder).getDisplayName(TextStyle.FULL, Locale.ENGLISH)}'s timetable"
-                    else -> null
-                },
-                when (plan.today.size) {
-                    0 -> "No classes today"
-                    else -> "${plan.today.size} class${if (plan.today.size > 1) "es" else ""} today · ${plan.done} done"
-                },
-                snapshot.calendar?.instructionalDaysLeft(now.toLocalDate())?.takeIf { it > 0 }?.let { "$it teaching days left" },
-            ).joinToString(" · "),
-            style = RisoType.small,
-        )
-        Spacer(Modifier.height(16.dp))
-
-        // Classes first: today's as a path you can swipe along, centred on what's on now
-        // (or next), with whichever class is in the middle shown in full underneath.
-        if (plan.today.isNotEmpty()) {
-            val minute = now.hour * 60 + now.minute
-            val current = plan.today.indexOf(plan.now).takeIf { it >= 0 }
-                ?: plan.today.indexOfFirst { it.meeting.start > minute }.takeIf { it >= 0 }
-            val focus = current ?: plan.today.lastIndex
-            var picked by remember(focus, plan.today) { mutableIntStateOf(focus) }
-            // Once the day's classes are over, the last one's card only repeats the path: it waits for a tap.
-            var opened by remember(focus, plan.today) { mutableStateOf(current != null) }
-            DayPath(
-                plan.today, minute, picked,
-                onSelect = {
-                    picked = it
-                    if (it != focus) opened = true
-                },
-                onTap = {
-                    picked = it
-                    opened = true
-                },
+        // The day in one panel: the date, today's classes as a path you can swipe along, whichever
+        // class is in the middle, and the next class once today's are over.
+        InkCard(
+            Modifier.fillMaxWidth(),
+            kind = dev.medriid.davit.design.Kind.Classes,
+            plateOffset = 4.dp,
+            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
+        ) {
+            InkText(now.format(DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.ENGLISH)), style = RisoType.title.copy(fontSize = 19.sp), maxLines = 1)
+            InkText(
+                listOfNotNull(
+                    when {
+                        calDay != null && !calDay.instructional -> listOfNotNull(calDay.type, calDay.note).joinToString(" · ")
+                        calDay != null && calDay.dayOrder in 1..7 && calDay.dayOrder != now.dayOfWeek.value ->
+                            "Follows ${DayOfWeek.of(calDay.dayOrder).getDisplayName(TextStyle.FULL, Locale.ENGLISH)}'s timetable"
+                        else -> null
+                    },
+                    if (plan.today.isEmpty()) "No classes today" else "${plan.done}/${plan.today.size} done",
+                    snapshot.calendar?.instructionalDaysLeft(now.toLocalDate())?.takeIf { it > 0 }?.let { "$it teaching days left" },
+                ).joinToString(" · "),
+                style = RisoType.small,
+                maxLines = 2,
             )
-            if (opened) {
-                Spacer(Modifier.height(10.dp))
-                val slot = plan.today[picked]
-                val remaining = slot.attendance?.let { snapshot.remainingFor(it, now) }
-                if (slot == plan.now) {
-                    NowCard(slot, now, remaining, onOpenAttendance)
-                } else {
-                    SlotCard(slot, now, slot == plan.next && plan.nextInDays == 0, remaining, onOpenWeek)
+            if (plan.today.isNotEmpty()) {
+                val minute = now.hour * 60 + now.minute
+                val current = plan.today.indexOf(plan.now).takeIf { it >= 0 }
+                    ?: plan.today.indexOfFirst { it.meeting.start > minute }.takeIf { it >= 0 }
+                val focus = current ?: plan.today.lastIndex
+                var picked by remember(focus, plan.today) { mutableIntStateOf(focus) }
+                // Once the day's classes are over, the last one only repeats the path: it waits for a tap.
+                var opened by remember(focus, plan.today) { mutableStateOf(current != null) }
+                DayPath(
+                    plan.today, minute, picked,
+                    onSelect = {
+                        picked = it
+                        if (it != focus) opened = true
+                    },
+                    bleed = 12.dp,
+                    onTap = {
+                        picked = it
+                        opened = true
+                    },
+                )
+                if (opened) {
+                    val slot = plan.today[picked]
+                    PickedClass(
+                        slot, now, slot == plan.next && plan.nextInDays == 0,
+                        slot.attendance?.let { snapshot.remainingFor(it, now) },
+                        if (slot == plan.now) onOpenAttendance else onOpenWeek,
+                    )
                 }
             }
-        }
-        // Nothing left today: the next class on a later day.
-        plan.next?.takeIf { plan.nextInDays > 0 }?.let {
-            if (plan.today.isNotEmpty()) Spacer(Modifier.height(14.dp))
-            NextCard(it, plan, now, it.attendance?.let { a -> snapshot.remainingFor(a, now) }, onOpenWeek)
-        }
-        if (snapshot.timetable.isEmpty()) {
-            InkText("No timetable for ${snapshot.semester.name} yet, so no Now/Next.", style = RisoType.small)
+            // Nothing left today: the next class on a later day.
+            plan.next?.takeIf { plan.nextInDays > 0 }?.let {
+                if (plan.today.isNotEmpty()) Rule(Modifier.padding(vertical = 8.dp)) else Spacer(Modifier.height(10.dp))
+                NextClass(it, plan, it.attendance?.let { a -> snapshot.remainingFor(a, now) }, onOpenWeek)
+            }
+            if (snapshot.timetable.isEmpty()) {
+                InkText("No timetable for ${snapshot.semester.name} yet, so no Now/Next.", style = RisoType.small, modifier = Modifier.padding(top = 8.dp))
+            }
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(12.dp))
         Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             StatTile(
                 overall?.let { "$it%" } ?: "–",
@@ -192,7 +195,7 @@ internal fun TodayTab(
             RegistrationCard(reg, now, Modifier.printIn(2))
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(12.dp))
         QuickButtons(onOpenAcademics, onOpen)
 
         val today = now.toLocalDate()
@@ -354,9 +357,9 @@ private fun QuickButtons(onOpenAcademics: () -> Unit, onOpen: (Route) -> Unit) {
         rows.forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 row.forEach { (label, icon, go) ->
-                    InkCard(Modifier.weight(1f).height(72.dp), onClick = go, plateOffset = 3.dp, contentPadding = PaddingValues(10.dp)) {
+                    InkCard(Modifier.weight(1f).height(62.dp), onClick = go, plateOffset = 3.dp, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)) {
                         IconGlyph(icon, LocalInks.current.text, Modifier.size(20.dp))
-                        Spacer(Modifier.height(6.dp))
+                        Spacer(Modifier.height(4.dp))
                         InkText(label, style = RisoType.small.copy(fontWeight = FontWeight.SemiBold), maxLines = 1)
                     }
                 }
@@ -414,133 +417,67 @@ private fun RegistrationCard(w: dev.medriid.davit.vtop.RegistrationWindow, now: 
 
 @Composable
 private fun StatTile(value: String, label: String, modifier: Modifier, onClick: () -> Unit) {
-    InkCard(modifier, onClick = onClick, kind = dev.medriid.davit.design.Kind.Attendance, contentPadding = PaddingValues(14.dp)) {
-        // The halftone plate springs into register whenever the number changes.
-        val size = with(LocalDensity.current) { 40.dp.toSp() }
-        Overprint(value, size, rest = androidx.compose.ui.unit.DpOffset(2.dp, 1.5.dp), from = androidx.compose.ui.unit.DpOffset(14.dp, (-8).dp), dot = 4.dp, registerKey = value)
-        Spacer(Modifier.height(10.dp))
-        InkText(label, style = RisoType.body.copy(fontWeight = FontWeight.SemiBold))
-    }
-}
-
-@Composable
-private fun NowCard(slot: ClassSlot, now: LocalDateTime, remaining: Int?, onClick: () -> Unit) {
-    val inks = LocalInks.current
-    val m = slot.meeting
-    val minute = now.hour * 60 + now.minute + now.second / 60f
-    val row = slot.attendance
-    val hero by animateIntAsState(row?.percent ?: 0, label = "hero")
-    val heroSize = with(LocalDensity.current) { 50.dp.toSp() }
-
-    InkCard(Modifier.fillMaxWidth(), onClick = onClick, kind = dev.medriid.davit.design.Kind.Classes) {
-        Row(Modifier.height(IntrinsicSize.Min)) {
-            Column(Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    InkText(slot.course.courseName, style = RisoType.title.copy(fontSize = 21.sp), modifier = Modifier.weight(1f), maxLines = 2)
-                    InkChip("Live", solid = true)
-                }
-                InkText("${slot.course.courseCode} · ${if (slot.isLab) "Lab" else "Theory"}", style = RisoType.small)
-                Spacer(Modifier.height(12.dp))
-                InkText("${clock(m.start)} – ${clock(m.end)}", style = RisoType.body.copy(fontWeight = FontWeight.SemiBold))
-                Spacer(Modifier.height(6.dp))
-                HalftoneBar(((minute - m.start) / (m.end - m.start)).coerceIn(0f, 1f), height = 10.dp)
-                Spacer(Modifier.height(12.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (slot.course.venue.isNotBlank()) dev.medriid.davit.ui.map.MapChip(slot.course.venue)
-                    InkChip(m.slot)
-                }
-            }
-            if (row != null) {
-                Spacer(Modifier.width(14.dp))
-                Spacer(Modifier.width(2.dp).fillMaxHeight().background(inks.text))
-                Column(
-                    Modifier.width(118.dp).fillMaxHeight().padding(start = 12.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
-                ) {
-                    Overprint("$hero%", heroSize)
-                    Spacer(Modifier.height(14.dp))
-                    if (row.atRisk) {
-                        InkText("attend ${row.mustAttend}", style = RisoType.body.copy(fontWeight = FontWeight.SemiBold))
-                        InkText("to recover", style = RisoType.small)
-                    } else if (remaining != null) {
-                        InkText("skip ${minOf(row.skipTillEnd(remaining), remaining).coerceAtLeast(0)}", style = RisoType.body.copy(fontWeight = FontWeight.SemiBold))
-                        InkText("of $remaining left", style = RisoType.small)
-                    } else {
-                        InkText("skip ${row.canSkipNow}", style = RisoType.body.copy(fontWeight = FontWeight.SemiBold))
-                        InkText("and stay at 75%", style = RisoType.small)
-                    }
-                }
-            }
+    InkCard(modifier, onClick = onClick, kind = dev.medriid.davit.design.Kind.Attendance, plateOffset = 3.dp, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)) {
+        Row(Modifier.fillMaxHeight(), verticalAlignment = Alignment.CenterVertically) {
+            InkText(value, style = RisoType.title.copy(fontSize = 20.sp), maxLines = 1)
+            Spacer(Modifier.width(8.dp))
+            InkText(label, style = RisoType.small.copy(fontWeight = FontWeight.SemiBold), maxLines = 1)
         }
     }
 }
 
+/** The class picked on the day path: what it is, where, and where its attendance stands. */
 @Composable
-private fun NextCard(slot: ClassSlot, plan: TodayPlan, now: LocalDateTime, remaining: Int?, onClick: () -> Unit) {
-    val minute = now.hour * 60 + now.minute
-    val whenText = when (plan.nextInDays) {
-        0 -> {
-            val mins = slot.meeting.start - minute
-            if (mins < 60) "in $mins min" else "in ${mins / 60} h ${mins % 60} min"
-        }
-        1 -> "tomorrow"
-        else -> (plan.nextDate?.dayOfWeek ?: DayOfWeek.of(slot.meeting.day)).getDisplayName(TextStyle.FULL, Locale.ENGLISH)
-    }
-    InkCard(
-        Modifier.fillMaxWidth(),
-        onClick = onClick,
-        kind = dev.medriid.davit.design.Kind.Classes,
-        plateOffset = 4.dp,
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            InkText("Next", label = true, modifier = Modifier.width(52.dp))
-            InkText(clock(slot.meeting.start), style = RisoType.title, modifier = Modifier.padding(end = 14.dp))
-            Column(Modifier.weight(1f)) {
-                InkText(slot.course.courseName, style = RisoType.body.copy(fontWeight = FontWeight.SemiBold), maxLines = 2)
-                InkText(listOf(whenText, if (slot.isLab) "Lab" else "Theory").joinToString(" · "), style = RisoType.small)
-                slot.attendance?.let { InkText("${it.percent}% · ${it.hint(remaining)}", style = RisoType.small) }
-                if (slot.course.venue.isNotBlank()) {
-                    Spacer(Modifier.height(8.dp))
-                    dev.medriid.davit.ui.map.MapChip(slot.course.venue)
-                }
-            }
-        }
-    }
-}
-
-/** A class picked on the day path that isn't on right now: done, next, or later today. */
-@Composable
-private fun SlotCard(slot: ClassSlot, now: LocalDateTime, isNext: Boolean, remaining: Int?, onClick: () -> Unit) {
+private fun PickedClass(slot: ClassSlot, now: LocalDateTime, isNext: Boolean, remaining: Int?, onClick: () -> Unit) {
     val minute = now.hour * 60 + now.minute
     val m = slot.meeting
     val mins = m.start - minute
     val status = when {
         m.end <= minute -> "Done"
-        else -> (if (isNext) "Next · " else "Later · ") + if (mins < 60) "in $mins min" else "in ${mins / 60} h ${mins % 60} min"
+        m.start <= minute -> "On now"
+        else -> (if (isNext) "Next, " else "Later, ") + if (mins < 60) "in $mins min" else "in ${mins / 60} h ${mins % 60} min"
     }
-    InkCard(
-        Modifier.fillMaxWidth(),
-        onClick = onClick,
-        kind = dev.medriid.davit.design.Kind.Classes,
-        plateOffset = 4.dp,
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
-    ) {
-        InkText(status, label = true)
-        Spacer(Modifier.height(6.dp))
-        InkText(slot.course.courseName, style = RisoType.title.copy(fontSize = 19.sp), maxLines = 2)
-        InkText("${clock(m.start)} – ${clock(m.end)} · ${slot.course.courseCode} · ${if (slot.isLab) "Lab" else "Theory"}", style = RisoType.small)
+    Column(Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = onClick)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            InkText(slot.course.courseName, style = RisoType.body.copy(fontWeight = FontWeight.SemiBold), maxLines = 1, modifier = Modifier.weight(1f))
+            if (slot.course.venue.isNotBlank()) {
+                Spacer(Modifier.width(8.dp))
+                dev.medriid.davit.ui.map.MapChip(slot.course.venue)
+            }
+        }
+        InkText("$status · ${clock(m.start)} – ${clock(m.end)} · ${if (slot.isLab) "Lab" else "Theory"}", style = RisoType.small, maxLines = 1)
         slot.attendance?.let { a ->
-            Spacer(Modifier.height(10.dp))
-            HalftoneBar(if (a.total == 0) 1f else a.attended.toFloat() / a.total, threshold = 0.75f, atRisk = a.atRisk, height = 10.dp)
-            Spacer(Modifier.height(6.dp))
-            InkText("${a.percent}% · ${a.hint(remaining)}", style = RisoType.small)
+            Spacer(Modifier.height(5.dp))
+            HalftoneBar(if (a.total == 0) 1f else a.attended.toFloat() / a.total, threshold = 0.75f, atRisk = a.atRisk, height = 8.dp)
+            Spacer(Modifier.height(3.dp))
+            InkText("${a.percent}% · ${a.hint(remaining)}", style = RisoType.small, maxLines = 2)
         }
-        if (slot.course.venue.isNotBlank()) {
-            Spacer(Modifier.height(10.dp))
-            dev.medriid.davit.ui.map.MapChip(slot.course.venue)
+    }
+}
+
+/** The next class when none are left today. */
+@Composable
+private fun NextClass(slot: ClassSlot, plan: TodayPlan, remaining: Int?, onClick: () -> Unit) {
+    val day = when (plan.nextInDays) {
+        1 -> "tomorrow"
+        else -> (plan.nextDate?.dayOfWeek ?: DayOfWeek.of(slot.meeting.day)).getDisplayName(TextStyle.FULL, Locale.ENGLISH)
+    }
+    Column(Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = onClick)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                InkText("Next · $day ${clock(slot.meeting.start)}", label = true, maxLines = 1)
+                InkText(slot.course.courseName, style = RisoType.body.copy(fontWeight = FontWeight.SemiBold), maxLines = 1)
+            }
+            if (slot.course.venue.isNotBlank()) {
+                Spacer(Modifier.width(8.dp))
+                dev.medriid.davit.ui.map.MapChip(slot.course.venue)
+            }
         }
+        InkText(
+            listOfNotNull(if (slot.isLab) "Lab" else "Theory", slot.attendance?.let { "${it.percent}% · ${it.hint(remaining)}" }).joinToString(" · "),
+            style = RisoType.small,
+            maxLines = 2,
+        )
     }
 }
 

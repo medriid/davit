@@ -60,7 +60,6 @@ import dev.medriid.davit.data.ClassSlot
 import dev.medriid.davit.data.atRisk
 import dev.medriid.davit.data.clock
 import dev.medriid.davit.data.mustAttend
-import dev.medriid.davit.design.InkChip
 import dev.medriid.davit.design.LocalInks
 import dev.medriid.davit.design.RisoType
 import dev.medriid.davit.design.halftone
@@ -92,11 +91,11 @@ private const val FreeGap = 60
 
 private val StopWidth = 112.dp
 private val FreeWidth = 72.dp
-private val Node = 62.dp
-private val ChipRoom = 30.dp
-private val Wave = 26.dp
-private val NodeArea = ChipRoom + Wave + Node + 12.dp
-private val LabelArea = 60.dp
+private val Node = 50.dp
+private val TopRoom = 8.dp
+private val Wave = 8.dp
+private val NodeArea = TopRoom + Wave + Node + 8.dp
+private val LabelArea = 50.dp
 
 private fun stopsOf(slots: List<ClassSlot>): List<Stop> = buildList {
     slots.forEachIndexed { i, s ->
@@ -124,6 +123,8 @@ internal fun DayPath(
     selected: Int,
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
+    /** How far past its parent the path runs, so it scrolls in from the edge of the panel it sits in. */
+    bleed: androidx.compose.ui.unit.Dp = 0.dp,
     /** A stop tapped by hand, as a swipe settling or the path's first layout also call [onSelect]. */
     onTap: (Int) -> Unit = onSelect,
 ) {
@@ -144,7 +145,7 @@ internal fun DayPath(
         }
     }
 
-    BoxWithConstraints(modifier.bleed()) {
+    BoxWithConstraints(modifier.bleed(bleed)) {
         val side = ((maxWidth - StopWidth) / 2).coerceAtLeast(0.dp)
         LazyRow(
             state = state,
@@ -155,13 +156,13 @@ internal fun DayPath(
             itemsIndexed(stops) { j, stop ->
                 val prev = stops.getOrNull(j - 1)
                 val next = stops.getOrNull(j + 1)
-                val nodeY = ChipRoom + Node / 2 + Wave * wave(j)
+                val nodeY = TopRoom + Node / 2 + Wave * wave(j)
                 Box(
                     Modifier
                         .width(if (stop is ClassStop) StopWidth else FreeWidth)
                         .height(NodeArea + LabelArea)
                         .drawBehind {
-                            val y = { k: Int -> (ChipRoom + Node / 2 + Wave * wave(k)).toPx() }
+                            val y = { k: Int -> (TopRoom + Node / 2 + Wave * wave(k)).toPx() }
                             val mid = size.width / 2
                             if (prev != null) {
                                 line(0f, (y(j - 1) + y(j)) / 2, mid, y(j), (prev.exit + stop.enter) / 2, stop.enter, minute, inks.rule, inks.b, inks.blend)
@@ -220,6 +221,7 @@ private fun ClassStopItem(slot: ClassSlot, minute: Int, nodeY: androidx.compose.
     val live = m.start <= minute && minute < m.end
     val risk = !done && slot.attendance?.atRisk == true
     val second = when {
+        live -> "now"
         done -> "done"
         risk -> "attend ${slot.attendance!!.mustAttend}"
         else -> slot.course.venue.ifBlank { if (slot.isLab) "lab" else "theory" }
@@ -232,9 +234,6 @@ private fun ClassStopItem(slot: ClassSlot, minute: Int, nodeY: androidx.compose.
             .semantics { contentDescription = said }
             .clickable(role = Role.Button, onClick = onClick),
     ) {
-        if (live) {
-            InkChip("NOW", Modifier.align(Alignment.TopCenter).offset(y = nodeY - Node / 2 - 28.dp), solid = true)
-        }
         StopNode(clock(m.start), done, live, risk, Modifier.align(Alignment.TopCenter).offset(y = nodeY - Node / 2))
         Column(
             Modifier.align(Alignment.TopCenter).padding(top = NodeArea).width(StopWidth).padding(horizontal = 6.dp),
@@ -244,16 +243,16 @@ private fun ClassStopItem(slot: ClassSlot, minute: Int, nodeY: androidx.compose.
                 slot.course.courseName,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
-                style = RisoType.small.copy(fontSize = 13.sp, lineHeight = 16.sp, fontWeight = FontWeight.SemiBold, color = inks.text, textAlign = TextAlign.Center),
+                style = RisoType.small.copy(fontSize = 12.sp, lineHeight = 14.sp, fontWeight = FontWeight.SemiBold, color = inks.text, textAlign = TextAlign.Center),
             )
             BasicText(
                 second.uppercase(),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                style = RisoType.label.copy(color = if (risk) inks.a else inks.text, letterSpacing = RisoType.label.letterSpacing * 0.5f, textAlign = TextAlign.Center),
-                modifier = Modifier.padding(top = 2.dp),
+                style = RisoType.label.copy(color = if (risk || live) inks.a else inks.text, letterSpacing = RisoType.label.letterSpacing * 0.5f, textAlign = TextAlign.Center),
+                modifier = Modifier.padding(top = 1.dp),
             )
-            Spacer(Modifier.height(5.dp))
+            Spacer(Modifier.height(3.dp))
             Box(Modifier.width(26.dp).height(3.dp).background(if (selected) inks.b else Color.Transparent))
         }
     }
@@ -273,21 +272,21 @@ private fun StopNode(time: String, done: Boolean, live: Boolean, risk: Boolean, 
             Box(Modifier.size(Node).scale(grow).border(2.dp, inks.a.copy(alpha = (1.32f - grow) * 2.4f), CircleShape))
         }
         if (!done) {
-            Box(Modifier.offset(4.dp, 5.dp).size(Node).clip(CircleShape).background(if (live) inks.b else inks.a))
+            Box(Modifier.offset(3.dp, 4.dp).size(Node).clip(CircleShape).background(if (live) inks.b else inks.a))
         }
         Box(
             Modifier
                 .size(Node)
                 .clip(CircleShape)
                 .background(if (live) inks.a else inks.paper)
-                .then(if (done) Modifier.halftone(inks.b.copy(alpha = 0.45f), 6.dp) else Modifier)
+                .then(if (done) Modifier.halftone(inks.b.copy(alpha = 0.45f), 5.dp) else Modifier)
                 .border(2.dp, if (done) inks.rule else inks.text, CircleShape),
             contentAlignment = Alignment.Center,
         ) {
             BasicText(
                 time,
-                style = RisoType.display(16.sp).copy(color = if (live) onA else inks.text),
-                modifier = Modifier.trimToCaps(16.sp),
+                style = RisoType.display(14.sp).copy(color = if (live) onA else inks.text),
+                modifier = Modifier.trimToCaps(14.sp),
             )
         }
         if (risk) {
@@ -295,13 +294,13 @@ private fun StopNode(time: String, done: Boolean, live: Boolean, risk: Boolean, 
                 Modifier
                     .align(Alignment.TopEnd)
                     .offset(2.dp, (-4).dp)
-                    .size(22.dp)
+                    .size(18.dp)
                     .clip(CircleShape)
                     .background(inks.paper)
                     .border(2.dp, inks.text, CircleShape),
                 contentAlignment = Alignment.Center,
             ) {
-                BasicText("!", style = RisoType.display(13.sp).copy(color = inks.a), modifier = Modifier.trimToCaps(13.sp))
+                BasicText("!", style = RisoType.display(11.sp).copy(color = inks.a), modifier = Modifier.trimToCaps(11.sp))
             }
         }
     }
@@ -328,9 +327,9 @@ private fun contrast(a: Color, b: Color): Float {
     return (maxOf(x, y) + 0.05f) / (minOf(x, y) + 0.05f)
 }
 
-/** Runs edge to edge through the tab's side gutters, so the path scrolls in from the screen edge. */
-private fun Modifier.bleed(): Modifier = layout { measurable, constraints ->
-    val extra = Gutter.roundToPx()
+/** Runs [by] past both sides of its parent. */
+private fun Modifier.bleed(by: androidx.compose.ui.unit.Dp): Modifier = layout { measurable, constraints ->
+    val extra = by.roundToPx()
     val width = constraints.maxWidth + extra * 2
     val placeable = measurable.measure(constraints.copy(minWidth = width, maxWidth = width))
     layout(constraints.maxWidth, placeable.height) { placeable.place(-extra, 0) }

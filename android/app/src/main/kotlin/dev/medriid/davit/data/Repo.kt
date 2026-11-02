@@ -203,8 +203,9 @@ class Repo(private val context: Context) {
         scope.launch { lock.withLock { syncLocked() } }
     }
 
+    /** Pins [id]; choosing the current semester unpins, so next semester still takes over when it starts. */
     fun chooseSemester(id: String) {
-        prefs.edit().putString(K_SEMESTER, id).apply()
+        prefs.edit().apply { if (id == prefs.getString(K_CUR_SEM, null)) remove(K_SEMESTER) else putString(K_SEMESTER, id) }.apply()
         sync()
     }
 
@@ -587,24 +588,16 @@ class Repo(private val context: Context) {
                 semesters = client.semesters()
             }
             if (semesters.isEmpty()) throw UnexpectedPage("VTOP didn't list any semesters.")
-            val wanted = prefs.getString(K_SEMESTER, null) ?: currentSemesterId()
-            var semester = semesters.firstOrNull { it.id == wanted }
-            var found: List<dev.medriid.davit.vtop.AttendanceRow>? = null
             _state.update { it.copy(busy = "Fetching attendance") }
-            if (semester == null) {
-                // Your current semester: the newest VTOP has classes for. A semester can be
-                // listed before it starts, with no attendance yet. Remembered for a day.
-                for (s in semesters.take(3)) {
-                    val rows = withSession(creds) { client.attendance(s.id) }
-                    if (rows.isNotEmpty()) {
-                        semester = s
-                        found = rows
-                        break
-                    }
-                }
-                semester = semester ?: semesters.first()
-                prefs.edit().putString(K_CUR_SEM, semester.id).putLong(K_CUR_SEM_AT, System.currentTimeMillis()).apply()
-            }
+            // Your current semester, worked out about once a day, even with another one pinned.
+            val read = mutableMapOf<String, List<dev.medriid.davit.vtop.AttendanceRow>>()
+            val current = semesters.firstOrNull { it.id == currentSemesterId() }
+                ?: currentSemester(semesters) { s -> withSession(creds) { client.attendance(s.id) }.also { read[s.id] = it } }
+                    .also { prefs.edit().putString(K_CUR_SEM, it.id).putLong(K_CUR_SEM_AT, System.currentTimeMillis()).apply() }
+            val pinned = prefs.getString(K_SEMESTER, null)
+            if (pinned == current.id) prefs.edit().remove(K_SEMESTER).apply()
+            val semester = semesters.firstOrNull { it.id == pinned } ?: current
+            val found = read[semester.id]
             val old = _state.value.snapshot?.takeIf { it.semester.id == semester.id }
 
             // Attendance first, and shown as soon as it lands.
@@ -898,7 +891,7 @@ class Repo(private val context: Context) {
         private const val K_CREDS = "creds"
         private const val K_SESSION = "session"
         private const val K_CACHE = "cache"
-        private const val K_SEMESTER = "semester"
+        private const val K_SEMESTER = "semesterPin"
         private const val K_INK = "ink"
         private const val K_PALETTE = "palette"
         private const val K_DUMP = "dump"
@@ -924,8 +917,8 @@ class Repo(private val context: Context) {
         private const val K_ALERT_PREFS = "alertPrefs"
         private const val K_CAL_GROUP = "calendarGroup:"
         private const val K_CAL_MANUAL = "calendarGroupManual:"
-        private const val K_CUR_SEM = "currentSemester"
-        private const val K_CUR_SEM_AT = "currentSemesterAt"
+        private const val K_CUR_SEM = "currentSemesterHeld"
+        private const val K_CUR_SEM_AT = "currentSemesterHeldAt"
     }
 }
 
