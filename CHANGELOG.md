@@ -2,6 +2,11 @@
 
 Downloads are on the [releases page](https://github.com/medriid/davit/releases). daVIT updates itself after the first install.
 
+## 0.17.2 — 2026-11-03
+
+- **Stays on the current semester**: registering for next semester no longer moves daVIT to it. It moves once that semester's first class has been held.
+- **A shorter Home**: the date, today's classes and your next class share one panel, so the quick buttons show without scrolling.
+
 ## 0.17.1 — 2026-11-02
 
 - **Cleaner marks**: spreadsheet formulas that reach VTOP's remarks, like SUM(G48:K48), no longer show. Your marks are unchanged.
