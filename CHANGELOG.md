@@ -2,6 +2,13 @@
 
 Downloads are on the [releases page](https://github.com/medriid/davit/releases). daVIT updates itself after the first install.
 
+## 0.18.0 — 2026-11-03
+
+- **Read PDFs in the app**: View opens course materials, circulars and more right here, without filling your downloads. Save keeps a copy.
+- **Teachers a tap away**: tap the faculty on a course to jump to their details.
+- **Faster syncs**: daVIT skips what rarely changes, and pulling down still reads everything.
+- **Fixes**: circulars now download, Rules and FAQ no longer hang, and the app no longer risks crashing when returning to a screen.
+
 ## 0.17.3 — 2026-11-03
 
 - **App lock works**: turning it on used to crash daVIT every time it opened. If that happened to you, install this over the top and your data is still there.
