@@ -219,6 +219,13 @@ object Parsers {
 
     // ---- academics -----------------------------------------------------------------
 
+    // Inside a function's brackets, only what a formula holds: no spaces, so "Reviewed(see Q3)" stays a remark.
+    private val sheetFormula = Regex("""^=.*|^[A-Za-z]+\([\w:,;+\-*/().$]*[A-Za-z]{1,3}\$?\d+[\w:,;+\-*/().$]*\)$|^[A-Za-z]{1,3}\d+:[A-Za-z]{1,3}\d+$""")
+    private val sheetError = Regex("""^#(REF!|VALUE!|N/A|DIV/0!|NAME\?|NUM!|NULL!)$""", RegexOption.IGNORE_CASE)
+
+    /** A formula or error from the teacher's spreadsheet that reached VTOP's Remark column, like "SUM(G48:K48)". */
+    internal fun isSheetLeftover(remark: String): Boolean = sheetFormula.matches(remark.replace(", ", ",")) || sheetError.matches(remark)
+
     /**
      * `POST /examinations/doStudentMarkView`: rows come in pairs, a course row (Sl.No,
      * Class Nbr, Code, Title, Type, …) then a row holding that course's marks table.
@@ -244,7 +251,7 @@ object Parsers {
                         status = clean(c[4].text()),
                         scored = number(c[5].text()),
                         weighted = number(c[6].text()),
-                        remark = clean(c[7].text()).takeUnless { it == "-" }.orEmpty(),
+                        remark = clean(c[7].text()).takeUnless { it == "-" || isSheetLeftover(it) }.orEmpty(),
                     )
                 }.orEmpty()
             out += CourseMarks(

@@ -136,18 +136,32 @@ internal fun TodayTab(
         // (or next), with whichever class is in the middle shown in full underneath.
         if (plan.today.isNotEmpty()) {
             val minute = now.hour * 60 + now.minute
-            val focus = plan.today.indexOf(plan.now).takeIf { it >= 0 }
+            val current = plan.today.indexOf(plan.now).takeIf { it >= 0 }
                 ?: plan.today.indexOfFirst { it.meeting.start > minute }.takeIf { it >= 0 }
-                ?: plan.today.lastIndex
+            val focus = current ?: plan.today.lastIndex
             var picked by remember(focus, plan.today) { mutableIntStateOf(focus) }
-            DayPath(plan.today, minute, picked, { picked = it })
-            Spacer(Modifier.height(10.dp))
-            val slot = plan.today[picked]
-            val remaining = slot.attendance?.let { snapshot.remainingFor(it, now) }
-            if (slot == plan.now) {
-                NowCard(slot, now, remaining, onOpenAttendance)
-            } else {
-                SlotCard(slot, now, slot == plan.next && plan.nextInDays == 0, remaining, onOpenWeek)
+            // Once the day's classes are over, the last one's card only repeats the path: it waits for a tap.
+            var opened by remember(focus, plan.today) { mutableStateOf(current != null) }
+            DayPath(
+                plan.today, minute, picked,
+                onSelect = {
+                    picked = it
+                    if (it != focus) opened = true
+                },
+                onTap = {
+                    picked = it
+                    opened = true
+                },
+            )
+            if (opened) {
+                Spacer(Modifier.height(10.dp))
+                val slot = plan.today[picked]
+                val remaining = slot.attendance?.let { snapshot.remainingFor(it, now) }
+                if (slot == plan.now) {
+                    NowCard(slot, now, remaining, onOpenAttendance)
+                } else {
+                    SlotCard(slot, now, slot == plan.next && plan.nextInDays == 0, remaining, onOpenWeek)
+                }
             }
         }
         // Nothing left today: the next class on a later day.

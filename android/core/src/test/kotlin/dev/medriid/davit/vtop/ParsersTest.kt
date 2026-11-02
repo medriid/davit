@@ -11,6 +11,29 @@ class ParsersTest {
     private fun html(name: String) = javaClass.getResource("/html/$name")!!.readText()
 
     @Test
+    fun spreadsheetLeftoversAreNotRemarks() {
+        for (junk in listOf("SUM(G48:K48)", "sum(g48:k48)", "=G48+H48", "=SUM(A1:A5)", "AVERAGE(B2,C2)", "AVERAGE(B2, C2)", "ROUND(SUM(G48:K48),0)", "SUM(${'$'}G${'$'}48:${'$'}K${'$'}48)", "G48:K48", "#REF!", "#N/A", "#DIV/0!")) {
+            assertTrue(junk, Parsers.isSheetLeftover(junk))
+        }
+        for (real in listOf("Absent for CAT", "Retest (Q2)", "Good", "Re-evaluated", "A1", "L19", "Reviewed(see Q3)", "Marks 45/50")) {
+            assertFalse(real, Parsers.isSheetLeftover(real))
+        }
+    }
+
+    @Test
+    fun aFormulaInTheRemarkColumnIsDroppedAndTheMarkKept() {
+        val page = """<div id="fixedTableContainer"><table class="customTable">
+            <tr class="tableContent"><td>1</td><td>VL1</td><td>BXYZ101</td><td>Example</td><td>ETH</td><td>CAL</td><td>TEACHER</td><td>A1</td><td>Regular</td></tr>
+            <tr class="tableContent"><td colspan="9"><table class="customTable-level1">
+            <tr class="tableContent-level1"><td>1</td><td>CAT - II</td><td>50</td><td>15</td><td>Present</td><td>45.0</td><td>13.5</td><td>SUM(G48:K48)</td></tr>
+            </table></td></tr></table></div>"""
+        val item = Parsers.marks(page).single().items.single()
+        assertEquals("", item.remark)
+        assertEquals(45.0, item.scored!!, 0.0)
+        assertEquals(13.5, item.weighted!!, 0.0)
+    }
+
+    @Test
     fun attendanceRows() {
         val rows = Parsers.attendance(html("attendance.html"))
         assertEquals(3, rows.size)

@@ -124,6 +124,8 @@ internal fun DayPath(
     selected: Int,
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
+    /** A stop tapped by hand, as a swipe settling or the path's first layout also call [onSelect]. */
+    onTap: (Int) -> Unit = onSelect,
 ) {
     val inks = LocalInks.current
     val stops = remember(slots) { stopsOf(slots) }
@@ -170,7 +172,7 @@ internal fun DayPath(
                         },
                 ) {
                     when (stop) {
-                        is ClassStop -> ClassStopItem(stop.slot, minute, nodeY, stop.index == selected) { onSelect(stop.index) }
+                        is ClassStop -> ClassStopItem(stop.slot, minute, nodeY, stop.index == selected) { onTap(stop.index) }
                         is FreeStop -> FreeStopItem(stop)
                     }
                 }
