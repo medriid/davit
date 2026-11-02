@@ -71,6 +71,43 @@ internal object DemoVtop {
     }
 
     private fun page(path: String, p: Map<String, String>): String? = when (path) {
+        "admissions/costCentreCircularsViewPageController" -> """<ul id="tree1"><li><span>Office of the Dean (Academics)</span><ul><li><span>GEN</span><ul><li><span>General</span><ul>
+            <li><a onclick="javascript:viewCertificate('CIR2026000011');">011_ACAD. CALEN. FOR WINTER SEMESTER 2026-27_07.09.2026.pdf [ 07-SEP-2026 ]</a></li>
+            <li><a onclick="javascript:viewCertificate('CIR2026000009');">009_CIRCULAR ON NPTEL COURSE REGISTRATION_21.07.2026.pdf [ 21-JUL-2026 ]</a></li></ul></li></ul></li></ul></li></ul>"""
+        "fpp/studentProposal" -> """<table><thead><tr><th>PROJECT Title</th><th>RESEARCH AREA</th><th>POSTED ON</th><th>FACULTY DETAILS</th><th>ACTION</th></tr></thead><tbody>
+            <tr><td>Fast retrieval over campus notes</td><td>Computer Science</td><td>02-11-2026</td><td>Dr.ASHA RAMAN - SCOPE</td><td><button data-id="FP1">Request</button></td></tr>
+            <tr><td>Soil moisture sensing at low cost</td><td>Electronics &amp; Communication</td><td>28-10-2026</td><td>Dr.MEERA NAIR - SENSE</td><td><button data-id="FP2">Request</button></td></tr>
+            <tr><td>Ball intersection properties of operators</td><td>Mathematics</td><td>21-10-2026</td><td>Dr.RAMAN K - SAS</td><td><button data-id="FP3">Request</button></td></tr></tbody></table>"""
+        "transport/transportRegistration" -> "<h3>Transport Registration</h3><p>Registration Date is Over</p>"
+        "internship/InternshipRegistration" -> "<h3>Internship Registration</h3><p>Internship registration date has been Closed</p>"
+        "academics/mooc/studentRegistration" -> "<h3>MOOC Course Registration</h3><form>Choose your MOOC</form>"
+        "academics/exc/studentRegistration" -> "<h3>Extra Curricular</h3><p>No active registration found.</p>"
+        "admissions/programmeMigration" -> "<h3>Programme Migration</h3><p>Last date for applying is over !...</p>"
+        "hostels/online/room/allotment/open" -> "<h3>Online Hostel Booking</h3><p>Course(s) not registered.</p>"
+        "convocation/entryPage" -> "<h3>Convocation</h3><p>Activity Not Permitted</p>"
+        "pat/PatRegistrationProcess" -> "<h3>PAT</h3><p>You are not eligible for PAT Registration.</p>"
+        "get/upcoming/digital/assignments" -> "<table><tr><th>#</th><th>Course Name</th><th>Title</th><th>Last Date</th></tr><tr><th>1</th><td>Data Structures</td><td>Assessment - 2</td><td>03-11-2026</td></tr></table>"
+        "show/login/history" -> """<table><tr><th>#</th><th>Activity Type</th><th>Date &amp; Time</th><th>Ip Address</th><th>App. Name</th></tr>
+            <tr><td>1</td><td>LOGIN</td><td>02-Nov-2026 19:08:41</td><td>203.0.113.14</td><td>VTOP</td></tr><tr><td>2</td><td>LOGIN</td><td>01-Nov-2026 08:12:03</td><td>198.51.100.7</td><td>VTOP</td></tr></table>"""
+        "phyedu/facilityAvailable" -> """<table><tr><th>Facility Name</th><th>Fees (Including GST)</th><th>Number of seats - Available</th><th>Action</th></tr>
+            <tr><td>Swimming</td><td>5310</td><td>487</td><td><button>Register</button></td></tr><tr><td>Indoor A/C Gymnasium</td><td>4720</td><td>12</td><td><button>Register</button></td></tr></table>
+            <table><tr><td>Badminton Indoor</td><td>Registered, Paid and Approved</td></tr></table>"""
+        "event/swf/student/loadClubChapterEnrollmentPage" -> """<table><tr><th>#</th><th>Year</th><th>Association Name &amp; Type</th><th>Status</th><th>Team Name</th><th>Approved/Rejected</th></tr><tr><td>1</td><td>2026</td><td>EXAMPLE CODING CLUB (CLUB)</td><td>Enrolled</td><td></td><td>Approved</td></tr></table>
+            <table><tr><th>#</th><th>Year</th><th>Association Name (Type)</th><th>Status</th><th></th></tr><tr><td>1</td><td>2026</td><td>EXAMPLE PHOTOGRAPHY CLUB (CLUB)</td><td></td><td>Date Closed</td></tr><tr><td>2</td><td>2026</td><td>EXAMPLE ROBOTICS CHAPTER (CHAPTER)</td><td></td><td>Date Closed</td></tr></table>"""
+        "examinations/malpracticePunishmentDetails" -> """<table><tr><th>S.No</th><th>Nature of Malpractice</th><th>Actions</th></tr><tr><td>1.</td><td>Carrying written notes into the hall</td><td>Example action for CAT</td></tr></table>
+            <table><tr><th>S.No</th><th>Nature of Malpractice</th><th>Actions</th></tr><tr><td>1.</td><td>Carrying written notes into the hall</td><td>Example action for FAT</td></tr></table>"""
+        "academics/common/FaqPreview" -> """<select name="domainName"><option value="">-- Choose --</option><option value="ACADEMICS">ACADEMICS</option></select>"""
+        "getFaqProcessSec" -> """<select name="process"><option value="">-- Choose --</option><option value="GENERAL">GENERAL</option></select>"""
+        "processPreviewFaqList" -> """<div class="panel"><a class="panel-title"><h4>How do I see my attendance?</h4></a><div class="panel-collapse">Open Class Attendance under Academics.</div></div>"""
+        "examinations/StudExamScheduleForMakeupExam" -> """<select name="semesterSubId"><option value="VL20262701">Fall Semester 2026-27</option></select>"""
+        "examinations/doSearchExamScheduleForStudentMakeupExam" -> "<div>No Records Found</div>"
+        "examinations/arrearRegistration/viewRARExamSchedule" -> "<p>Regular Arrear exam schedule not enabled...</p>"
+        "compre/eptScheduleShow" -> "<table><thead><tr><th>Exam Venue</th><th>From Time</th><th>To Time</th></tr></thead><tbody><tr><td>SJT418</td><td>16-Jul-2026 09:00:00</td><td>16-Jul-2026 10:00:00</td></tr></tbody></table>"
+        "compre/studentExamInfo" -> "<table><tr><th>Exam Date</th><th>Exam Time</th><th>Venue</th><th>Mark</th><th>Grade</th></tr></table>"
+        "events/gravitas/student/viewCertificateDetails" -> """<form id="downloadForm" action="events/Gravitas/downloadParticipantCertificate"></form><table><tr><th>S.No.</th><th>Year</th><th>Event Name</th><th>Participant Certificate</th></tr>
+            <tr><td>1</td><td>2026</td><td>EXAMPLE HACKATHON</td><td><button onclick="javascript:downloadCertificate('2026', '2026004', 'DEMO');">Download</button></td></tr></table>"""
+        "event/uday/certificates" -> "<table><tr><td>#</td><td>YEAR</td><td>CATEGORY</td><td>CERTIFICATE</td></tr><tr><td colspan=\"3\">No Certificates to Download</td></tr></table>"
+        "events/sixsigma/loadStudentViewPage" -> "<table id=\"sixSigmaDT\"><tr><th>Register Number</th><th>Student Name</th><th>Download</th></tr></table>"
         "hrms/employeeSearchForStudent" -> "<div><strong>Faculty Information</strong></div>"
         "hrms/EmployeeSearchForStudent" -> facultySearch(p["empId"].orEmpty())
         "hrms/EmployeeSearch1ForStudent" -> faculty.firstOrNull { it[0] == p["empId"] }?.let { f ->

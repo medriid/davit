@@ -407,6 +407,108 @@ class VtopClient(
         Feeds.table(authed("/getStudentLoginForQcm", mapOf("paramReturnId" to "getStudentLoginForQcm", "semSubId" to semesterId)))
     }
 
+    // ---- the rest of VTOP's menu (read only) ---------------------------------------------
+
+    /** Every circular on VTOP's portal. */
+    fun circulars(): List<Circular> = timed("circulars") {
+        Portal.circulars(authed("/admissions/costCentreCircularsViewPageController", mapOf("verifyMenu" to "true")))
+    }
+
+    /** Research projects faculty have opened to students. Asking to join one stays on VTOP. */
+    fun facultyProjects(): List<FacultyProject> = timed("faculty projects") {
+        Portal.projects(authed("/fpp/studentProposal", mapOf("verifyMenu" to "true")))
+    }
+
+    /** Which of [Portal.Windows] are open now; a page that won't load is left out. */
+    fun openWindows(): List<VtopWindow> = timed("windows") {
+        Portal.Windows.mapNotNull { (id, title, path) ->
+            try {
+                Portal.window(id, title, authed(path, mapOf("verifyMenu" to "true")))
+            } catch (e: SessionExpired) {
+                throw e
+            } catch (_: VtopException) {
+                null
+            }
+        }
+    }
+
+    /** The home page's list of upcoming assignments as text: when it hasn't changed, neither have they. */
+    fun assignmentsSignature(): String = timed("upcoming assignments") {
+        Html.clean(org.jsoup.Jsoup.parse(authed("/get/upcoming/digital/assignments", emptyMap())).text())
+    }
+
+    fun signIns(): List<SignIn> = timed("sign-ins") { Portal.signIns(authed("/show/login/history", emptyMap())) }
+
+    fun sports(): Sports = timed("sports") { Portal.sports(authed("/phyedu/facilityAvailable", mapOf("verifyMenu" to "true"))) }
+
+    fun clubDirectory(): ClubDirectory = timed("clubs") {
+        Portal.clubDirectory(authed("/event/swf/student/loadClubChapterEnrollmentPage", mapOf("verifyMenu" to "true")))
+    }
+
+    fun malpractice(): List<MalpracticeRule> = timed("malpractice") {
+        Portal.malpractice(authed("/examinations/malpracticePunishmentDetails", mapOf("verifyMenu" to "true")))
+    }
+
+    /** VTOP's FAQ, every domain and process. Its list page reads the form as FormData. */
+    fun faqs(): List<FaqItem> = timed("faq") {
+        val s = session ?: throw SessionExpired()
+        val domains = Records.options(authed("/academics/common/FaqPreview", mapOf("verifyMenu" to "true")), "domainName").map { it.first }
+        domains.flatMap { domain ->
+            val processes = Records.options(
+                authed("/getFaqProcessSec", mapOf("paramReturnId" to "getFaqProcessSec", "domainName" to domain, "process" to "")), "process",
+            ).map { it.first }
+            processes.flatMap { process ->
+                try {
+                    val body = MultipartBody.Builder().setType(MultipartBody.FORM)
+                        .addFormDataPart("_csrf", s.csrf)
+                        .addFormDataPart("authorizedID", s.authorizedId)
+                        .addFormDataPart("domainName", domain)
+                        .addFormDataPart("process", process)
+                        .build()
+                    Portal.faqs(multipart("/processPreviewFaqList", body, null).first, domain, process)
+                } catch (e: SessionExpired) {
+                    throw e
+                } catch (_: VtopException) {
+                    emptyList()
+                }
+            }
+        }
+    }
+
+    /** Make-up, arrear, English proficiency and comprehensive exams, whichever have anything to show. */
+    fun otherExams(semesterId: String): List<ExamTable> = timed("other exams") {
+        fun read(title: String, block: () -> String): ExamTable? = try {
+            ExamTable(title, Feeds.table(block())).takeIf { it.table.rows.isNotEmpty() }
+        } catch (e: SessionExpired) {
+            throw e
+        } catch (_: VtopException) {
+            null
+        }
+        listOfNotNull(
+            read("Make-up exams") {
+                authed("/examinations/StudExamScheduleForMakeupExam", mapOf("verifyMenu" to "true"))
+                authed("/examinations/doSearchExamScheduleForStudentMakeupExam", mapOf("semesterSubId" to semesterId))
+            },
+            read("Arrear exams") { authed("/examinations/arrearRegistration/viewRARExamSchedule", mapOf("verifyMenu" to "true")) },
+            read("English proficiency test") { authed("/compre/eptScheduleShow", mapOf("verifyMenu" to "true")) },
+            read("Comprehensive exam") { authed("/compre/studentExamInfo", mapOf("verifyMenu" to "true")) },
+        )
+    }
+
+    /** graVITas, University Day and Six Sigma certificates. Club ones are in [clubEvents]. */
+    fun certificates(): List<Certificate> = timed("certificates") {
+        fun read(path: String, parse: (String) -> List<Certificate>): List<Certificate> = try {
+            parse(authed(path, mapOf("verifyMenu" to "true")))
+        } catch (e: SessionExpired) {
+            throw e
+        } catch (_: VtopException) {
+            emptyList()
+        }
+        read("/events/gravitas/student/viewCertificateDetails", Portal::gravitas) +
+            read("/event/uday/certificates", Portal::universityDay) +
+            read("/events/sixsigma/loadStudentViewPage", Portal::sixSigma)
+    }
+
     /** Course allocation: the semester it's for and the curriculum categories (value → "UCC - University Core Courses"). */
     fun allocation(): Allocation = timed("allocation") {
         Records.allocation(authed("/academics/common/StudentRegistrationScheduleAllocation", mapOf("verifyMenu" to "true")))
@@ -462,6 +564,21 @@ class VtopClient(
 
     fun downloadFeeLetter(batchId: String, sink: OutputStream, onProgress: (Long, Long?) -> Unit = { _, _ -> }) =
         download("/finance/downloadStudentFeesIntimationLetter", mapOf("batchId" to batchId, "studentNumber" to ""), sink, onProgress = onProgress)
+
+    fun downloadCircular(id: String, sink: OutputStream, onProgress: (Long, Long?) -> Unit = { _, _ -> }) =
+        download("/admissions/viewStatusWiseCostCentreCircularContent", mapOf("val" to id), sink, onProgress = onProgress)
+
+    fun downloadCertificate(c: Certificate, sink: OutputStream, onProgress: (Long, Long?) -> Unit = { _, _ -> }) =
+        download(c.path, c.params, sink, onProgress = onProgress)
+
+    /** The academic regulations: VTOP sends the PDF inside its page, so it's unpacked here. */
+    fun downloadRegulations(sink: OutputStream, onProgress: (Long, Long?) -> Unit = { _, _ -> }): Download = timed("regulations") {
+        val pdf = Portal.regulationsPdf(authed("/academics/council/CouncilRegulationView/new", mapOf("verifyMenu" to "true")))
+            ?: throw UnexpectedPage("VTOP didn't include the regulations")
+        sink.write(pdf)
+        onProgress(pdf.size.toLong(), pdf.size.toLong())
+        Download("Academic regulations.pdf", "application/pdf", pdf.size.toLong())
+    }
 
     /**
      * Streams a file VTOP serves into [sink]. A page instead of a file is a bounce to the
@@ -954,7 +1071,15 @@ private class ReadOnlyGuard(private val host: String) : Interceptor {
         val NEVER = listOf(
             "otpVerfication", "otpVerification", "paymentGateway", "doPayment", "makePayment", "onlinePayment", "payFee",
             "wallet", "password", "passwd",
-            "courseRegistration",
+            "courseRegistration", "doStuRegister", "doStuDelete", "generateInvoice", "wishlistReg", "courseWithdraw",
+            "arrearRegistration/RegularArrearStudentReg", "makeupExamStudentReg", "compre/registrationForm",
+            "saveRegistration", "patRegistrationForm", "PhyFacilityProcessRegistration", "enrollClubChapters",
+            "deleteEnrollment", "doFinalSubmission", "fpp/studentReqByProjectId",
+            // Money, and pages that only hold secrets daVIT has no use for.
+            "finance/Payments", "paymentsDelete", "getOnlineTransfer", "refundRequest", "viewStudentCredentials",
+            "backupCode", "BankInfoStudent", "ChangePreferredUser",
+            // Marks something read, or sends something, without asking.
+            "save/academic/action", "submit/feedback",
             // Cancelling a night slip; invoices on the co/extra-curricular page.
             "late/hour/student/request/10", "processViewEcaInvoice", "cancleInvoiceGenerateEca",
         )

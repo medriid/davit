@@ -81,8 +81,13 @@ internal fun CampusHub(route: Route) {
         ),
         "News and people" to listOf(
             Tile(Route.Messages, "Messages", (campus.classMessages.size + campus.proctorMessages.size).let { if (it > 0) "$it from class and proctor" else "Class and proctor" }, dev.medriid.davit.design.Kind.People),
+            Tile(Route.Circulars, "Circulars", "Every official PDF, searchable", dev.medriid.davit.design.Kind.People),
+            Tile(Route.Windows, "What's open", "Registrations open right now", dev.medriid.davit.design.Kind.People),
             Tile(Route.Spotlight, "Spot-light", if (campus.spotlight.isNotEmpty()) "${campus.spotlight.size} notices" else "VTOP's notices and files", dev.medriid.davit.design.Kind.People),
             Tile(Route.Events, "Club events", "Register, certificates", dev.medriid.davit.design.Kind.Events),
+            Tile(Route.ClubDirectory, "All clubs", "Every club and yours", dev.medriid.davit.design.Kind.Events),
+            Tile(Route.Sports, "Sports and gym", "Fees and seats left", dev.medriid.davit.design.Kind.Events),
+            Tile(Route.Projects, "Faculty projects", "Research open to students", dev.medriid.davit.design.Kind.People),
             Tile(Route.FacultyReviews, "Faculty reviews", "Ratings and reviews, offline", dev.medriid.davit.design.Kind.People),
             Tile(Route.People, "Proctor, HOD, dean", campus.proctor?.name?.let(::titleCase) ?: "Who to ask", dev.medriid.davit.design.Kind.People),
         ),
@@ -99,6 +104,9 @@ internal fun CampusHub(route: Route) {
             Tile(Route.Activities, "Activities and QCM", "Co-curricular, class meetings", dev.medriid.davit.design.Kind.Events),
             Tile(Route.Money, "Receipts and dues", "Fees letters, library", dev.medriid.davit.design.Kind.Vtop),
             Tile(Route.Gate, "Gate log", "Biometric in and out", dev.medriid.davit.design.Kind.Vtop),
+            Tile(Route.Certificates, "Certificates", "graVITas and University Day", dev.medriid.davit.design.Kind.Events),
+            Tile(Route.Rules, "Rules and FAQ", "Regulations, malpractice, answers", dev.medriid.davit.design.Kind.Vtop),
+            Tile(Route.SignIns, "Sign-in activity", "Every login, with its IP", dev.medriid.davit.design.Kind.Vtop),
         ),
         "Files" to listOf(
             Tile(Route.Search, "Search materials", "Across every course", dev.medriid.davit.design.Kind.Assignments),

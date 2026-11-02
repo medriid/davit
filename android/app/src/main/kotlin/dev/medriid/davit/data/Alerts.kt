@@ -28,6 +28,44 @@ fun vtopDate(text: String): LocalDate? {
     return vtopDays.firstNotNullOfOrNull { f -> runCatching { LocalDate.parse(t, f) }.getOrNull() }
 }
 
+/** New circulars, new projects in the areas you follow, and anything that has just opened on VTOP. */
+internal fun watchAlerts(old: HomeFeeds, new: HomeFeeds, today: LocalDate, prefs: AlertPrefs): List<Alert> {
+    val out = mutableListOf<Alert>()
+    if (old.circulars.isNotEmpty()) {
+        val seen = old.circulars.map { it.id }.toSet()
+        out += few(new.circulars.filter { it.id !in seen }, "circulars", { "circ:${it.id}" }, { "New circular" to it.title }) { n ->
+            "$n new circulars" to "Open Circulars to read them."
+        }
+    }
+    if (old.projects.isNotEmpty() && prefs.projectAreas.isNotEmpty()) {
+        val seen = old.projects.map { it.id }.toSet()
+        val fresh = new.projects.filter { it.id !in seen && it.area in prefs.projectAreas }
+        out += few(fresh, "projects", { "proj:${it.id}" }, { "New project · ${it.area}" to it.title }) { n ->
+            "$n new faculty projects" to "In the areas you follow."
+        }
+    }
+    val before = old.windows.associateBy { it.id }
+    for (w in new.windows) {
+        if (w.open && before[w.id]?.open == false) {
+            out += Alert(AlertChannel.Notices, "win:${w.id}|$today", "${w.title} is open", "VTOP has opened it. Check the dates and apply there.")
+        }
+    }
+    return out
+}
+
+/** One alert each for up to three, or a single one for the lot, so a busy day doesn't fill the shade. */
+private fun <T> few(
+    items: List<T>,
+    name: String,
+    key: (T) -> String,
+    one: (T) -> Pair<String, String>,
+    many: (Int) -> Pair<String, String>,
+): List<Alert> = if (items.size <= 3) {
+    items.map { i -> one(i).let { (title, text) -> Alert(AlertChannel.Notices, key(i), title, text) } }
+} else {
+    many(items.size).let { (title, text) -> listOf(Alert(AlertChannel.Notices, "$name:" + items.joinToString("|", transform = key).hashCode(), title, text)) }
+}
+
 /**
  * What a background sync should tell you, from the snapshot before it and after it.
  * Nothing on a first sync ([old] null), so signing in doesn't fire a flood.
@@ -112,6 +150,9 @@ fun alertsFor(
             )
         }
     }
+
+    // Circulars, projects and registration windows, once there's an earlier reading to compare with.
+    if (prefs.notices && old.feeds.watchAt > 0) out += watchAlerts(old.feeds, new.feeds, today, prefs)
 
     // Marks: an item that has a score now and didn't before. Not on the first marks fetch.
     if (prefs.marks && old.marks.isNotEmpty()) {

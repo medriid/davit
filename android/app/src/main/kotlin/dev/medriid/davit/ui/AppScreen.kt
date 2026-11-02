@@ -324,6 +324,15 @@ private fun RouteHost(route: Route) = when (route) {
     Route.Planner -> PlannerScreen(route)
     Route.MessMenu -> MessMenuScreen(route)
     Route.FacultyReviews -> FacultyReviewsScreen(route)
+    Route.Circulars -> CircularsScreen(route)
+    Route.Windows -> WindowsScreen(route)
+    Route.Projects -> ProjectsScreen(route)
+    Route.Rules -> RulesScreen(route)
+    Route.OtherExams -> OtherExamsScreen(route)
+    Route.Certificates -> CertificatesScreen(route)
+    Route.Sports -> SportsScreen(route)
+    Route.ClubDirectory -> ClubDirectoryScreen(route)
+    Route.SignIns -> SignInsScreen(route)
     is Route.FacultyReview -> FacultyReviewScreen(route)
 }
 

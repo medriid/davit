@@ -35,6 +35,8 @@ data class AlertPrefs(
     val beforeMeal: Int = 15,
     /** The [Mess] the menu screen and meal reminders read. */
     val mess: String = "",
+    /** Research areas whose new faculty projects you want to hear about. */
+    val projectAreas: Set<String> = emptySet(),
 ) {
     fun toJson(): String = JSONObject()
         .put("attendance", attendance)
@@ -51,6 +53,7 @@ data class AlertPrefs(
         .put("meals", JSONArray(meals.sorted()))
         .put("beforeMeal", beforeMeal)
         .put("mess", mess)
+        .put("projectAreas", JSONArray(projectAreas.sorted()))
         .toString()
 
     /** Is this row muted? */
@@ -88,6 +91,7 @@ data class AlertPrefs(
                     meals = o.optJSONArray("meals")?.let { a -> (0 until a.length()).map { a.getString(it) }.toSet() }.orEmpty(),
                     beforeMeal = o.optInt("beforeMeal", d.beforeMeal).coerceIn(0, 60),
                     mess = o.optString("mess", d.mess),
+                    projectAreas = o.optJSONArray("projectAreas")?.let { a -> (0 until a.length()).map { a.getString(it) }.toSet() }.orEmpty(),
                 )
             }.getOrDefault(AlertPrefs())
         }

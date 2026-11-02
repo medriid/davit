@@ -2,10 +2,13 @@ package dev.medriid.davit.data
 
 import dev.medriid.davit.vtop.AttendanceRow
 import dev.medriid.davit.vtop.ClassGroup
+import dev.medriid.davit.vtop.Circular
 import dev.medriid.davit.vtop.ClubEvent
 import dev.medriid.davit.vtop.CourseRemark
+import dev.medriid.davit.vtop.FacultyProject
 import dev.medriid.davit.vtop.FeedbackItem
 import dev.medriid.davit.vtop.RegistrationWindow
+import dev.medriid.davit.vtop.VtopWindow
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.time.LocalDate
@@ -27,12 +30,35 @@ data class HomeFeeds(
     val dailyAt: Long = 0,
     /** VTOP's calendar class groups for this semester, for choosing one by hand. */
     val classGroups: List<ClassGroup> = emptyList(),
+    /** Circulars, faculty projects and what's open for registration, read about once a day to alert you. */
+    val circulars: List<Circular> = emptyList(),
+    val projects: List<FacultyProject> = emptyList(),
+    val windows: List<VtopWindow> = emptyList(),
+    val watchAt: Long = 0,
+    /** The home page's upcoming-assignments list when assignments were last read in full. */
+    val assignmentSig: String = "",
+    val assignmentsAt: Long = 0,
 ) {
     val pendingFeedback: List<FeedbackItem> get() = feedback.filter { !it.done }
 
     /** The window that's on now or next, if it hasn't ended. */
     fun nextRegistration(now: LocalDateTime): RegistrationWindow? =
         registration.filter { (it.end ?: it.start)?.isAfter(now) == true }.minByOrNull { it.start ?: it.end!! }
+
+    /**
+     * A new reading of what's watched. Null is a read that failed and an empty list a page that
+     * changed shape: either way the last good list stays, so a later reading doesn't count
+     * everything as new. Windows merge by id, as one page can fail alone.
+     */
+    fun withWatched(circulars: List<Circular>?, projects: List<FacultyProject>?, windows: List<VtopWindow>?, now: Long): HomeFeeds {
+        val merged = (windows.orEmpty() + this.windows.filter { o -> windows.orEmpty().none { it.id == o.id } })
+        return copy(
+            circulars = circulars?.ifEmpty { null } ?: this.circulars,
+            projects = projects?.ifEmpty { null } ?: this.projects,
+            windows = merged,
+            watchAt = if (circulars != null && projects != null && windows != null) now else watchAt,
+        )
+    }
 
     fun eventsOn(day: LocalDate): List<ClubEvent> = events.filter { it.date == day }
 

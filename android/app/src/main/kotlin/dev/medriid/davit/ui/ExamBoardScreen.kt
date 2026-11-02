@@ -65,7 +65,9 @@ internal fun ExamBoardScreen(route: Route) {
         else "${group.ifBlank { "Exams" }} · ${papers.size} paper${if (papers.size == 1) "" else "s"}, $left to go · " +
             "${papers.first().second.format(Short)} to ${papers.last().second.format(Short)}",
     ) {
+        dev.medriid.davit.design.InkButton("Make-up, arrear and other exams", { nav.go(Route.OtherExams) }, quiet = true)
         if (papers.isEmpty()) return@RouteScreen
+        Spacer(Modifier.height(12.dp))
         var previous: LocalDate? = null
         papers.forEachIndexed { i, (exam, day) ->
             previous?.let { prev ->

@@ -347,8 +347,22 @@ class Repo(private val context: Context) {
                 registration = c.registrationSchedule(), dailyAt = now,
             )
         }
-        updateSnapshot { it.copy(feeds = f.copy(classGroups = it.feeds.classGroups)) }
+        updateSnapshot {
+            it.copy(
+                feeds = f.copy(
+                    classGroups = it.feeds.classGroups, circulars = it.feeds.circulars, projects = it.feeds.projects, windows = it.feeds.windows,
+                    watchAt = it.feeds.watchAt, assignmentSig = it.feeds.assignmentSig, assignmentsAt = it.feeds.assignmentsAt,
+                ),
+            )
+        }
         scheduleRegistrationReminders(f)
+    }
+
+    /** Circulars, faculty projects and what's open, now: opening one of those screens for the first time, or a pull. */
+    suspend fun refreshWatched() {
+        val (circulars, projects, windows) = onVtop { c -> Triple(c.circulars(), c.facultyProjects(), c.openWindows()) }
+        val now = System.currentTimeMillis()
+        updateSnapshot { it.copy(feeds = it.feeds.withWatched(circulars, projects, windows, now)) }
     }
 
     /** Night slips and leave, now (after applying, say). */
@@ -642,8 +656,20 @@ class Repo(private val context: Context) {
                 ?.let { full.copy(marks = it) } ?: full.copy(marks = old?.marks.orEmpty())
             full = section("Fetching exams", "exams", creds, full) { client.exams(semester.id) }
                 ?.let { full.copy(exams = it) } ?: full.copy(exams = old?.exams.orEmpty())
-            full = section("Fetching assignments", "assignments", creds, full) { client.assignments(semester.id) }
-                ?.let { full.copy(assignments = it) } ?: full.copy(assignments = old?.assignments.orEmpty())
+            // One request says whether anything moved; only then one more per course. Every few hours
+            // regardless, since marks and files on assignments past their date don't show in that list.
+            val signature = section("Checking assignments", "upcoming", creds, full) { client.assignmentsSignature() }
+            val settled = signature != null && old != null && old.semester.id == semester.id && old.assignments.isNotEmpty() &&
+                signature == old.feeds.assignmentSig && System.currentTimeMillis() - old.feeds.assignmentsAt < 6 * 3_600_000L
+            if (settled) {
+                full = full.copy(assignments = old!!.assignments, feeds = full.feeds.copy(assignmentSig = old.feeds.assignmentSig, assignmentsAt = old.feeds.assignmentsAt))
+            } else {
+                val read = section("Fetching assignments", "assignments", creds, full) { client.assignments(semester.id) }
+                full = full.copy(
+                    assignments = read ?: old?.assignments.orEmpty(),
+                    feeds = if (read != null && signature != null) full.feeds.copy(assignmentSig = signature, assignmentsAt = System.currentTimeMillis()) else full.feeds,
+                )
+            }
             // Grade history spans semesters, so keep it even when the semester changed.
             full = section("Fetching grades", "grades", creds, full) { client.gradeHistory() }
                 ?.let { full.copy(grades = it) } ?: full.copy(grades = _state.value.snapshot?.grades)
@@ -680,6 +706,13 @@ class Repo(private val context: Context) {
                     registration = registration ?: feeds.registration,
                     dailyAt = if (listOf(feedback, events, note, registration).all { it != null }) now else feeds.dailyAt,
                 )
+            }
+            // Circulars, faculty projects and what's open for registration: daily, for the alerts.
+            if (now - feeds.watchAt > 20 * 3_600_000L) {
+                val circulars = section("Reading circulars", "circulars", creds, full) { client.circulars() }
+                val projects = section("Reading faculty projects", "projects", creds, full) { client.facultyProjects() }
+                val windows = section("Checking what's open on VTOP", "windows", creds, full) { client.openWindows() }
+                feeds = feeds.withWatched(circulars, projects, windows, now)
             }
             full = full.copy(feeds = feeds)
             scheduleRegistrationReminders(feeds)

@@ -57,6 +57,19 @@ data class Campus(
     /** Next semester's registered classes; null when VTOP shows none. */
     val registered: dev.medriid.davit.vtop.RegisteredClasses? = null,
     val registeredAt: Long = 0,
+    val signIns: List<dev.medriid.davit.vtop.SignIn> = emptyList(),
+    val signInsAt: Long = 0,
+    val sports: dev.medriid.davit.vtop.Sports? = null,
+    val sportsAt: Long = 0,
+    val clubDirectory: dev.medriid.davit.vtop.ClubDirectory? = null,
+    val clubDirectoryAt: Long = 0,
+    val faqs: List<dev.medriid.davit.vtop.FaqItem> = emptyList(),
+    val malpractice: List<dev.medriid.davit.vtop.MalpracticeRule> = emptyList(),
+    val rulesAt: Long = 0,
+    val otherExams: List<dev.medriid.davit.vtop.ExamTable> = emptyList(),
+    val otherExamsAt: Long = 0,
+    val certificates: List<dev.medriid.davit.vtop.Certificate> = emptyList(),
+    val certificatesAt: Long = 0,
 )
 
 @Serializable
@@ -73,7 +86,13 @@ enum class Section(val title: String, private val freshFor: Long) {
     Courses("Course pages", DAY),
     Mess("Mess", DAY),
     Clubs("Club events", 20 * MIN),
-    Registered("FFCS result", 20 * MIN);
+    Registered("FFCS result", 20 * MIN),
+    SignIns("Sign-in activity", 20 * MIN),
+    Sports("Sports and gym", 6 * HOUR),
+    ClubDirectory("Clubs", DAY),
+    Rules("Rules", 14 * DAY),
+    OtherExams("Other exams", 6 * HOUR),
+    Certificates("Certificates", DAY);
 
     fun fresh(at: Long) = System.currentTimeMillis() - at < freshFor
 }
@@ -117,6 +136,12 @@ class CampusStore(private val context: Context, private val repo: Repo) {
         Section.Mess -> c.messAt
         Section.Clubs -> c.clubsAt
         Section.Registered -> c.registeredAt
+        Section.SignIns -> c.signInsAt
+        Section.Sports -> c.sportsAt
+        Section.ClubDirectory -> c.clubDirectoryAt
+        Section.Rules -> c.rulesAt
+        Section.OtherExams -> c.otherExamsAt
+        Section.Certificates -> c.certificatesAt
     }
 
     /** Fetches [section] unless it's fresh (or [force]). Errors land in [errors], the old data stays. */
@@ -174,6 +199,16 @@ class CampusStore(private val context: Context, private val repo: Repo) {
         Section.Courses -> c.courseOptions().let { o -> { it.copy(courses = o, coursesAt = now) } }
         Section.Mess -> c.messChange().let { m -> { it.copy(mess = m, messAt = now) } }
         Section.Registered -> repo.state.value.snapshot?.semester?.id?.let(c::registeredClasses).let { r -> { it.copy(registered = r, registeredAt = now) } }
+        Section.SignIns -> c.signIns().let { s -> { it.copy(signIns = s, signInsAt = now) } }
+        Section.Sports -> c.sports().let { s -> { it.copy(sports = s, sportsAt = now) } }
+        Section.ClubDirectory -> c.clubDirectory().let { d -> { it.copy(clubDirectory = d, clubDirectoryAt = now) } }
+        Section.Rules -> {
+            val m = c.malpractice()
+            val f = c.faqs()
+            ({ it.copy(malpractice = m, faqs = f, rulesAt = now) })
+        }
+        Section.OtherExams -> c.otherExams(repo.state.value.snapshot?.semester?.id.orEmpty()).let { t -> { it.copy(otherExams = t, otherExamsAt = now) } }
+        Section.Certificates -> c.certificates().let { l -> { it.copy(certificates = l, certificatesAt = now) } }
         Section.Clubs -> {
             val e = c.clubEvents()
             val g = runCatching { c.generalCertificates() }.getOrDefault(emptyList())

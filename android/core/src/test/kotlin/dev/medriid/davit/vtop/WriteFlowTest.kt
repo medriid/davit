@@ -288,7 +288,10 @@ class WriteFlowTest {
             "hostels/late/hour/student/request/3", "hostels/late/hour/student/request/10",
             "event/swf/registered/doEventRegistraiton", "others/bonafide/StudentBonafideSave", "academics/common/saveAcademicsCourseFeedback",
             "examinations/paperSeeing/PaperSeeingSubmit", "processViewEcaInvoice", "cancleInvoiceGenerateEca",
-            "hostels/messComplaint/save",
+            "hostels/messComplaint/save", "finance/Payments", "finance/refundRequest/raiseStudent", "finance/getOnlineTransfer",
+            "academics/exc/doStuRegister", "academics/mooc/doStuDelete", "academics/withdraw/courseWithdraw", "transport/saveRegistration",
+            "events/swf/student/enrollClubChapters", "fpp/studentReqByProjectId", "phyedu/PhyFacilityProcessRegistration",
+            "proctor/viewStudentCredentials", "backupCode/getBackupcodes", "save/academic/action/plan/read/logs", "submit/feedback",
         )) {
             try {
                 c.downloadSpotlight(path, ByteArrayOutputStream())
