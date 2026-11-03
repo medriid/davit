@@ -186,7 +186,10 @@ function screenFfcs() {
       return;
     }
     results.replaceChildren(h("h2", null, `Best ${r.found.length}${r.complete ? "" : ", in the time it had"}`), h("div.grid2", null, r.found.map((t, i) => h("div.card", null,
-      h("div.row", null, h("div.strong.grow", null, `Option ${i + 1}`), button("Save", (e) => {
+      h("div.row", null, h("div.strong.grow", null, `Option ${i + 1}`), button("Use this", () => {
+        Plan.set(App.allocationSemester || "", t.picks.map(({ meetings, ...p }) => p));
+        go("ffcs");
+      }, "solid"), button("Save", (e) => {
         const list = saved();
         list.unshift({ name: `Plan ${list.length + 1}`, picks: t.picks.map(({ meetings, ...p }) => p) });
         localStore.set("ffcs", JSON.stringify(list));
@@ -220,6 +223,7 @@ function screenFfcs() {
       button("Find timetables", search_, "solid")))), results, savedBox);
 
   sectionInto(top, "allocation", (a) => {
+    App.allocationSemester = a.semester;
     if (!a.categories.length) return empty("VTOP's course allocation isn't open right now.");
     const cat = h("select.field", { "aria-label": "Category", onchange: async (e) => {
       if (!e.target.value) return;
@@ -344,24 +348,38 @@ function semesterPlanner(s) {
 
 function screenMess() {
   const page = h("div.page");
-  page.append(...pageTitle("Mess menu", null).flat().filter(Boolean));
+  const bell = h("div");
+  page.append(...pageTitle("Mess menu", null, button("Reminders", () => { open = !open; drawBell(); })).flat().filter(Boolean), bell);
+  let open = false;
   const box = h("div");
   page.append(box);
-  fetch("mess.json").then((r) => r.json()).then((d) => {
-    const mess = d.messes[0];
-    let at = Dates.addDays(new Date(), 0);
-    const draw = () => {
-      const month = `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, "0")}`;
-      const sheet = mess.sheets.find((x) => x.month === month);
-      const row = sheet?.rows.find((r) => r.dates.includes(at.getDate()));
-      const meals = ["Breakfast", "Lunch", "Snacks", "Dinner"];
-      box.replaceChildren(
-        small(`${mess.name} · ${mess.hostel}. ${mess.timesNote}`),
-        h("div.row", { style: { margin: "10px 0" } }, button("Previous day", () => { at = Dates.addDays(at, -1); draw(); }), h("div.strong", null, Dates.long(at)), button("Next day", () => { at = Dates.addDays(at, 1); draw(); })),
-        row ? h("div.grid2", null, meals.map((m) => h("div.card.events", null, h("div.row", null, h("div.grow.strong", null, m), mess.times[m] ? small(mess.times[m]) : null), small(row[m.toLowerCase()].split(", ").join(" · "))))) : empty(sheet ? "This day isn't on the sheet." : "No sheet for this month yet."));
-    };
-    draw();
-  });
+  const meals = ["Breakfast", "Lunch", "Snacks", "Dinner"];
+  const drawBell = () => {
+    const mess = MessBook.data?.messes[0];
+    const p = AlertPrefs.get();
+    bell.replaceChildren(...(open && mess ? [h("div.card.events", { style: { marginBottom: "12px" } }, label("Meal reminders"),
+      meals.map((m) => (mess.times[m]
+        ? toggleRow(m, mess.times[m], p.meals.includes(m), () => { AlertPrefs.set({ ...p, meals: p.meals.includes(m) ? p.meals.filter((x) => x !== m) : [...p.meals, m] }); drawBell(); draw(); })
+        : h("div.settingrow", null, h("div.grow", null, h("div.strong", null, m), small("No time known, so no reminder."))))),
+      h("div.strong", { style: { marginTop: "10px" } }, "How early"),
+      h("div", { style: { marginTop: "6px" } }, choiceRow(["When it starts", "10 min", "15 min", "30 min"], [0, 10, 15, 30].indexOf(p.beforeMeal), (i) => { AlertPrefs.set({ ...p, beforeMeal: [0, 10, 15, 30][i] }); drawBell(); })),
+      !p.on ? small("Notifications are off, so these won't show. Turn them on in Settings.") : null)] : []));
+  };
+  let at = Dates.addDays(new Date(), 0);
+  const draw = () => {
+    const mess = MessBook.data?.messes[0];
+    if (!mess) return;
+    const month = `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, "0")}`;
+    const sheet = mess.sheets.find((x) => x.month === month);
+    const row = MessBook.row(mess, at);
+    const p = AlertPrefs.get();
+    box.replaceChildren(
+      small(`${mess.name} · ${mess.hostel}. ${mess.timesNote}`),
+      h("div.row.wrap", { style: { margin: "10px 0" } }, button("Previous day", () => { at = Dates.addDays(at, -1); draw(); }), h("input.field", { type: "date", "aria-label": "Day", value: Dates.iso(at), style: { width: "170px" }, onchange: (e) => { const d = Dates.parse(e.target.value); if (d) { at = d; draw(); } } }), button("Next day", () => { at = Dates.addDays(at, 1); draw(); }), button("Today", () => { at = Dates.addDays(new Date(), 0); draw(); }), h("div.strong", null, Dates.long(at))),
+      row ? h("div.grid2", null, meals.map((m) => h("div.card.events", null, h("div.row", null, h("div.grow.strong", null, m), p.meals.includes(m) ? h("span.badge", null, "Reminder on") : null, mess.times[m] ? small(mess.times[m]) : null), h("div", { style: { marginTop: "4px" } }, row[m.toLowerCase()] || "Not on the sheet."))))
+        : empty(sheet ? "The sheet has no row for this date." : "No sheet for this month yet. Nothing is filled in for it."));
+  };
+  MessBook.load().then(() => { draw(); drawBell(); });
   return page;
 }
 
@@ -384,16 +402,3 @@ const Names = {
     };
   },
 };
-
-function courseNamesCard(raw) {
-  const seen = new Map();
-  for (const t of raw?.timetable || []) if (t.courseCode && !seen.has(t.courseCode)) seen.set(t.courseCode, t.courseName);
-  if (!seen.size) return null;
-  const names = Names.all();
-  return h("div.card", null, label("Your course names"), small("Call a course whatever you call it. It shows everywhere in this app."),
-    [...seen].map(([code, name]) => h("label.row", { style: { marginTop: "6px" } }, h("span.small.grow", null, `${code} · ${name}`), h("input.field", { style: { width: "220px" }, placeholder: "Your name for it", value: names[code] || "", onchange: (e) => {
-      const all = Names.all();
-      if (e.target.value.trim()) all[code] = e.target.value.trim(); else delete all[code];
-      localStore.set("courseNames", JSON.stringify(all));
-    } }))));
-}

@@ -54,6 +54,19 @@ class ParityDump {
         Triple("materials", "course_detail.html", CoursePages::materials),
         Triple("clubs", "club_events.html", Clubs::page),
         Triple("general_certificates", "general_certificates.html", Clubs::generalCertificates),
+        Triple("class_feedback", "course_feedback_list.html", Clubs::classFeedback),
+        Triple("paper_seeing", "paper_seeing_courses.html", PaperSeeing::page),
+        Triple("paper_seeing", "paper_seeing_none.html", PaperSeeing::page),
+        Triple("leave_form", "leave_form.html", Feeds::leaveForm),
+        Triple("form_read", "night_slip_form.html", { h -> Forms.read(h) }),
+        Triple("form_read", "night_slip_pending.html", { h -> Forms.read(h) }),
+        Triple("reply", "upload_done.html", Forms::reply),
+        Triple("reply", "night_slip_pending.html", Forms::reply),
+        Triple("upload_outcome", "upload_done.html", { h -> CoursePages.uploadOutcome(h, "NONE") }),
+        Triple("upload_outcome", "upload_otp.html", { h -> CoursePages.uploadOutcome(h, "NONE") }),
+        Triple("upload_outcome", "upload_otp_wrong.html", { h -> CoursePages.uploadOutcome(h, "NONE") }),
+        Triple("upload_outcome", "upload_closed.html", { h -> CoursePages.uploadOutcome(h, "NONE") }),
+        Triple("upload_form", "upload_form.html", { h -> CoursePages.uploadForm(h, "C1", "D1") }),
     )
 
     @Test
@@ -68,6 +81,10 @@ class ParityDump {
             """{"parser":"faculty","fixture":"faculty.html","out":${json(Parsers.faculty(html("faculty.html"), "E1"))}}""",
             """{"parser":"leaves_applied","fixture":"hostel_requests.html","out":${json(Parsers.leaves(html("hostel_requests.html"), "LeaveAppliedTable"))}}""",
             """{"parser":"leaves_history","fixture":"hostel_requests.html","out":${json(Parsers.leaves(html("hostel_requests.html"), "LeaveHistoryTable"))}}""",
+            """{"parser":"form_bonafide_page","fixture":"bonafide_page.html","out":${json(Forms.read(html("bonafide_page.html"), "studentBonafide"))}}""",
+            """{"parser":"form_bonafide_page","fixture":"bonafide_form_3.html","out":${json(Forms.read(html("bonafide_form_3.html"), "studentBonafide"))}}""",
+            """{"parser":"form_paper_seeing","fixture":"paper_seeing_page.html","out":${json(Forms.read(html("paper_seeing_page.html"), "paperSeeingView"))}}""",
+            """{"parser":"form_course_feedback","fixture":"course_feedback_page.html","out":${json(Forms.read(html("course_feedback_page.html"), "courseFeedbackStudentView"))}}""",
         )
         File(target, "parity.json").writeText("[\n" + entries.joinToString(",\n") + "\n]\n")
     }

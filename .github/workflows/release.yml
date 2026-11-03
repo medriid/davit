@@ -95,6 +95,8 @@ jobs:
             echo
             echo "**Android 8+** · \`davit-$VERSION.apk\` · already installed? daVIT offers this itself."
             echo
+            echo "**Computers** · Windows \`-setup.exe\` or \`.msi\`, macOS \`.dmg\`, Linux \`.deb\` or \`.AppImage\`. They appear here a few minutes after the APK."
+            echo
             echo "[Full changelog](https://github.com/$GITHUB_REPOSITORY/blob/$GITHUB_REF_NAME/CHANGELOG.md#$anchor)"
           } > notes.md
           cat notes.md

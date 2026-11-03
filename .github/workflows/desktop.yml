@@ -25,7 +25,7 @@ jobs:
             args: --bundles nsis,msi
             files: desktop/src-tauri/target/release/bundle/nsis/*.exe desktop/src-tauri/target/release/bundle/msi/*.msi
           - os: macos-latest
-            args: --target universal-apple-darwin --bundles dmg
+            args: --target universal-apple-darwin --bundles dmg,app
             files: desktop/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
           - os: ubuntu-22.04
             args: --bundles deb,appimage
@@ -77,11 +77,20 @@ jobs:
         working-directory: desktop/src-tauri
         run: cargo test --locked
 
+      # With the signing key, each build also makes what "update by itself" installs. Without it
+      # the installers are the same, and the app says when a new version is out.
       - name: Build
         working-directory: desktop
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
         run: |
           npm ci
-          npx tauri build ${{ matrix.args }}
+          if [ -n "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            npx tauri build ${{ matrix.args }} --config '{"bundle":{"createUpdaterArtifacts":true}}'
+          else
+            npx tauri build ${{ matrix.args }}
+          fi
 
       - name: Keep the installers
         if: ${{ !startsWith(github.ref, 'refs/tags/') }}
@@ -101,3 +110,55 @@ jobs:
             sleep 20
           done
           gh release upload "$GITHUB_REF_NAME" ${{ matrix.files }} --clobber
+
+      - name: Keep what the updater needs
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: actions/upload-artifact@v7
+        with:
+          name: updater-${{ matrix.os }}
+          path: |
+            desktop/src-tauri/target/**/release/bundle/nsis/*.exe
+            desktop/src-tauri/target/**/release/bundle/nsis/*.sig
+            desktop/src-tauri/target/**/release/bundle/macos/*.tar.gz
+            desktop/src-tauri/target/**/release/bundle/macos/*.sig
+            desktop/src-tauri/target/**/release/bundle/appimage/*.AppImage
+            desktop/src-tauri/target/**/release/bundle/appimage/*.sig
+          if-no-files-found: ignore
+
+  # What a running app checks. Skipped until the signing key is set: nothing to point at.
+  updater:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: updater-*
+          path: artifacts
+      - name: latest.json
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          python3 - <<'PY'
+          import glob, json, os, sys
+          tag = os.environ["GITHUB_REF_NAME"]
+          repo = os.environ["REPO"]
+          def entry(pattern):
+              for sig in glob.glob(f"artifacts/**/{pattern}.sig", recursive=True):
+                  name = os.path.basename(sig)[:-4]
+                  return {"signature": open(sig).read().strip(), "url": f"https://github.com/{repo}/releases/download/{tag}/{name}"}
+          win, mac, linux = entry("*-setup.exe"), entry("*.app.tar.gz"), entry("*.AppImage")
+          platforms = {}
+          if win: platforms["windows-x86_64"] = win
+          if mac: platforms["darwin-x86_64"] = platforms["darwin-aarch64"] = mac
+          if linux: platforms["linux-x86_64"] = linux
+          if not platforms:
+              print("No signed builds, so no latest.json.")
+              sys.exit(0)
+          json.dump({"version": tag.lstrip("v"), "platforms": platforms}, open("latest.json", "w"))
+          PY
+          if [ -f latest.json ]; then
+            files=$(find artifacts -type f \( -name '*.app.tar.gz' -o -name '*.sig' \))
+            gh release upload "$GITHUB_REF_NAME" latest.json $files --clobber --repo "$REPO"
+          fi

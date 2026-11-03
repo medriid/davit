@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>NSCameraUsageDescription</key>
+  <string>To photograph pages for the scanner, and to read a friend's QR code. Pictures stay on this Mac.</string>
+  <key>NSLocationUsageDescription</key>
+  <string>To show where you are on the campus map. It stays on this Mac.</string>
+</dict>
+</plist>

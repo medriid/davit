@@ -1,7 +1,9 @@
-//! Talks to VTOP over plain HTTP. Reads only: the desktop app sends nothing to VTOP that
-//! changes anything, and [check] refuses VTOP's money, password and registration pages outright.
+//! Talks to VTOP over plain HTTP. [check] refuses VTOP's money, password and registration pages
+//! outright; the few requests that change anything need a [Consent], which only exists once
+//! you've pressed a confirm button.
 
 use super::captcha::Solver;
+use super::forms::{self, FormPage, LeaveForm, PaperSeeingPage, Reply, UploadForm, UploadOutcome};
 use super::html::clean;
 use super::models::*;
 use super::parsers as p;
@@ -44,19 +46,45 @@ impl From<reqwest::Error> for VtopError {
     }
 }
 
-/// Never, whoever asks: money, passwords, registration, secrets, and anything that writes.
+/// Never, whoever asks: money, passwords, registration and secrets.
 const NEVER: &[&str] = &[
     "otpverfication", "otpverification", "paymentgateway", "dopayment", "makepayment", "onlinepayment", "payfee", "wallet", "password", "passwd",
     "courseregistration", "dosturegister", "dostudelete", "generateinvoice", "wishlistreg", "coursewithdraw", "arrearregistration/regulararrearstudentreg",
     "makeupexamstudentreg", "compre/registrationform", "saveregistration", "patregistrationform", "phyfacilityprocessregistration", "enrollclubchapters",
     "deleteenrollment", "dofinalsubmission", "fpp/studentreqbyprojectid", "finance/payments", "paymentsdelete", "getonlinetransfer", "refundrequest",
     "viewstudentcredentials", "backupcode", "bankinfostudent", "changepreferreduser", "save/academic/action", "submit/feedback", "late/hour/student/request/10",
-    "processviewecainvoice", "cancleinvoicegenerateeca", "dodassignmentuploadmethod", "dodassignmentotpupload", "processdigitalassignmentupload",
-    "hostels/student/leave/3", "late/hour/student/request/3", "doeventregistraiton", "studentbonafidesave", "saveacademicscoursefeedback", "paperseeingsubmit",
-    "messcomplaint/save",
+    "processviewecainvoice", "cancleinvoicegenerateeca",
 ];
 
+/// What changes something on VTOP: only with a [Consent].
+const WRITES: &[&str] = &[
+    "dodassignmentuploadmethod", "dodassignmentotpupload", "processdigitalassignmentupload", "hostels/student/leave/3", "late/hour/student/request/3",
+    "doeventregistraiton", "studentbonafidesave", "saveacademicscoursefeedback", "paperseeingsubmit", "messcomplaint/save",
+];
+
+/// Proof that a person asked for a write. Made only by the command behind a confirm button;
+/// a sync never has one, so it can't upload or apply.
+pub struct Consent {
+    pub what: String,
+}
+
+impl Consent {
+    pub fn given(what: &str) -> Consent {
+        Consent { what: what.to_string() }
+    }
+}
+
 pub fn check(path: &str) -> Res<()> {
+    let low = path.to_lowercase();
+    if NEVER.iter().chain(WRITES).any(|n| low.contains(n)) {
+        Err(VtopError::Blocked)
+    } else {
+        Ok(())
+    }
+}
+
+/// [check] for a request made with [Consent]: the writes open up, NEVER doesn't.
+pub fn check_write(path: &str, _consent: &Consent) -> Res<()> {
     let low = path.to_lowercase();
     if NEVER.iter().any(|n| low.contains(n)) {
         Err(VtopError::Blocked)
@@ -76,6 +104,7 @@ pub struct Vtop {
     solver: Option<Solver>,
     creds: Option<(String, String)>,
     base: String,
+    pages: Option<std::path::PathBuf>,
 }
 
 impl Vtop {
@@ -90,7 +119,24 @@ impl Vtop {
             .read_timeout(std::time::Duration::from_secs(25))
             .build()
             .expect("the HTTP client");
-        Vtop { http, jar, session: None, solver, creds: None, base: base.trim_end_matches('/').to_string() }
+        Vtop { http, jar, session: None, solver, creds: None, base: base.trim_end_matches('/').to_string(), pages: None }
+    }
+
+    pub fn set_page_folder(&mut self, folder: Option<std::path::PathBuf>) {
+        self.pages = folder;
+    }
+
+    /// The opt-in debug copy: the last raw page of each kind, with the username and tokens scrubbed.
+    fn keep_page(&self, path: &str, html: &str) {
+        let Some(dir) = &self.pages else { return };
+        let mut text = html.to_string();
+        if let Some(s) = &self.session {
+            text = text.replace(&s.authorized_id, "USERNAME").replace(&s.csrf, "TOKEN");
+        }
+        let name: String = path.chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '_' }).collect();
+        if std::fs::create_dir_all(dir).is_ok() {
+            let _ = std::fs::write(dir.join(format!("{name}.html")), text);
+        }
     }
 
     pub fn set_credentials(&mut self, username: String, password: String) {
@@ -236,6 +282,7 @@ impl Vtop {
         if p::is_logged_out_page(&html, &url) {
             return Err(VtopError::SessionExpired);
         }
+        self.keep_page(path, &html);
         if let (Some(t), Some(s)) = (p::csrf_of(&html), self.session.as_mut()) {
             s.csrf = t;
         }
@@ -254,6 +301,56 @@ impl Vtop {
             }
             other => other,
         }
+    }
+
+    /// One write, as a form. It goes once: if VTOP has dropped the session it wasn't taken, and
+    /// you're told, rather than sent twice.
+    async fn write_form(&mut self, consent: &Consent, path: &str, extra: &[(String, String)]) -> Res<String> {
+        check_write(path, consent)?;
+        let mut form = self.base_form().ok_or(VtopError::SessionExpired)?;
+        form.extend(extra.iter().cloned());
+        let resp = self.http.post(self.url(path)).form(&form).header(REFERER, self.url("/content")).header("X-Requested-With", "XMLHttpRequest").send().await?;
+        let url = resp.url().to_string();
+        let html = resp.text().await?;
+        if p::is_logged_out_page(&html, &url) {
+            return Err(VtopError::SessionExpired);
+        }
+        if let (Some(t), Some(s)) = (p::csrf_of(&html), self.session.as_mut()) {
+            s.csrf = t;
+        }
+        Ok(html)
+    }
+
+    /// A multipart POST, as a page's fetch(FormData) sends it: Origin and Accept, no
+    /// X-Requested-With. The page and VTOP's `error` and `message` headers.
+    async fn multipart(&mut self, path: &str, form: reqwest::multipart::Form, consent: Option<&Consent>) -> Res<(String, Option<String>, Option<String>)> {
+        match consent {
+            Some(c) => check_write(path, c)?,
+            None => check(path)?,
+        }
+        let origin = self.base.split("/vtop").next().unwrap_or(&self.base).to_string();
+        let resp = self.http.post(self.url(path)).multipart(form).header(REFERER, self.url("/content")).header("Origin", origin).header("Accept", "*/*").send().await?;
+        let url = resp.url().to_string();
+        let header = |name: &str| resp.headers().get(name).and_then(|v| v.to_str().ok()).map(str::to_string);
+        let (error, message) = (header("error"), header("message"));
+        let html = resp.text().await?;
+        if p::is_logged_out_page(&html, &url) {
+            return Err(VtopError::SessionExpired);
+        }
+        if let (Some(t), Some(s)) = (p::csrf_of(&html), self.session.as_mut()) {
+            s.csrf = t;
+        }
+        Ok((html, error, message))
+    }
+
+    /// [fields] as a browser's FormData, with the session's tokens first.
+    fn form_data(&self, fields: &[(String, String)]) -> Res<reqwest::multipart::Form> {
+        let s = self.session.as_ref().ok_or(VtopError::SessionExpired)?;
+        let mut form = reqwest::multipart::Form::new().text("_csrf", s.csrf.clone()).text("authorizedID", s.authorized_id.clone());
+        for (k, v) in fields {
+            form = form.text(k.clone(), v.clone());
+        }
+        Ok(form)
     }
 
     async fn menu(&mut self, path: &str) -> Res<String> {
@@ -519,6 +616,19 @@ impl Vtop {
         Ok(p::simple_table(&self.authed("/academics/common/getCoursesDetailForRegistration", &[("courseCode", code)]).await?))
     }
 
+    pub async fn activity_semesters(&mut self) -> Res<Vec<Semester>> {
+        Ok(semesters_of(&self.menu("/academics/common/ExtraCurricular").await?))
+    }
+
+    pub async fn activities(&mut self, sem: &str) -> Res<SimpleTable> {
+        Ok(p::simple_table(&self.authed("/processViewEca", &[("semesterSubId", sem), ("regNo", "undefined")]).await?))
+    }
+
+    pub async fn qcm(&mut self, sem: &str) -> Res<SimpleTable> {
+        self.menu("/academics/common/QCMStudentLogin").await?;
+        Ok(p::simple_table(&self.authed("/getStudentLoginForQcm", &[("paramReturnId", "getStudentLoginForQcm"), ("semSubId", sem)]).await?))
+    }
+
     pub async fn circulars(&mut self) -> Res<Vec<Circular>> {
         Ok(p::circulars(&self.menu("/admissions/costCentreCircularsViewPageController").await?))
     }
@@ -654,7 +764,258 @@ impl Vtop {
                 let path = if g("winner") == "true" { "/events/swf/doDownloadWinnerCertificate" } else { "/events/swf/doDownloadCertificate" };
                 self.download(path, &[("eventId", g("eventId"))], false, target).await
             }
+            "boardCertificate" => {
+                self.menu("/event/swf/loadEventRegistration").await?;
+                self.download("/events/swf/boardMembersCertificate/doDownloadCertificate", &[("associationId", g("associationId")), ("generatedYear", g("generatedYear")), ("roleId", g("roleId"))], false, target).await
+            }
+            "generalCertificate" => {
+                self.menu("/events/swf/certificateDownload").await?;
+                self.download("/events/downloadCertificate", &[("eventId", g("eventId")), ("certificateId", g("certificateId")), ("participantId", g("participantId"))], false, target).await
+            }
             _ => Err(VtopError::Blocked),
         }
+    }
+}
+
+fn semesters_of(html: &str) -> Vec<Semester> {
+    let mut o = p::options(html, "semesterSubId");
+    if o.is_empty() {
+        o = p::options(html, "semSubId");
+    }
+    o.into_iter().map(|(id, name)| Semester { id, name: name.trim_end_matches(" - VLR").trim().to_string() }).collect()
+}
+
+fn refused(message: impl Into<String>) -> VtopError {
+    VtopError::Unexpected(message.into())
+}
+
+/// What goes to VTOP from each confirm button, step for step as VTOP's own page does it, each
+/// after a fresh read so a closed form or a changed one is refused rather than guessed at.
+impl Vtop {
+    pub async fn course_assignments(&mut self, class_id: &str) -> Res<Vec<Assignment>> {
+        Ok(p::assignments(&self.authed("/examinations/processDigitalAssignment", &[("classId", class_id)]).await?))
+    }
+
+    pub async fn open_upload(&mut self, consent: &Consent, semester: Option<&str>, class_id: &str, code: &str) -> Res<UploadForm> {
+        if let Some(sem) = semester {
+            self.authed("/examinations/doDigitalAssignment", &[("semesterSubId", sem)]).await?;
+        }
+        self.authed("/examinations/processDigitalAssignment", &[("classId", class_id)]).await?;
+        let extra = [("classId".to_string(), class_id.to_string()), ("mode".to_string(), code.to_string())];
+        let html = self.write_form(consent, "/examinations/processDigitalAssignmentUpload", &extra).await?;
+        forms::upload_form(&html, class_id, code).map_err(refused)
+    }
+
+    pub async fn upload(&mut self, consent: &Consent, form: &UploadForm, name: &str, mime: &str, bytes: Vec<u8>) -> Res<UploadOutcome> {
+        let csrf = self.session.as_ref().ok_or(VtopError::SessionExpired)?.csrf.clone();
+        let mut body = reqwest::multipart::Form::new();
+        let mut file = Some(reqwest::multipart::Part::bytes(bytes).file_name(name.to_string()).mime_str(if mime.is_empty() { "application/octet-stream" } else { mime }).map_err(|_| refused("That file's type isn't one VTOP takes."))?);
+        for (i, (k, v)) in form.fields.iter().enumerate() {
+            if i == form.file_at {
+                body = body.part(form.file_field.clone(), file.take().expect("once"));
+            }
+            body = body.text(k.clone(), if k == "_csrf" { csrf.clone() } else { v.clone() });
+        }
+        if let Some(f) = file {
+            body = body.part(form.file_field.clone(), f);
+        }
+        let (html, error, message) = self.multipart("/examinations/doDAssignmentUploadMethod", body, Some(consent)).await?;
+        Ok(forms::upload_outcome(&html, &form.code, error.as_deref(), message.as_deref()))
+    }
+
+    pub async fn submit_upload_otp(&mut self, consent: &Consent, fields: &[(String, String)], otp_field: &str, otp: &str, code: &str) -> Res<UploadOutcome> {
+        let s = self.session.as_ref().ok_or(VtopError::SessionExpired)?;
+        let (csrf, id) = (s.csrf.clone(), s.authorized_id.clone());
+        let mut body = reqwest::multipart::Form::new();
+        for (k, v) in fields {
+            body = body.text(k.clone(), if k == "_csrf" { csrf.clone() } else { v.clone() });
+        }
+        if !fields.iter().any(|f| f.0 == "authorizedID") {
+            body = body.text("authorizedID", id);
+        }
+        body = body.text(otp_field.to_string(), otp.trim().to_string());
+        let (html, error, message) = self.multipart("/examinations/doDAssignmentOtpUpload", body, Some(consent)).await?;
+        Ok(forms::upload_outcome(&html, code, error.as_deref(), message.as_deref()))
+    }
+
+    /// Leaves an upload or an OTP page the way VTOP's Cancel does: by reopening the course.
+    pub async fn cancel_upload(&mut self, class_id: &str) {
+        let _ = self.authed("/examinations/processDigitalAssignment", &[("classId", class_id)]).await;
+    }
+
+    pub async fn leave_form(&mut self) -> Res<Option<LeaveForm>> {
+        self.menu("/hostels/student/leave/1").await?;
+        Ok(forms::leave_form(&self.authed("/hostels/student/leave/2", &[("apply", ""), ("form", "undefined"), ("control", "apply")]).await?))
+    }
+
+    /// Dates as yyyy-MM-dd and times as HH:mm, as the page's date inputs send them.
+    pub async fn apply_leave(&mut self, consent: &Consent, values: &[(String, String)]) -> Res<Reply> {
+        let form = self.leave_form().await?.ok_or_else(|| refused("VTOP's leave form closed."))?;
+        let mut fields: Vec<(String, String)> = form.fields.into_iter().filter(|f| f.0 != "_csrf" && f.0 != "authorizedID" && !values.iter().any(|v| v.0 == f.0)).collect();
+        fields.extend(values.iter().cloned());
+        fields.push(("form".into(), "LeaveRequestForm".into()));
+        fields.push(("control".into(), "submitControl2".into()));
+        Ok(forms::leave_outcome(&self.write_form(consent, "/hostels/student/leave/3", &fields).await?))
+    }
+
+    pub async fn night_slip_form(&mut self) -> Res<FormPage> {
+        self.menu("/hostels/late/hour/student/request/1").await?;
+        Ok(forms::read(&self.authed("/hostels/late/hour/student/request/2", &[("apply", ""), ("form", "undefined"), ("control", "apply")]).await?, None))
+    }
+
+    pub async fn apply_night_slip(&mut self, consent: &Consent, values: &BTreeMap<String, String>) -> Res<Reply> {
+        const PATH: &str = "/hostels/late/hour/student/request/3";
+        let page = self.night_slip_form().await?;
+        let Some(form) = page.form else {
+            return Err(refused(if page.message.is_empty() { "VTOP isn't taking night slips right now.".to_string() } else { page.message }));
+        };
+        if form.control.is_empty() || !format!("/{}", form.submit_to.trim_start_matches('/')).ends_with(PATH) {
+            return Err(refused("VTOP's night slip form has changed, so daVIT won't send it. Apply on VTOP this time."));
+        }
+        let mut fields: Vec<(String, String)> = form.hidden.into_iter().filter(|h| h.0 != "_csrf" && h.0 != "authorizedID").collect();
+        fields.extend(form.fields.iter().map(|f| (f.name.clone(), values.get(&f.name).cloned().unwrap_or_else(|| f.value.clone()))));
+        fields.push(("form".into(), form.id.clone()));
+        fields.push(("control".into(), form.control.clone()));
+        Ok(forms::reply(&self.write_form(consent, PATH, &fields).await?))
+    }
+
+    pub async fn register_event(&mut self, consent: &Consent, event_id: &str) -> Res<Reply> {
+        let page = p::club_page(&self.menu("/event/swf/loadEventRegistration").await?);
+        let listing = page.upcoming.iter().find(|e| e.id == event_id).ok_or_else(|| refused("VTOP no longer lists this event."))?;
+        if !listing.can_register {
+            return Err(refused(if listing.state.is_empty() { "VTOP isn't taking registrations for this event.".to_string() } else { listing.state.clone() }));
+        }
+        Ok(forms::reply(&self.write_form(consent, "/event/swf/registered/doEventRegistraiton", &[("eventId".to_string(), event_id.to_string())]).await?))
+    }
+
+    pub async fn feedback_semesters(&mut self) -> Res<Vec<Semester>> {
+        let page = forms::read(&self.menu("/academics/common/StudentClassGrievance").await?, Some("courseFeedbackStudentView"));
+        Ok(page.form.and_then(|f| f.fields.into_iter().find(|x| x.name == "semesterSubId")).map(|f| f.options.into_iter().map(|(id, name)| Semester { id, name }).collect()).unwrap_or_default())
+    }
+
+    pub async fn class_feedback(&mut self, sem: &str) -> Res<Vec<forms::ClassFeedback>> {
+        Ok(forms::class_feedback(&self.authed("/academics/common/processViewFeedbackList", &[("semesterSubId", sem)]).await?))
+    }
+
+    pub async fn submit_class_feedback(&mut self, consent: &Consent, sem: &str, class_id: &str, words: &str) -> Res<Reply> {
+        let words = words.trim();
+        if words.is_empty() {
+            return Err(refused("Write something first."));
+        }
+        let classes = self.class_feedback(sem).await?;
+        let c = classes.iter().find(|c| c.class_id == class_id).ok_or_else(|| refused("VTOP no longer lists this class."))?;
+        if !c.open {
+            return Err(refused("VTOP already has your feedback for this class."));
+        }
+        if words.chars().count() as i32 > c.max_length {
+            return Err(refused(format!("VTOP takes up to {} characters.", c.max_length)));
+        }
+        let extra = [("semesterSubId".to_string(), sem.to_string()), ("classId".to_string(), class_id.to_string()), ("courseFeedbackVal".to_string(), words.to_string())];
+        Ok(forms::reply(&self.write_form(consent, "/academics/common/saveAcademicsCourseFeedback", &extra).await?))
+    }
+
+    pub async fn paper_seeing_form(&mut self) -> Res<FormPage> {
+        Ok(forms::read(&self.menu("/examinations/paperSeeing/PaperSeeing").await?, Some("paperSeeingView")))
+    }
+
+    pub async fn paper_seeing_courses(&mut self, sem: &str, service: &str, exam: &str) -> Res<PaperSeeingPage> {
+        let base: Vec<(String, String)> = self.paper_seeing_form().await?.form.map(|f| f.hidden).unwrap_or_default().into_iter().filter(|h| h.0 != "_csrf" && h.0 != "authorizedID").collect();
+        let mut extra: Vec<(&str, &str)> = base.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
+        extra.extend([("semesterSubId", sem), ("serviceType", service), ("examType", exam)]);
+        Ok(forms::paper_seeing(&self.authed("/examinations/paperSeeing/PaperSeeingOnChange", &extra).await?))
+    }
+
+    /// VTOP raises a fee invoice for it; paying is left to VTOP.
+    pub async fn submit_paper_seeing(&mut self, consent: &Consent, sem: &str, service: &str, exam: &str, chosen: &[String]) -> Res<Reply> {
+        if chosen.is_empty() {
+            return Err(refused("Pick at least one course."));
+        }
+        let page = self.paper_seeing_courses(sem, service, exam).await?;
+        if !chosen.iter().all(|c| page.courses.iter().any(|o| &o.value == c)) {
+            return Err(refused(if page.message.is_empty() { "VTOP no longer offers one of those courses.".to_string() } else { page.message }));
+        }
+        let s = self.session.as_ref().ok_or(VtopError::SessionExpired)?;
+        let mut body = reqwest::multipart::Form::new().text("_csrf", s.csrf.clone()).text("authorizedID", s.authorized_id.clone()).text("x", utc_now());
+        for (k, v) in page.fields.iter().filter(|f| !["_csrf", "authorizedID", "semesterSubId", "serviceType", "examType"].contains(&f.0.as_str())) {
+            body = body.text(k.clone(), v.clone());
+        }
+        body = body.text("semesterSubId", sem.to_string()).text("serviceType", service.to_string()).text("examType", exam.to_string());
+        for c in chosen {
+            body = body.text("frontValue", c.clone());
+        }
+        let (html, _, _) = self.multipart("/examinations/paperSeeing/PaperSeeingSubmit", body, Some(consent)).await?;
+        Ok(forms::reply(&html))
+    }
+
+    pub async fn bonafide_services(&mut self) -> Res<Vec<(String, String)>> {
+        let page = forms::read(&self.menu("/others/bonafide/StudentBonafidePageControl").await?, Some("studentBonafide"));
+        let options = page.form.and_then(|f| f.fields.into_iter().find(|x| x.name == "certificateCode")).map(|f| f.options);
+        options.ok_or_else(|| refused(if page.message.is_empty() { "VTOP didn't show the bonafide form.".to_string() } else { page.message }))
+    }
+
+    /// The fields one kind needs. Dates VTOP fixes for a kind come filled in and locked, as its page does.
+    pub async fn bonafide_form(&mut self, code: &str) -> Res<FormPage> {
+        let body = self.form_data(&[("certificateCode".to_string(), code.to_string())])?;
+        let (html, _, _) = self.multipart("/others/bonafide/StudentBonafideOnChange", body, None).await?;
+        let mut page = forms::read(&html, Some("studentBonafide"));
+        let fixed_for = super::html::re(r"parseInt\(code\)\s*==\s*(\d+)").captures_iter(&html).any(|m| &m[1] == code);
+        let fixed: Vec<(String, String)> = if fixed_for {
+            super::html::re(r#"getElementById\("(\w+)"\)\.value\s*=\s*"([^"]*)""#).captures_iter(&html).map(|m| (m[1].to_string(), m[2].to_string())).collect()
+        } else {
+            vec![]
+        };
+        if let Some(form) = page.form.as_mut() {
+            for f in form.fields.iter_mut() {
+                if let Some((_, v)) = fixed.iter().rev().find(|(k, _)| k == &f.name) {
+                    f.value = v.clone();
+                    f.read_only = true;
+                } else if f.name == "description" && f.max_length.is_none() {
+                    f.max_length = Some(100);
+                }
+            }
+        }
+        Ok(page)
+    }
+
+    pub async fn apply_bonafide(&mut self, consent: &Consent, code: &str, values: &BTreeMap<String, String>) -> Res<Reply> {
+        let form = self.bonafide_form(code).await?.form.ok_or_else(|| refused("VTOP didn't open the bonafide form."))?;
+        if !form.fields.iter().any(|f| f.name == "description") {
+            return Err(refused("VTOP's bonafide form has changed, so daVIT won't send it. Apply on VTOP this time."));
+        }
+        let mut fields: Vec<(String, String)> = form.hidden.into_iter().filter(|h| h.0 != "_csrf" && h.0 != "authorizedID").collect();
+        for f in &form.fields {
+            let v = if f.name == "certificateCode" { code.to_string() } else if f.read_only { f.value.clone() } else { values.get(&f.name).cloned().unwrap_or_else(|| f.value.clone()) };
+            fields.push((f.name.clone(), v));
+        }
+        let body = self.form_data(&fields)?;
+        let (html, _, _) = self.multipart("/others/bonafide/StudentBonafideSave", body, Some(consent)).await?;
+        Ok(forms::reply(&html))
+    }
+
+    pub async fn mess_complaint_notes(&mut self) -> Res<Vec<String>> {
+        forms::mess_complaint_notes(&self.menu("/hostels/messComplaintPage").await?).map_err(refused)
+    }
+
+    pub async fn send_mess_complaint(&mut self, consent: &Consent, words: &str, name: &str, mime: &str, bytes: Vec<u8>) -> Res<Reply> {
+        let words = words.trim();
+        if words.is_empty() {
+            return Err(refused("Say what the complaint is."));
+        }
+        if words.chars().count() > 200 {
+            return Err(refused("VTOP takes up to 200 characters."));
+        }
+        if bytes.is_empty() || bytes.len() > 5 * 1024 * 1024 {
+            return Err(refused("The photo or PDF has to be under 5 MB."));
+        }
+        let ext = name.rsplit('.').next().unwrap_or("").to_lowercase();
+        if !["jpg", "jpeg", "png", "pdf"].contains(&ext.as_str()) {
+            return Err(refused("VTOP takes JPG, PNG or PDF only."));
+        }
+        self.mess_complaint_notes().await?;
+        let s = self.session.as_ref().ok_or(VtopError::SessionExpired)?;
+        let part = reqwest::multipart::Part::bytes(bytes).file_name(name.to_string()).mime_str(if mime.is_empty() { "application/octet-stream" } else { mime }).map_err(|_| refused("VTOP takes JPG, PNG or PDF only."))?;
+        let body = reqwest::multipart::Form::new().text("authorizedID", s.authorized_id.clone()).text("complaintData", words.to_string()).part("complaintFile", part).text("_csrf", s.csrf.clone());
+        let (html, _, _) = self.multipart("/hostels/messComplaint/save", body, Some(consent)).await?;
+        Ok(forms::reply(&html))
     }
 }

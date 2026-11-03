@@ -17,7 +17,7 @@ fn main() {
     let assets = root.join("android/app/src/main/assets");
     let data = root.join("desktop/ui/data");
     std::fs::create_dir_all(&data).unwrap();
-    for (from, to) in [("faculty-reviews/reviews.json", "reviews.json"), ("campus-map/campus.json", "campus.json"), ("campus-map/geo.json", "geo.json")] {
+    for (from, to) in [("faculty-reviews/reviews.json", "reviews.json"), ("campus-map/campus.json", "campus.json"), ("campus-map/geo.json", "geo.json"), ("campus-map/graph.json", "graph.json")] {
         std::fs::copy(assets.join(from), data.join(to)).unwrap();
         println!("cargo:rerun-if-changed={}", assets.join(from).display());
     }

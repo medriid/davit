@@ -7,11 +7,17 @@
   "app": {
     "withGlobalTauri": true,
     "windows": [
-      { "title": "daVIT", "width": 1180, "height": 780, "minWidth": 860, "minHeight": 560 }
+      { "title": "daVIT", "width": 1180, "height": 780, "minWidth": 860, "minHeight": 560, "visible": false }
     ],
     "security": {
-      "csp": "default-src 'self'; img-src 'self' data: asset: http://asset.localhost; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src ipc: http://ipc.localhost 'self'; frame-src asset: http://asset.localhost; object-src asset: http://asset.localhost",
+      "csp": "default-src 'self'; img-src 'self' data: blob: asset: http://asset.localhost; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src ipc: http://ipc.localhost 'self'; frame-src asset: http://asset.localhost; object-src asset: http://asset.localhost",
       "assetProtocol": { "enable": true, "scope": ["$APPCACHE/previews/**", "$DOWNLOAD/daVIT/**"] }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEI0RTE0RDRERjU5NTEyNzEKUldSeEVwWDFUVTNodEpzYTl4UkpBdXJTQ3d6ZkdnZTFWTFZrYTBVMXF6TUFoajY2TWdONHlzaFQK",
+      "endpoints": ["https://github.com/medriid/davit/releases/latest/download/latest.json"]
     }
   },
   "bundle": {
@@ -19,6 +25,7 @@
     "targets": ["nsis", "msi", "dmg", "app", "deb", "appimage"],
     "category": "Education",
     "shortDescription": "VTOP, without the waiting",
+    "macOS": { "signingIdentity": "-" },
     "copyright": "Not affiliated with VIT",
     "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"]
   }

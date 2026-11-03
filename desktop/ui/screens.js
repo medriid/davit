@@ -40,6 +40,7 @@ function pageTitle(title, sub, ...actions) {
 
 /** A file VTOP serves. View reads it inside the app; Save keeps a copy in Downloads/daVIT. */
 function fileRow(title, subtitle, kind, args, key) {
+  const name = [title].flat(Infinity).map((x) => x.textContent ?? x).join("");
   const note = h("div.small.err");
   const fetch = async (save) => {
     note.textContent = "";
@@ -50,7 +51,7 @@ function fileRow(title, subtitle, kind, args, key) {
       const f = await api("fetch_file", { kind, args, key, save });
       if (save) note.textContent = "";
       if (save) keep.textContent = "Saved";
-      else showFile(f, title);
+      else showFile(f, name);
     } catch (e) {
       note.textContent = e;
     }
@@ -107,6 +108,7 @@ function mapButton(venue) {
 const courseName = (n) => n;
 
 function screenHome(s) {
+  if (Look.isEditorial()) return homeEditorial(s);
   const now = new Date();
   const week = weekOf(s, App.slots);
   const cal = calendarOf(s.calendar);
@@ -118,7 +120,7 @@ function screenHome(s) {
   const dayNote = plan.day && !plan.day.instructional && plan.day.type !== "None" ? [plan.day.type, plan.day.note].filter(Boolean).join(" · ")
     : plan.day?.instructional && plan.day.order !== Dates.weekday(now) ? `Follows ${Dates.dayName(plan.day.order)}'s timetable` : null;
   const left = cal?.daysLeft(now);
-  const summary = [dayNote, plan.today.length ? `${plan.done}/${plan.today.length} done` : "No classes today", left > 0 ? `${left} teaching days left` : null].filter(Boolean).join(" · ");
+  const summary = [dayNote, plan.today.length ? `${plan.done}/${plan.today.length} done` : "No classes today", left > 0 ? `${left} teaching day${left === 1 ? "" : "s"} left` : null].filter(Boolean).join(" · ");
 
   const current = plan.now ? plan.today.indexOf(plan.now) : plan.today.findIndex((c) => c.meeting.start > plan.minute);
   const focus = current >= 0 ? current : plan.today.length - 1;
@@ -128,6 +130,7 @@ function screenHome(s) {
   const draw = () => {
     path.replaceChildren(...plan.today.map((c, i) => stop(c, i)));
     detail.replaceChildren(...(opened && plan.today[picked] ? [classDetails(plan.today[picked], plan.today[picked] === plan.next && plan.inDays === 0, plan, week, cal, now)] : []));
+    requestAnimationFrame(() => path.querySelector(".stop.pick")?.scrollIntoView({ inline: "center", block: "nearest" }));
   };
   const stop = (c, i) => {
     const done = c.meeting.end <= plan.minute;
@@ -166,6 +169,7 @@ function screenHome(s) {
   const open = s.feeds.windows.filter((w) => w.open);
 
   page.append(...[
+    displayCard(s),
     h("div.grid2", null,
       h("div.card.classes", null,
         h("h3", { style: { fontWeight: 600, fontSize: "19px" } }, Dates.long(now)),
@@ -179,17 +183,24 @@ function screenHome(s) {
           h("button.card.click.attendance.grow", { type: "button", onclick: () => go("attendance") }, h("span.big", null, overall == null ? "–" : `${overall}%`), " overall"),
           h("button.card.click.attendance.grow", { type: "button", onclick: () => go("attendance") }, h("span.big", { class: risky ? "bad" : "" }, risky), " at risk")),
         h("div.grid3", { style: { gridTemplateColumns: "repeat(3, minmax(0, 1fr))" } },
-          [["Marks", "academics", { tab: 0 }], ["Assignments", "academics", { tab: 1 }], ["Materials", "academics", { tab: 4 }], ["Exam board", "academics", { tab: 2 }], ["Circulars", "circulars"], ["More", "more"]]
+          [["Marks", "academics", { tab: 0 }], ["Assignments", "academics", { tab: 1 }], ["Materials", "academics", { tab: 4 }], ["Exam board", "examboard"], ["Circulars", "circulars"], ["More", "more"]]
             .map(([t, r, a]) => h("button.card.click", { type: "button", onclick: () => go(r, a), style: { padding: "11px 12px" } }, h("span.strong", null, t)))),
         serious.length ? h("div.card", { style: { borderColor: "var(--coral)" } }, label("From VTOP"), serious.map((r) => small(`${r.name}: ${r.remark}`))) : null,
         reg ? h("div.card.events", null, label("Registration"), h("div.strong", null, reg.semester || reg.title), small(`${new Date(reg.start).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}`)) : null,
         open.length ? h("button.card.click.events", { type: "button", onclick: () => go("windows") }, label("Open on VTOP"), h("div.strong", null, open.map((w) => w.title).join(", "))) : null,
         pending.length ? h("div.card", null, h("div.strong", null, `${pending.length} feedback form${pending.length > 1 ? "s" : ""} pending`), small("Fill them on VTOP: a pending mandatory one can lock its menus.")) : null)),
     upcomingExam ? [h("h2", null, upcomingExam.e.type || "Exam"), examCard(upcomingExam.e, upcomingExam.d, today)] : null,
-    h("h2", null, "Due"),
-    due.length ? h("div.grid2", null, due.map(({ c, a, d }) => h("div.card.events", null,
-      h("div.row", null, h("div.grow", null, h("div.strong", null, a.title), small(`${c.courseName} · ${Dates.short(d)}`)), h("span.badge", { class: Dates.between(today, d) <= 3 ? "on" : "" }, dayWord(Dates.between(today, d)))))))
-      : empty("Nothing due in the next two weeks."),
+    dueSection(s),
+    (() => {
+      const changes = (Yours.data.changes || []).slice(0, 8);
+      if (!changes.length) return null;
+      let all = false;
+      const box = h("div.card.vtop");
+      const draw = () => box.replaceChildren(...changes.slice(0, all ? 8 : 2).map((c) => h("div", { style: { padding: "2px 0" } }, c)), ...(changes.length > 2 ? [h("div", { style: { marginTop: "8px" } }, button(all ? "Show less" : `Show ${changes.length - 2} more`, () => { all = !all; draw(); }))] : []));
+      draw();
+      return [h("h2", null, "Since you last looked"), box];
+    })(),
+    s.feeds.proctorNote ? [h("h2", null, "From your proctor"), h("div.card.people", null, s.feeds.proctorNote)] : null,
   ].flat(Infinity).filter(Boolean));
   draw();
   return page;
@@ -199,19 +210,21 @@ const dayWord = (n) => (n === 0 ? "Today" : n === 1 ? "Tomorrow" : `${n} days`);
 
 function examCard(e, d, today) {
   const n = d ? Dates.between(today, d) : null;
+  const room = e.venue === "-" ? "" : e.venue;
   return h("div.card.exams", null,
     h("div.row", null,
       h("div", { style: { width: "66px" } }, h("div.big", null, d ? d.getDate() : "?"), small(d ? d.toLocaleDateString("en-GB", { month: "short", weekday: "short" }) : "")),
       h("div.grow", null,
         h("div.strong", null, e.courseName),
         small([e.time, e.session].filter(Boolean).join(" · ")),
-        small(e.venue || e.seat ? [e.venue, e.seat && `Seat ${e.seat}`].filter(Boolean).join(" · ") : "Room and seat not out yet")),
+        small(room || e.seat ? [room, e.seat && `Seat ${e.seat}`].filter(Boolean).join(" · ") : "Room and seat not out yet")),
       n != null && n >= 0 ? h("span.badge", { class: n <= 3 ? "on" : "" }, dayWord(n)) : null));
 }
 
 // ---- attendance -----------------------------------------------------------------------------------
 
 function screenAttendance(s) {
+  if (Look.isEditorial()) return attendanceEditorial(s);
   const now = new Date();
   const week = weekOf(s, App.slots);
   const cal = calendarOf(s.calendar);
@@ -233,6 +246,13 @@ function screenAttendance(s) {
     const draw = () => {
       body.replaceChildren(...(open.has(r) ? [
         h("hr.hair"),
+        label("If you miss the next…"),
+        [1, 2, 3, 5].map((n) => h("div.row", { style: { padding: "1px 0" } }, h("div.grow", null, `${n} class${n > 1 ? "es" : ""}`), h("span.strong", null, `${Math.floor((r.attended * 100) / (r.total + n))}%${4 * r.attended < 3 * (r.total + n) && !Rules.atRisk(r) ? "  ✕" : ""}`))),
+        days.length ? small((() => {
+          const missed = days.filter((d) => d.status === "Absent");
+          return missed.length ? `Missed: ${missed.slice(-12).map((d) => dayLabel(d.date)).join(", ")}${missed.length > 12 ? " and earlier" : ""}` : "No absences.";
+        })()) : null,
+        h("div", { style: { height: "8px" } }),
         course?.faculty ? h("button.btn", { type: "button", onclick: () => go("academics", { tab: 5, faculty: course.faculty }) }, `Faculty: ${titleCase(course.faculty)}`) : null,
         h("div.chips", { style: { marginTop: "8px" } }, days.slice(-40).reverse().map((d) => h("span.badge", { class: d.status === "Absent" ? "on" : "", title: d.slot }, `${d.date.slice(0, 5)} ${d.status === "Present" ? "P" : d.status === "Absent" ? "A" : d.status === "OnDuty" ? "OD" : "?"}`))),
       ].filter(Boolean) : []));
@@ -249,7 +269,7 @@ function screenAttendance(s) {
   };
   list.append(...rows.map(card));
   return h("div.page", null,
-    pageTitle("Attendance", null, button("Plan a leave", () => go("leave"))),
+    pageTitle("Attendance", null, button("Marked wrong?", () => go("corrections")), button("Plan a leave", () => go("leave"))),
     h("div.chips", { style: { marginBottom: "14px" } },
       h("span.badge", { class: exempt ? "" : "on" }, exempt ? "CGPA 9+: exempt from 75%" : "Threshold 75%"),
       h("span.badge", null, `${risky} at risk`), h("span.badge", null, `${rows.length - risky} safe`)),
@@ -293,57 +313,38 @@ function marksTab(s) {
 function assignmentsTab(s) {
   if (!s.assignments.length) return empty(`No assignments for ${s.semester.name} yet.`);
   const today = Dates.addDays(new Date(), 0);
-  return h("div.stack", null,
-    small("Uploading stays on VTOP or the daVIT phone app."),
-    h("div.grid2", null, s.assignments.filter((c) => c.items.length).map((c) => h("div.card.events", null,
-      h("div.strong", null, c.courseName), small(`${c.courseCode} · ${c.courseType}`),
-      c.items.map((a) => {
-        const d = Dates.vtop(a.due);
-        const n = d ? Dates.between(today, d) : null;
-        return h("div", null, h("hr.hair"),
+  return h("div.stack", null, h("div", null, button("Scan to PDF", () => go("scanner"))), h("div.grid2", null, s.assignments.filter((c) => c.items.length).map((c) => h("div.card.assignments", null,
+    h("div.strong", null, c.courseName), small(`${c.courseCode} · ${c.courseType}`),
+    c.items.map((a) => {
+      const d = Dates.vtop(a.due);
+      const n = d ? Dates.between(today, d) : null;
+      return h("div", null, h("hr.hair"),
+        h("button.linkrow", { type: "button", onclick: () => go("assignment", { classId: c.classId, code: a.code }) },
           h("div.row", null, h("div.grow", null, h("div.strong", null, a.title), small([a.due && `Due ${a.due}`, a.max != null && `${num(a.max)} marks`, a.updated ? `Uploaded ${a.updated}` : null].filter(Boolean).join(" · "))),
-            a.updated ? h("span.badge", null, "Done") : n != null && n >= 0 ? h("span.badge", { class: n <= 3 ? "on" : "" }, dayWord(n)) : null),
-          a.hasQuestion ? fileRow("Question paper", null, "question", { code: a.code, classId: c.classId }, `qp_${c.classId}_${a.code}`) : null,
-          a.hasSubmission ? fileRow("Your upload", null, "submission", { code: a.code, classId: c.classId }, `da_${c.classId}_${a.code}`) : null);
-      })))));
+            a.updated ? h("span.badge", null, "Done") : n != null && n >= 0 ? h("span.badge", { class: n <= 3 ? "on" : "" }, dayWord(n)) : n != null && a.canUpload ? h("span.badge.on", null, "Overdue") : null)));
+    })))));
 }
 
 function examsTab(s) {
   const today = Dates.addDays(new Date(), 0);
   const dated = s.exams.map((e) => ({ e, d: Dates.vtop(e.date) })).filter((x) => x.d).sort((a, b) => a.d - b.d);
-  const group = (dated.find((x) => x.d >= today) || dated.at(-1))?.e.type;
-  const papers = dated.filter((x) => x.e.type === group);
-  const others = h("div");
-  const more = button("Make-up, arrear and other exams", async () => {
-    more.disabled = true;
-    others.replaceChildren(await sectionView("otherExams", (list) => list.length ? list.map((t) => [h("h2", null, t.title), plainTable(t.table)]) : empty("VTOP lists none of these for you.")));
-    more.disabled = false;
-  });
+  const upcoming = dated.filter((x) => x.d >= today);
+  const past = dated.filter((x) => x.d < today);
   return h("div.stack", null,
-    h("div.row.wrap", null, h("div.strong.grow", null, papers.length ? `${group || "Exams"} · ${papers.length} paper${papers.length > 1 ? "s" : ""}, ${papers.filter((x) => x.d >= today).length} to go` : "Your exam schedule shows here once VTOP publishes it."), more),
-    papers.map(({ e, d }, i) => {
-      const gap = i ? Dates.between(papers[i - 1].d, d) - 1 : null;
-      return [gap > 0 ? small(`${gap} free day${gap > 1 ? "s" : ""}`) : gap === -1 ? small("The same day") : null, examCard(e, d, today)];
-    }),
-    others);
+    h("div.row.wrap", null, upcoming.length ? button("Exam board: every paper at a glance", () => go("examboard"), "solid") : null, button("Make-up, arrear and other exams", () => go("otherexams"))),
+    upcoming.length ? h("div.grid2", null, upcoming.map(({ e, d }) => examCard(e, d, today))) : empty("Your exam schedule shows here once VTOP publishes it."),
+    past.length ? [h("h2", null, "Past"), h("div.grid2", { style: { opacity: 0.7 } }, past.map(({ e, d }) => examCard(e, d, today)))] : null);
 }
 
 function gradesTab(s) {
   const g = s.grades;
-  const sems = h("div");
-  const pick = h("select.field", { style: { maxWidth: "340px" }, onchange: async (e) => {
-    if (!e.target.value) return;
-    sems.replaceChildren(await sectionView("semesterGrades", (r) => r.courses.length
-      ? [r.gpa != null ? h("div.strong", null, `GPA ${r.gpa}`) : null, plainTable({ headers: ["Code", "Course", "Credits", "Grade"], rows: r.courses.map((c) => [c.courseCode, c.courseTitle, num(c.credits), c.grade ?? "–"]) })]
-      : empty("No results for this semester yet."), e.target.value));
-  } }, h("option", { value: "" }, "VTOP's results for a semester…"), s.semesters.map((x) => h("option", { value: x.id }, x.name.replace(" - VLR", ""))));
   const counts = {};
   for (const e of g?.entries || []) if (e.grade) counts[e.grade] = (counts[e.grade] || 0) + e.credits;
   return h("div.stack", null,
     h("div.card.exams", null, h("div.row", null, h("div.grow", null, label("CGPA"), small(g?.creditsEarned != null ? `${num(g.creditsEarned)} credits earned` : "")), h("div.big", null, g?.cgpa != null ? (Math.floor(g.cgpa * 100) / 100).toFixed(2) : "–"))),
+    h("div.row.wrap", null, button("Semester GPA", () => go("grades")), button("Curriculum", () => go("curriculum"))),
     semesterPlanner(s),
-    h("h2", null, "VTOP's results"),
-    pick, sems,
+    Object.keys(counts).length ? [h("h2", null, "Credits by grade"), h("div.chips", null, ["S", "A", "B", "C", "D", "E", "F", "N"].filter((x) => counts[x]).map((x) => h("span.badge", null, `${x}: ${num(counts[x])}`)))] : null,
     g?.curriculum?.length ? [h("h2", null, "Credits"), h("div.grid2", null, g.curriculum.map((c) => h("div.card", null, h("div.row", null, h("div.grow.strong", null, c.name), h("span", null, `${num(c.earned)}/${num(c.required)}`)))))] : null,
     g?.entries?.length ? [h("h2", null, "Grade history"), plainTable({ headers: ["Code", "Course", "Credits", "Grade", "Exam"], rows: g.entries.map((e) => [e.courseCode, e.courseTitle, num(e.credits), e.grade ?? "–", e.examMonth]) })] : empty("No grades yet. They appear after your first results."));
 }
@@ -353,37 +354,6 @@ function plainTable(t) {
   return h("div.scroll-x", null, h("table.t", null,
     h("thead", null, h("tr", null, keep.map((i) => h("th", null, t.headers[i])))),
     h("tbody", null, t.rows.map((r) => h("tr", null, keep.map((i) => h("td", null, r[i] ?? "")))))));
-}
-
-function materialsTab(s) {
-  return sectionView("courses", (courses) => {
-    const box = h("div");
-    const mine = courses.filter((c) => c.semesterId === s.semester.id);
-    const rest = courses.filter((c) => c.semesterId !== s.semester.id);
-    const pickCourse = (c) => async () => {
-      box.replaceChildren(await sectionView("materials", (m) => {
-        let q = "";
-        const list = h("div");
-        const draw = () => {
-          const words = q.toLowerCase().split(" ").filter(Boolean);
-          const found = m.materials.filter((x) => words.every((w) => `${x.title} ${x.uploader} ${x.module} m${x.module}`.toLowerCase().includes(w)));
-          const byModule = {};
-          for (const x of found) (byModule[x.module] ||= []).push(x);
-          list.replaceChildren(...Object.keys(byModule).sort((a, b) => a - b).flatMap((mod) => [
-            h("h2", null, mod ? `Module ${mod}${m.modules[mod] ? `: ${m.modules[mod]}` : ""}` : "Other"),
-            ...byModule[mod].slice(0, 120).map((x) => fileRow(x.title, [titleCase(x.uploader), x.date].filter(Boolean).join(" · "), "material", { fileId: x.fileId }, `mat_${x.fileId}`)),
-          ]));
-          if (!found.length) list.replaceChildren(empty(m.materials.length ? `Nothing matches "${q}".` : "No materials on VTOP for this course yet."));
-        };
-        draw();
-        return [h("div.row", { style: { margin: "8px 0" } }, button("All courses", draw0), h("input.field", { placeholder: "Search title, teacher or module", "aria-label": "Search materials", oninput: (e) => { q = e.target.value; draw(); } })), list];
-      }, JSON.stringify(c)));
-    };
-    const grid = (list) => h("div.grid3", null, list.map((c) => h("button.card.click.classes", { type: "button", onclick: pickCourse(c) }, h("div.strong", null, c.name || c.code), small(`${c.code} · ${c.type}`))));
-    const draw0 = () => box.replaceChildren(grid(mine), rest.length ? h("h2", null, "Other semesters") : "", rest.length ? grid(rest) : "");
-    draw0();
-    return box;
-  });
 }
 
 function facultyTab(s, args) {
@@ -427,6 +397,7 @@ function facultyBody(s, args, people) {
     list,
     h("h2", null, "Who to ask"),
     h("div.grid2", null, people.proctor ? person(people.proctor) : null, (people.hodDean || []).map(person)),
+    h("div", { style: { marginTop: "12px" } }, button("Look up anyone on VTOP", () => go("people"))),
   ];
 }
 

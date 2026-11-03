@@ -3,6 +3,7 @@
 
 use davit_lib::vtop::captcha::Solver;
 use davit_lib::vtop::client::check;
+use davit_lib::vtop::forms as f;
 use davit_lib::vtop::parsers as p;
 use serde_json::{json, Value};
 
@@ -53,6 +54,21 @@ fn run(parser: &str, html: &str) -> Value {
         "general_certificates" => j(p::general_certificates(html)),
         "semester_grades" => j(p::semester_grades(html, "VL1")),
         "faculty" => j(p::faculty(html, "E1")),
+        "class_feedback" => j(f::class_feedback(html)),
+        "paper_seeing" => j(f::paper_seeing(html)),
+        "leave_form" => j(f::leave_form(html)),
+        "form_read" => j(f::read(html, None)),
+        "form_bonafide_page" => j(f::read(html, Some("studentBonafide"))),
+        "form_paper_seeing" => j(f::read(html, Some("paperSeeingView"))),
+        "form_course_feedback" => j(f::read(html, Some("courseFeedbackStudentView"))),
+        "reply" => j(f::reply(html)),
+        "upload_form" => j(f::upload_form(html, "C1", "D1").unwrap()),
+        "upload_outcome" => {
+            // Android's sealed class dumps its fields only; the desktop's adds a kind for the screen.
+            let mut v = j(f::upload_outcome(html, "NONE", None, None));
+            v.as_object_mut().unwrap().remove("kind");
+            v
+        }
         other => panic!("no parser {other}"),
     }
 }

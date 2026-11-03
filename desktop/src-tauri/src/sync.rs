@@ -15,6 +15,8 @@ const COOL: i64 = 6 * HOUR;
 pub struct Calendar {
     pub semester_id: String,
     pub group: String,
+    pub group_id: String,
+    pub groups: Vec<ClassGroup>,
     pub cells: Vec<CalendarCell>,
     pub at: i64,
 }
@@ -90,7 +92,7 @@ fn faculty_key(name: &str) -> String {
     letters.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
-async fn calendar(v: &mut Vtop, sem: &str, history: &BTreeMap<String, Vec<AttendanceDay>>) -> Res<Option<Calendar>> {
+async fn calendar(v: &mut Vtop, sem: &str, history: &BTreeMap<String, Vec<AttendanceDay>>, manual: Option<&str>) -> Res<Option<Calendar>> {
     let groups = v.class_groups(sem).await?;
     if groups.is_empty() {
         return Ok(None);
@@ -108,7 +110,9 @@ async fn calendar(v: &mut Vtop, sem: &str, history: &BTreeMap<String, Vec<Attend
     let has = |id: &str| groups.iter().any(|g| g.id == id);
     let mut chosen = None;
     let mut cached = BTreeMap::new();
-    if !evidence.is_empty() {
+    if let Some(id) = manual.filter(|m| has(m)) {
+        chosen = Some(id.to_string());
+    } else if !evidence.is_empty() {
         for id in ["ALL", "ALL03", "ALL04", "ALL10", "ALL02", "ALL09", "ALL06"].into_iter().filter(|i| has(i)) {
             let cells = v.calendar(sem, id).await?;
             let agrees = evidence.iter().all(|(date, order)| cells.iter().find(|c| &c.date == date).is_some_and(|c| day_order(c) == Some(*order)));
@@ -128,7 +132,7 @@ async fn calendar(v: &mut Vtop, sem: &str, history: &BTreeMap<String, Vec<Attend
         return Ok(None);
     }
     let group = groups.iter().find(|g| g.id == id).map(|g| g.name.clone()).unwrap_or_default();
-    Ok(Some(Calendar { semester_id: sem.to_string(), group, cells, at: chrono::Utc::now().timestamp() }))
+    Ok(Some(Calendar { semester_id: sem.to_string(), group, group_id: id, groups, cells, at: chrono::Utc::now().timestamp() }))
 }
 
 fn day_order(c: &CalendarCell) -> Option<i32> {
@@ -141,7 +145,15 @@ fn day_order(c: &CalendarCell) -> Option<i32> {
     named.or_else(|| chrono::NaiveDate::parse_from_str(&c.date, "%Y-%m-%d").ok().map(|d| d.weekday().number_from_monday() as i32))
 }
 
-pub async fn sync(v: &mut Vtop, old: Option<&Snapshot>, everything: bool, idle: bool, progress: &(dyn Fn(&str) + Sync)) -> Res<Snapshot> {
+/// What you chose in Settings, over what daVIT would work out.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Choices {
+    pub semester: Option<String>,
+    pub group: Option<String>,
+}
+
+pub async fn sync(v: &mut Vtop, old: Option<&Snapshot>, everything: bool, idle: bool, choices: &Choices, progress: &(dyn Fn(&str) + Sync)) -> Res<Snapshot> {
     let now = chrono::Utc::now().timestamp();
     // VTOP has long since dropped a session this idle, so don't spend a request finding out.
     if idle || !v.has_session() {
@@ -161,7 +173,8 @@ pub async fn sync(v: &mut Vtop, old: Option<&Snapshot>, everything: bool, idle: 
     progress("Fetching attendance");
     let mut read = BTreeMap::new();
     let last = old.map(|o| &o.feeds);
-    let known = last.filter(|f| now - f.current_at < 24 * HOUR).and_then(|f| semesters.iter().find(|s| s.id == f.current_id)).cloned();
+    let manual = choices.semester.as_ref().and_then(|id| semesters.iter().find(|s| &s.id == id)).cloned();
+    let known = manual.or_else(|| last.filter(|f| now - f.current_at < 24 * HOUR).and_then(|f| semesters.iter().find(|s| s.id == f.current_id)).cloned());
     let (semester, current_at) = match known {
         Some(s) => (s, last.map(|f| f.current_at).unwrap_or(now)),
         None => (current_semester(v, &semesters, &mut read).await?, now),
@@ -303,10 +316,11 @@ pub async fn sync(v: &mut Vtop, old: Option<&Snapshot>, everything: bool, idle: 
             s.feeds.watch_at = now;
         }
     }
-    let stale_calendar = s.calendar.as_ref().is_none_or(|c| c.semester_id != semester.id || now - c.at > 3 * 24 * HOUR);
+    let manual_group = choices.group.as_deref();
+    let stale_calendar = s.calendar.as_ref().is_none_or(|c| c.semester_id != semester.id || now - c.at > 3 * 24 * HOUR || manual_group.is_some_and(|g| g != c.group_id));
     if stale_calendar {
         progress("Fetching calendar");
-        if let Ok(Some(c)) = calendar(v, &semester.id, &s.history).await {
+        if let Ok(Some(c)) = calendar(v, &semester.id, &s.history, manual_group).await {
             s.calendar = Some(c);
         }
     }
@@ -332,52 +346,4 @@ pub async fn sync(v: &mut Vtop, old: Option<&Snapshot>, everything: bool, idle: 
         }
     }
     Ok(s)
-}
-
-fn few<T>(out: &mut Vec<(String, String)>, items: &[T], one: impl Fn(&T) -> (String, String), many: impl Fn(usize) -> (String, String)) {
-    if items.len() <= 3 {
-        out.extend(items.iter().map(one));
-    } else {
-        out.push(many(items.len()));
-    }
-}
-
-/// What a sync should tell you: nothing on a first sync, nor across a change of semester.
-pub fn alerts(old: Option<&Snapshot>, new: &Snapshot) -> Vec<(String, String)> {
-    let mut out = vec![];
-    let Some(old) = old else { return out };
-    if old.semester.id == new.semester.id && !old.marks.is_empty() {
-        let seen: Vec<String> = old.marks.iter().flat_map(|c| c.items.iter().filter(|i| i.scored.is_some()).map(move |i| format!("{}|{}", c.class_id, i.title))).collect();
-        let fresh: Vec<(String, String)> = new
-            .marks
-            .iter()
-            .flat_map(|c| c.items.iter().filter(|i| i.scored.is_some()).map(move |i| (c, i)))
-            .filter(|(c, i)| !seen.contains(&format!("{}|{}", c.class_id, i.title)))
-            .map(|(c, i)| (format!("New mark · {}", c.course_name), format!("{}: {}/{}", i.title, i.scored.unwrap_or(0.0), i.max.unwrap_or(0.0))))
-            .collect();
-        few(&mut out, &fresh, |x| x.clone(), |n| (format!("{n} new marks"), "Open Academics to see them.".to_string()));
-    }
-    if old.semester.id == new.semester.id {
-        let before: BTreeMap<String, &AttendanceRow> = old.attendance.iter().map(|r| (key(r), r)).collect();
-        for r in &new.attendance {
-            if let Some(p) = before.get(&key(r)) {
-                let (risk, was) = (4 * r.attended < 3 * r.total, 4 * p.attended < 3 * p.total);
-                if risk && !was {
-                    out.push((format!("{} is below 75%", r.course_name), format!("{}/{}. Attend the next {} to get back.", r.attended, r.total, 3 * r.total - 4 * r.attended)));
-                }
-            }
-        }
-    }
-    if old.feeds.watch_at > 0 {
-        if !old.feeds.circulars.is_empty() {
-            let fresh: Vec<&Circular> = new.feeds.circulars.iter().filter(|c| !old.feeds.circulars.iter().any(|o| o.id == c.id)).collect();
-            few(&mut out, &fresh, |c| ("New circular".to_string(), c.title.clone()), |n| (format!("{n} new circulars"), "Open Circulars to read them.".to_string()));
-        }
-        for w in &new.feeds.windows {
-            if w.open && old.feeds.windows.iter().any(|o| o.id == w.id && !o.open) {
-                out.push((format!("{} is open", w.title), "VTOP has opened it. Check the dates and apply there.".to_string()));
-            }
-        }
-    }
-    out
 }

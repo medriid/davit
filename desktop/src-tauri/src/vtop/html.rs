@@ -25,7 +25,7 @@ pub fn number(s: &str) -> Option<f64> {
 const BLOCK: &[&str] = &[
     "address", "article", "aside", "blockquote", "br", "center", "dd", "details", "div", "dl", "dt", "fieldset",
     "figcaption", "figure", "footer", "form", "h1", "h2", "h3", "h4", "h5", "h6", "header", "hr", "li", "main",
-    "nav", "ol", "option", "p", "pre", "section", "select", "summary", "table", "tbody", "td", "tfoot", "th",
+    "nav", "ol", "p", "pre", "section", "select", "summary", "table", "tbody", "td", "tfoot", "th",
     "thead", "tr", "ul",
 ];
 

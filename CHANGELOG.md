@@ -2,6 +2,13 @@
 
 Downloads are on the [releases page](https://github.com/medriid/davit/releases). daVIT updates itself after the first install.
 
+## 1.0.0 — 2026-11-03
+
+- **daVIT on your computer**: Windows, macOS and Linux, with everything the phone has: the map, FFCS, uploads with a scanner, hostel requests, friends' free time, search across every course, and all the alerts.
+- **Light on memory**: a 4 MB install that uses your system's own web view. Closing the window keeps it in the tray, so alerts and syncs carry on.
+- **Made to match**: the same Classic and Editorial looks, colours and mascot. It can't have widgets or GPS, so the tray icon shows your next class and classes export as a calendar file.
+- **Same promise**: your password stays in your computer's keychain, your data is encrypted, and nothing goes to VTOP until you've seen it and confirmed.
+
 ## 0.18.0 — 2026-11-03
 
 - **Read PDFs in the app**: View opens course materials, circulars and more right here, without filling your downloads. Save keeps a copy.

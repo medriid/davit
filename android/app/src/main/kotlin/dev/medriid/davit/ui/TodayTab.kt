@@ -132,7 +132,7 @@ internal fun TodayTab(
                         else -> null
                     },
                     if (plan.today.isEmpty()) "No classes today" else "${plan.done}/${plan.today.size} done",
-                    snapshot.calendar?.instructionalDaysLeft(now.toLocalDate())?.takeIf { it > 0 }?.let { "$it teaching days left" },
+                    snapshot.calendar?.instructionalDaysLeft(now.toLocalDate())?.takeIf { it > 0 }?.let { "$it teaching day${if (it == 1) "" else "s"} left" },
                 ).joinToString(" · "),
                 style = RisoType.small,
                 maxLines = 2,
