@@ -175,10 +175,10 @@ internal fun EditorialHome(snapshot: Snapshot, reminders: List<Reminder>, onOpen
             }
         }
         Spacer(Modifier.height(18.dp))
-        val first = snapshot.profile?.name?.substringBefore(' ')?.lowercase()?.replaceFirstChar { it.uppercase() }?.ifBlank { null }
+        val name = snapshot.profile?.name?.let(::titleCase)?.ifBlank { null }
         Reveal(0) {
             BasicText(
-                greeting(now.hour) + (first?.let { ",\n$it." } ?: "."),
+                greeting(now.hour) + (name?.let { ",\n$it." } ?: "."),
                 style = RisoType.display(44.sp).copy(color = inks.text),
             )
         }

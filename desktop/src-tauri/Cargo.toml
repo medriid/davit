@@ -1,6 +1,6 @@
 [package]
 name = "davit"
-version = "1.0.0"
+version = "1.0.1"
 description = "VTOP, without the waiting"
 edition = "2021"
 license = "Apache-2.0"

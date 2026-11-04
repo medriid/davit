@@ -82,7 +82,7 @@ internal fun SetupScreen(state: UiState, repo: Repo, onDone: () -> Unit) {
         }
 
         SettingsCard("Sync") {
-            ToggleRow("Sync in the background", "About every 6 hours while the app is closed, never between 1 and 6 am.", state.background) {
+            ToggleRow("Sync in the background", "At :15 and :45 while the app is closed, never between 1 and 6 am.", state.background) {
                 repo.setBackground(!state.background)
             }
             if (state.background && !unrestricted) {

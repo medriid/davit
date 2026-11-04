@@ -51,10 +51,16 @@ const Background = {
     api("set_background", { on }).catch(() => {});
   },
   apply: () => api("set_background", { on: Background.on() }).catch(() => {}),
-  /** Every 6 hours, never between 1 and 6 am. */
+  /** At x:15 and x:45, never between 1 and 6 am. Once a slot, and on waking if one went by asleep. */
+  tried: 0,
   due(snapshot) {
-    const hour = new Date().getHours();
-    return Background.on() && snapshot && (hour < 1 || hour >= 6) && Date.now() / 1000 - snapshot.syncedAt > 6 * 3600;
+    const now = new Date();
+    const hour = now.getHours();
+    if (!Background.on() || !snapshot || (hour >= 1 && hour < 6)) return false;
+    const slot = new Date(now).setMinutes(now.getMinutes() >= 45 ? 45 : now.getMinutes() >= 15 ? 15 : -15, 0, 0);
+    if (snapshot.syncedAt * 1000 >= slot || Background.tried >= slot) return false;
+    Background.tried = slot;
+    return true;
   },
 };
 
@@ -1129,7 +1135,7 @@ function screenSettings(s) {
     if (g === "look") return [Look.isEditorial() ? "Editorial" : "Classic", { system: "Follows the system", light: "Light", dark: "Dark" }[Look.theme()], Look.isEditorial() ? null : Look.custom(Look.palette()) ? "your own colours" : PAIRS.day[Look.palette().base].name].filter(Boolean).join(" · ");
     if (g === "yours") { const n = Object.keys(Names.all()).length; return `Display card, mascot, course names${n ? ` · ${n} renamed` : ""}`; }
     if (g === "alerts") return p.on ? alertSummary(p) : "Off";
-    if (g === "sync") return [Background.on() ? "Every 6 hours" : "Background sync off", s?.semester.name.split(" - ")[0]].filter(Boolean).join(" · ");
+    if (g === "sync") return [Background.on() ? "Every 30 minutes" : "Background sync off", s?.semester.name.split(" - ")[0]].filter(Boolean).join(" · ");
     if (g === "computer") return [localStore.get("lockHash", "") ? "App lock on" : null, "downloads, calendar file"].filter(Boolean).join(" · ");
     return `daVIT ${App.version}`;
   };
@@ -1199,7 +1205,7 @@ function syncSettings(s, redraw) {
     settingsCard("Sync",
       h("div", { style: { margin: "8px 0" } }, h("button.btn.solid.wide", { type: "button", onclick: async (e) => { e.target.disabled = true; e.target.textContent = "Syncing"; await sync(true); redraw(); } }, "Sync now")),
       timings.length ? [settingRow("Last sync", `${(timings.reduce((n, t) => n + t[1], 0) / 1000).toFixed(1)} s over ${timings.length} stages`, "Stages", () => { open = !open; stages.replaceChildren(...(open ? timings.map(([t, ms]) => h("div.row", { style: { padding: "1px 0" } }, h("div.small.grow", null, t), h("div.small.strong", null, `${ms} ms`))) : [])); }), stages] : null,
-      toggleRow("Sync in the background", `About every 6 hours while the window is closed, never between 1 and 6 am. Closing the window leaves daVIT in the tray.${localStore.get("lastBackground", "") ? ` Last: ${localStore.get("lastBackground", "")}.` : ""}`, Background.on(), () => { Background.set(!Background.on()); redraw(); }),
+      toggleRow("Sync in the background", `At :15 and :45 while the window is closed, never between 1 and 6 am. Closing the window leaves daVIT in the tray.${localStore.get("lastBackground", "") ? ` Last: ${localStore.get("lastBackground", "")}.` : ""}`, Background.on(), () => { Background.set(!Background.on()); redraw(); }),
       autostartRow(redraw)),
     s && (s.semesters.length > 1 || groups.length) ? settingsCard("Semester",
       s.semesters.slice(0, 4).map((x) => h("button.settingrow", { type: "button", role: "radio", "aria-checked": x.id === s.semester.id, disabled: x.id === s.semester.id, onclick: async (e) => { e.currentTarget.disabled = true; Choices.setSemester(x.id); toast("Reading that semester"); await sync(true); redraw(); } },

@@ -189,7 +189,7 @@ internal fun SettingsScreen(route: Route) {
                     else -> alertSummary(state.alertPrefs)
                 }
                 SettingsGroup.Sync -> listOfNotNull(
-                    if (state.background) "Every 6 hours" else "Background sync off",
+                    if (state.background) "Every 30 minutes" else "Background sync off",
                     snapshot?.semester?.name?.substringBefore(" - "),
                 ).joinToString(" · ")
                 SettingsGroup.Phone -> listOfNotNull(
@@ -412,7 +412,7 @@ private fun SyncSettings() {
         Hairline()
         ToggleRow(
             "Sync in the background",
-            "About every 6 hours while the app is closed, never between 1 and 6 am." + (state.lastBackground?.let { " Last: $it." } ?: ""),
+            "At :15 and :45 while the app is closed, never between 1 and 6 am." + (state.lastBackground?.let { " Last: $it." } ?: ""),
             state.background,
         ) { repo.setBackground(!state.background) }
         if (state.background && !BackgroundSync.unrestricted(context)) {

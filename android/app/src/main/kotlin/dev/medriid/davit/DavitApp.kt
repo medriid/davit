@@ -19,7 +19,7 @@ class DavitApp : Application() {
         Notifier.ensureChannels(this)
         // Debug builds can show generic demo data (src/debug); release builds have a no-op here.
         Demo.maybeShow(this, repo)
-        // Re-enqueue in case it was lost (KEEP leaves an existing schedule alone).
+        // Set the next sync again in case it was lost.
         repo.state.value.let { BackgroundSync.apply(this, it.signedIn && it.background) }
         // A download from before, and the daily check for a new release.
         AutoUpdate.start(this)

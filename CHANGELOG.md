@@ -2,6 +2,11 @@
 
 Downloads are on the [releases page](https://github.com/medriid/davit/releases). daVIT updates itself after the first install.
 
+## 1.0.1 — 2026-11-04
+
+- **Syncs every 30 minutes**: in the background at x:15 and x:45, on the phone and the computer, still never between 1 and 6 am.
+- **Your full name**: the greeting no longer stops at your first initial.
+
 ## 1.0.0 — 2026-11-03
 
 - **daVIT on your computer**: Windows, macOS and Linux, with everything the phone has: the map, FFCS, uploads with a scanner, hostel requests, friends' free time, search across every course, and all the alerts.

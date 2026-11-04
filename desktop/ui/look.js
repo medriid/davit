@@ -494,7 +494,7 @@ function displayCard(s, compact) {
   const b = Banner.get();
   const m = Mascot.mine();
   const name = s?.profile?.name ? titleCase(s.profile.name) : "";
-  const title = b.nameInBar && name ? name.split(" ")[0] : "daVIT";
+  const title = b.nameInBar && name ? name : "daVIT";
   const chip = (id) => (s && id !== "none" && id !== "attendance" ? Banner.text(id, s) : null);
   const chips = [chip(b.left), chip(b.right)].filter(Boolean);
   if (b.hidden) return h("div.row", { style: { marginBottom: "14px" } }, h("h1.grow", { style: { textTransform: "none" } }, title), mascotAvatar(m, 44, () => go("settings")));
@@ -650,7 +650,7 @@ function screenSetup(s, onDone) {
         settingsCard("Notifications",
           toggleRow("Let daVIT notify you", "Low attendance, new marks, what's due and exams. Nothing else.", p.on, () => { AlertPrefs.set({ ...p, on: !p.on }); draw(); })),
         settingsCard("Sync",
-          toggleRow("Sync in the background", "About every 6 hours while the window is closed, never between 1 and 6 am. daVIT stays in the tray.", Background.on(), () => { Background.set(!Background.on()); draw(); }),
+          toggleRow("Sync in the background", "At :15 and :45 while the window is closed, never between 1 and 6 am. daVIT stays in the tray.", Background.on(), () => { Background.set(!Background.on()); draw(); }),
           autostartRow(draw)),
         settingsCard("Before class",
           toggleRow("Remind me before class", "10 minutes before, with the room, for courses near the 75% line.", p.beforeClass > 0, () => { AlertPrefs.set({ ...p, beforeClass: p.beforeClass > 0 ? 0 : 10, beforeClassNearLine: true }); draw(); })),
@@ -829,7 +829,7 @@ function homeEditorial(s) {
   const week = weekOf(s, App.slots);
   const cal = calendarOf(s.calendar);
   const plan = planFor(week, now, cal);
-  const first = s.profile?.name ? titleCase(s.profile.name.split(" ")[0]) : null;
+  const name = s.profile?.name ? titleCase(s.profile.name) : null;
   const slot = plan.now || plan.next;
   const due = s.assignments.flatMap((c) => c.items.map((a) => ({ c, a, d: Dates.vtop(a.due) })))
     .filter((x) => !x.a.updated && x.d && x.d >= today && Dates.between(today, x.d) <= 7).sort((a, b) => a.d - b.d);
@@ -862,7 +862,7 @@ function homeEditorial(s) {
     h("div.row", null,
       h("div.grow", null, label(`${Dates.long(now)}`), h("div.small", { style: { color: "var(--muted)" } }, s.semester.name.replace(" - VLR", ""))),
       mascotAvatar(Mascot.mine(), 44, () => go("settings"))),
-    h("div.headline", null, `${greeting(now.getHours())}${first ? `, ${first}.` : "."}`),
+    h("div.headline", null, `${greeting(now.getHours())}${name ? `, ${name}.` : "."}`),
     h("hr.firm"),
     editorialPicture(s, () => go("attendance")),
     h("div.tiles", null,

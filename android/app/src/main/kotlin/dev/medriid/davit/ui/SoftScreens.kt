@@ -98,8 +98,8 @@ internal fun SoftHome(snapshot: Snapshot, reminders: List<Reminder>, onOpen: (Ro
             Column(Modifier.weight(1f)) {
                 InkText("Welcome back,", style = RisoType.small)
                 BasicText(
-                    snapshot.profile?.name?.substringBefore(' ')?.lowercase()?.replaceFirstChar { it.uppercase() }?.ifBlank { null } ?: "there",
-                    style = RisoType.display(24.sp).copy(color = inks.text, fontWeight = FontWeight.Normal), maxLines = 1,
+                    snapshot.profile?.name?.let(::titleCase)?.ifBlank { null } ?: "there",
+                    style = RisoType.display(24.sp).copy(color = inks.text, fontWeight = FontWeight.Normal), maxLines = 2,
                 )
             }
             CircleButton(RisoIcon.More, "More from VTOP") { onOpen(Route.Campus) }
